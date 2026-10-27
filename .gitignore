@@ -1,0 +1,11 @@
+# Project place file
+/Full game pipeline.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+
+IslandsMachines/
+RobloxPets/

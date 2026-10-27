@@ -1,0 +1,50 @@
+{
+  "name": "incremental",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
+      }
+    },
+
+    "ServerScriptService": {
+      "Initialize": {
+        "$path": "src/server/initialize"
+      },
+      "Services": {
+        "$path": "src/server/services"
+      },
+      "Libraries": {
+        "$path": "src/server/libraries"
+      }
+    },
+
+    "ServerStorage": {
+      "ServerPackages": {
+        "$path": "ServerPackages"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Initialize": {
+          "$path": "src/client/initialize"
+        },
+        "Libraries": {
+          "$path": "src/client/libraries"
+        },
+        "Controllers": {
+          "$path": "src/client/controllers"
+        },
+        "Services": {
+          "$path": "src/client/services"
+        }
+      }
+    }
+  }
+}

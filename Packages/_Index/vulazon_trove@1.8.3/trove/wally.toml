@@ -1,0 +1,8 @@
+[package]
+name = "vulazon/trove"
+description = "Fork of Trove"
+version = "1.8.3"
+license = "MIT"
+authors = ["Stephen Leitnick"]
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"

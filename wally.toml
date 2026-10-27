@@ -1,0 +1,12 @@
+[package]
+name = "oscar/full-game-pipeline"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+Trove = "vulazon/trove@1.8.0"
+Signal = "sleitnick/signal@^1"
+
+[server-dependencies]
+ProfileStore = "sekuriyo-lotus/profilestore@1.0.4"
