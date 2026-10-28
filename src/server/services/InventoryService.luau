@@ -97,6 +97,27 @@ function InventoryService.takeHeld(player: Player, itemId: string, max: number):
 	return taken
 end
 
+-- Takes up to `max` of `itemId` from anywhere in the inventory, backpack first so the hand
+-- is the last thing emptied. Returns how many it took.
+function InventoryService.take(player: Player, itemId: string, max: number): number
+	local state = states[player]
+	if not state then
+		return 0
+	end
+	local taken = 0
+	for index = Inventory.SLOT_COUNT, 1, -1 do
+		if taken >= max then
+			break
+		end
+		taken += Inventory.take(state.slots, index, itemId, max - taken)
+	end
+	if taken > 0 then
+		sync(player, state)
+		refreshHeld(player, state)
+	end
+	return taken
+end
+
 function InventoryService.canGive(player: Player, itemId: string, count: number): boolean
 	local state = states[player]
 	return state ~= nil and Inventory.canAdd(state.slots, itemId, count)

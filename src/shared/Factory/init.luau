@@ -43,6 +43,13 @@ function Factory.get(itemId: string): Def?
 	return Blocks[itemId]
 end
 
+-- Whether the block has a panel of controls (UIController/MachinePanel): every machine,
+-- and the routers with a setting (split and filter conveyors).
+function Factory.hasControls(itemId: string): boolean
+	local def = Blocks[itemId]
+	return def ~= nil and (def.kind == "Machine" or def.route == "Split" or def.route == "Filter")
+end
+
 -- Whether a dropped item can land on the block's belt: a conveyor or router's lanes, or a
 -- machine's input end.
 function Factory.hasBelt(itemId: string): boolean

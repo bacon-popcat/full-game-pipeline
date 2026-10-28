@@ -29,6 +29,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Build = require(ReplicatedStorage.Shared.Build)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
+local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
 local Machine = require(ServerScriptService.Libraries.Machine)
@@ -1004,6 +1005,28 @@ local function ready(player: Player): boolean
 	return true
 end
 
+-- Sends `itemId` left at a filter conveyor, or stops sending it, up to FILTER_MAX items.
+local function toggleFilter(block: Block, itemId: string)
+	local count = 0
+	for _ in block.filter do
+		count += 1
+	end
+	if block.filter[itemId] then
+		block.filter[itemId] = nil
+	elseif count < FILTER_MAX then
+		block.filter[itemId] = true
+	end
+end
+
+-- Moves a machine's finished items into the player's inventory, while there is room.
+local function collect(player: Player, machine: Machine.State)
+	local itemId = Machine.peekOutput(machine)
+	while itemId and InventoryService.give(player, itemId, 1) == 0 do
+		Machine.popOutput(machine)
+		itemId = Machine.peekOutput(machine)
+	end
+end
+
 -- Feeds the held item into a machine or a filter.
 local function use(player: Player, block: Block)
 	local held = InventoryService.getHeldItemId(player)
@@ -1011,15 +1034,7 @@ local function use(player: Player, block: Block)
 		return
 	end
 	if block.def.route == "Filter" then
-		local count = 0
-		for _ in block.filter do
-			count += 1
-		end
-		if block.filter[held] then
-			block.filter[held] = nil
-		elseif count < FILTER_MAX then
-			block.filter[held] = true
-		end
+		toggleFilter(block, held)
 		refreshStatus(block)
 		return
 	end
@@ -1039,11 +1054,7 @@ local function take(player: Player, block: Block)
 	end
 	local machine = block.machine
 	if machine then
-		local itemId = Machine.peekOutput(machine)
-		while itemId and InventoryService.give(player, itemId, 1) == 0 do
-			Machine.popOutput(machine)
-			itemId = Machine.peekOutput(machine)
-		end
+		collect(player, machine)
 	elseif block.def.route == "Split" then
 		block.powered = not block.powered
 	elseif block.def.route == "Filter" then
@@ -1062,22 +1073,54 @@ local function take(player: Player, block: Block)
 	refreshStatus(block)
 end
 
-local function onInteract(player: Player, target: unknown, action: unknown)
+-- The machine panel (UIController/MachinePanel): what its buttons and item cells ask for,
+-- whatever the player is holding.
+local function control(player: Player, block: Block, action: string, itemId: string?)
+	local machine = block.machine
+	local isSplit, isFilter = block.def.route == "Split", block.def.route == "Filter"
+	if action == "Load" and machine and itemId and Factory.takesByHand(block.itemId, itemId) then
+		-- From anywhere in the inventory, not just the hand.
+		local taken = InventoryService.take(player, itemId, Machine.room(machine, itemId))
+		Machine.insert(machine, itemId, taken)
+	elseif action == "Collect" and machine then
+		collect(player, machine)
+	elseif action == "TakeBack" and machine then
+		for inputId, count in Machine.takeInputs(machine) do
+			Machine.putBack(machine, inputId, InventoryService.give(player, inputId, count))
+		end
+	elseif action == "Switch" and isSplit then
+		block.powered = not block.powered
+	elseif action == "Filter" and itemId and isFilter then
+		toggleFilter(block, itemId)
+	elseif action == "ClearFilter" and isFilter then
+		table.clear(block.filter)
+	end
+	refreshStatus(block)
+end
+
+local PANEL_ACTIONS = { Load = true, Collect = true, TakeBack = true, Switch = true, Filter = true, ClearFilter = true }
+
+local function onInteract(player: Player, target: unknown, action: unknown, itemId: unknown)
 	if typeof(target) ~= "Instance" or not target:IsA("Model") or target.Parent ~= placed then
 		return
 	end
 	local block = blocks[target]
 	local root = rootOf(player)
-	if not block or not root or (action ~= "Use" and action ~= "Take") or not ready(player) then
+	local known = action == "Use" or action == "Take" or (typeof(action) == "string" and PANEL_ACTIONS[action])
+	if not block or not root or not known or not ready(player) then
 		return
 	end
 	if not Build.inReach(root.Position, block.origin, block.footprint) then
 		return
 	end
+	-- An item id must name a real item; anything else is a malformed request.
+	local item = if typeof(itemId) == "string" and pcall(Inventory.getItem, itemId) then itemId else nil
 	if action == "Use" then
 		use(player, block)
-	else
+	elseif action == "Take" then
 		take(player, block)
+	elseif typeof(action) == "string" then
+		control(player, block, action, item)
 	end
 end
 

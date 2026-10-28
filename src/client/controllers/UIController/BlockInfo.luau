@@ -1,13 +1,13 @@
 -- BlockInfo: the panel saying what the aimed-at factory block or world node is doing -- a
 -- machine's state, fuel, contents and output, a router's setting, a node's use -- and what
 -- a press would do with what is in hand. It only reads: the attributes FactoryService
--- publishes on placed blocks (Status, Fuel, Contents, Output, Fluid, Progress, Sold,
--- Powered, Filter) and the hints in Shared/World.
+-- publishes on placed blocks, worded by BlockText, and the hints in Shared/World.
 --
 -- The panel is authored in StarterGui.HUD.BlockInfo, sized by its Content frame (the
 -- corner brackets stay outside it, since they size to the panel), and its rows are clones
 -- of Assets.UI.BlockInfo.Row. It follows the cursor with a mouse; with touch or a gamepad it
--- sits at the top of the screen, clear of thumbs and the hotbar.
+-- sits at the top of the screen, clear of thumbs and the hotbar. It hides while the
+-- machine panel is open, which shows the same block in full.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,10 +18,13 @@ local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local World = require(ReplicatedStorage.Shared.World)
 
-local Aim = require(Players.LocalPlayer.PlayerScripts.Libraries.Aim)
-local InventoryClient = require(Players.LocalPlayer.PlayerScripts.Libraries.InventoryClient)
+local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local Aim = require(Libraries.Aim)
+local BlockText = require(Libraries.BlockText)
+local Controls = require(Libraries.Controls)
+local InventoryClient = require(Libraries.InventoryClient)
 
-type Row = { key: string, value: string }
+type Row = BlockText.Row
 type Info = { title: string, status: string?, working: boolean, rows: { Row }, hint: string }
 
 -- Studs the panel looks; as far as the hand reaches is plenty, but a little more lets a
@@ -29,7 +32,6 @@ type Info = { title: string, status: string?, working: boolean, rows: { Row }, h
 local LOOK_DISTANCE = 60
 -- Seconds between content refreshes; position follows the cursor every frame.
 local REFRESH_EVERY = 0.1
-local WORKING = { Working = true, Selling = true, Feeding = true }
 -- Where the panel sits when there is no cursor to follow.
 local DOCKED_POSITION = UDim2.new(0.5, 0, 0, 64)
 
@@ -39,26 +41,7 @@ local player = Players.LocalPlayer
 local raycastParams = RaycastParams.new()
 raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 
-local function itemName(itemId: string): string
-	local ok, item = pcall(Inventory.getItem, itemId)
-	return if ok then item.name else itemId
-end
-
--- "IronOre:2,Coal:1" -> "2 Iron Ore · 1 Coal", with fluids left as named.
-local function describe(encoded: unknown, names: (string) -> string): string?
-	if typeof(encoded) ~= "string" or encoded == "" then
-		return nil
-	end
-	local parts = {}
-	for id, count in string.gmatch(encoded, "([^:,]+):(%d+)") do
-		table.insert(parts, `{count} {names(id)}`)
-	end
-	return table.concat(parts, " · ")
-end
-
-local function fluidName(fluid: string): string
-	return fluid
-end
+local itemName = BlockText.itemName
 
 local function heldItem(): Inventory.Item?
 	local selected = InventoryClient.getSelected()
@@ -68,51 +51,14 @@ end
 
 local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	local held = heldItem()
-	local rows: { Row } = {}
-	local status = model:GetAttribute("Status")
+	local status, working = BlockText.status(model, def)
 	local info: Info = {
 		title = itemName(itemId),
-		status = if typeof(status) == "string" then status else nil,
-		working = typeof(status) == "string" and WORKING[status] == true,
-		rows = rows,
+		status = status,
+		working = working,
+		rows = BlockText.rows(model, def, true),
 		hint = Inventory.getItem(itemId).description or "",
 	}
-	local function add(key: string, value: string?)
-		if value and value ~= "" then
-			table.insert(rows, { key = key, value = value })
-		end
-	end
-
-	if def.kind == "Machine" then
-		if def.fuel then
-			local fuel = model:GetAttribute("Fuel")
-			add("Fuel", if typeof(fuel) == "number" and fuel > 0 then `{fuel}s` else "Empty")
-		end
-		add("Holding", describe(model:GetAttribute("Contents"), itemName))
-		add("Fluid", describe(model:GetAttribute("Fluid"), fluidName))
-		add("Output", describe(model:GetAttribute("Output"), itemName))
-		local progress = model:GetAttribute("Progress")
-		if typeof(progress) == "number" and progress > 0 then
-			add("Progress", `{math.round(progress * 100)}%`)
-		end
-		local sold = model:GetAttribute("Sold")
-		if def.sells and typeof(sold) == "number" then
-			add("Sold", tostring(sold))
-		end
-	elseif def.route == "Split" then
-		local powered = model:GetAttribute("Powered") == true
-		info.status = if powered then "Powered: to the side" else "Unpowered: straight on"
-		info.working = powered
-	elseif def.route == "Filter" then
-		local filter = model:GetAttribute("Filter")
-		local names = {}
-		if typeof(filter) == "string" then
-			for id in string.gmatch(filter, "[^,]+") do
-				table.insert(names, itemName(id))
-			end
-		end
-		add("Sends left", if #names > 0 then table.concat(names, ", ") else "Nothing yet")
-	end
 
 	local isConveyor = def.kind == "Conveyor"
 	local hasLanes = def.lanes ~= nil
@@ -126,7 +72,7 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	elseif held and held.kind == "Resource" and onInput then
 		info.hint = `It doesn't take {held.name}.`
 	elseif not held then
-		if def.kind == "Machine" and describe(model:GetAttribute("Output"), itemName) then
+		if def.kind == "Machine" and BlockText.hasOutput(model) then
 			info.hint = "Click to collect the output."
 		elseif def.route == "Split" then
 			info.hint = "Click to switch it."
@@ -135,6 +81,10 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 		elseif isConveyor then
 			info.hint = "Click to take the items on it."
 		end
+	end
+	if Factory.hasControls(itemId) then
+		local open = Controls.interactHint(UserInputService.PreferredInput)
+		info.hint = if info.hint == "" then open else `{info.hint}\n{open}`
 	end
 	return info
 end
@@ -234,12 +184,14 @@ function BlockInfo.init(hud: ScreenGui)
 		end
 	end
 
+	local machinePanel = hud:FindFirstChild("MachinePanel")
 	local elapsed = REFRESH_EVERY
 	RunService.RenderStepped:Connect(function(dt)
 		elapsed += dt
 		if elapsed >= REFRESH_EVERY then
 			elapsed = 0
-			local info = target()
+			local covered = machinePanel ~= nil and machinePanel:IsA("GuiObject") and machinePanel.Visible
+			local info = if covered then nil else target()
 			panel.Visible = info ~= nil
 			if info then
 				title.Text = `[ {info.title} ]`

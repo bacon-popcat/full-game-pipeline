@@ -64,6 +64,23 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
 - Drops collide, so `CanQuery` can't hide them: placement (`Build.isFree`), the aim
   (`Aim.cast`) and open-end checks skip `Workspace.Drops` by hand (`Build.isLoose`).
 
+## Machine panel
+
+**E / D-pad up** (an **Open** button on touch) while aiming at a machine, split conveyor or
+filter conveyor within reach opens its panel (`UIController/MachinePanel`, which takes the
+backpack's place on screen). It shows the same status as the hover panel (both word it with
+`libraries/BlockText`) plus a progress bar, and:
+
+| Block | Buttons | Item grid |
+|---|---|---|
+| Machine | Collect (all output), Take back (loaded items not used yet) | What it takes from anywhere in your inventory; click one to put in as many as fit |
+| Split Conveyor | Send to the side / straight on | — |
+| Filter Conveyor | Clear filter | Every item you carry; click to send it left, or not (up to 4) |
+
+Each press is an `Interact` request (`Load`, `Collect`, `TakeBack`, `Switch`, `Filter`,
+`ClearFilter`) the server checks for reach. The panel closes on E again, its X, gamepad B,
+walking out of reach, or the block being picked up.
+
 ## What the hand does
 
 | Held | Aimed at | Press does |
@@ -86,6 +103,7 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
 | `ReplicatedStorage.Assets.Items` | One Model per resource item (from `IslandsMachines/build/assets.py`) |
 | `ReplicatedStorage.Assets.World` | One Model per node type and animal, each with a hitbox `PrimaryPart` |
 | `StarterGui.HUD.BlockInfo` | The hover panel: brackets around a `Content` frame (Title, Status, Rows, Hint) |
+| `StarterGui.HUD.MachinePanel` | The machine panel: the backpack's shell (Header with Title and Close), `Body.Info` (Content with Status, Progress.Fill and Rows; Actions with Collect, TakeBack, Switch, ClearFilter) and `Body.Load` (Heading, Hint, Grid, Empty). Its cells clone `Assets.UI.Inventory.Slot`, its rows `Assets.UI.BlockInfo.Row` |
 | `ReplicatedStorage.Assets.UI.BlockInfo.Row` | One Key/Value row of that panel |
 
 The `Interact` and `FactorySync` RemoteEvents are declared in `default.project.json`.

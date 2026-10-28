@@ -190,6 +190,23 @@ function Machine.takeOutputs(state: State): { [string]: number }
 	return counts
 end
 
+-- Everything loaded and not used yet (ingredients, unlit fuel, feed, saplings, goods
+-- waiting to sell), removed from the machine. The job in progress and the fuel burning
+-- now stay.
+function Machine.takeInputs(state: State): { [string]: number }
+	local counts = table.clone(state.inputs)
+	table.clear(state.inputs)
+	return counts
+end
+
+-- Puts inputs taken out by `takeInputs` back, whatever the room, for what a player's full
+-- inventory couldn't hold.
+function Machine.putBack(state: State, itemId: string, count: number)
+	if count > 0 then
+		addCounts(state.inputs, itemId, count)
+	end
+end
+
 -- Everything a player gets back when they pick the machine up: inputs and outputs. A job
 -- in progress and fluids are lost, as in Islands.
 function Machine.drain(state: State): { [string]: number }

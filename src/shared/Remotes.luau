@@ -26,9 +26,12 @@ return {
 	-- client -> server: (model: Model) a block in Workspace.Placed, to pick up with the
 	-- Hammer or break with the tool its item names
 	PickUpBlock = get("PickUpBlock"),
-	-- client -> server: (target: Model, action: "Use" | "Take") a placed factory block or a
-	-- world node. "Use" applies the held item (feed a machine, set a filter, mine a rock);
-	-- "Take" is an empty hand (collect output, pick berries, switch a split conveyor).
+	-- client -> server: (target: Model, action: string, itemId: string?) a placed factory
+	-- block or a world node. "Use" applies the held item (feed a machine, set a filter, mine
+	-- a rock); "Take" is an empty hand (collect output, pick berries, switch a split
+	-- conveyor). The machine panel sends the rest, whatever is held: "Load" (itemId, from
+	-- anywhere in the inventory), "Collect", "TakeBack", "Switch", "Filter" (itemId) and
+	-- "ClearFilter".
 	Interact = get("Interact"),
 	-- server -> client: (update: { t: number, lanes: { [string]: { Lane.Item } } }) the items
 	-- on every lane that gained or lost one, keyed "<BlockId>/<lane index>", as of server

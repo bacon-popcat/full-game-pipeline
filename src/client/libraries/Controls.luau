@@ -10,6 +10,9 @@ Controls.BACK = { Enum.KeyCode.ButtonB }
 Controls.ROTATE = { Enum.KeyCode.R, Enum.KeyCode.ButtonX }
 -- Drops one of the held item into the world (or onto the conveyor aimed at).
 Controls.DROP = { Enum.KeyCode.Q, Enum.KeyCode.Backspace, Enum.KeyCode.DPadDown }
+-- Opens (and closes) the panel of the machine or router aimed at. Touch gets an on-screen
+-- button instead, shown while one is aimed at.
+Controls.INTERACT = { Enum.KeyCode.E, Enum.KeyCode.DPadUp }
 Controls.HOTBAR_PREVIOUS = { Enum.KeyCode.ButtonL1 }
 Controls.HOTBAR_NEXT = { Enum.KeyCode.ButtonR1 }
 -- Key i selects hotbar slot i.
@@ -37,9 +40,20 @@ local HINTS: { [Enum.PreferredInput]: string } = {
 		.. `{key("LB RB")} hold  ·  {key("X")} rotate  ·  {key("D-pad down")} drop  ·  {key("Y")} close`,
 }
 
+local INTERACT_HINTS: { [Enum.PreferredInput]: string } = {
+	[Enum.PreferredInput.KeyboardAndMouse] = "Press E to open its controls.",
+	[Enum.PreferredInput.Touch] = "Tap Open to see its controls.",
+	[Enum.PreferredInput.Gamepad] = "Press D-pad up to open its controls.",
+}
+
 -- Rich text describing the backpack controls for `input`.
 function Controls.hint(input: Enum.PreferredInput): string
 	return HINTS[input] or HINTS[Enum.PreferredInput.KeyboardAndMouse]
+end
+
+-- How to open the panel of the machine aimed at, for `input`.
+function Controls.interactHint(input: Enum.PreferredInput): string
+	return INTERACT_HINTS[input] or INTERACT_HINTS[Enum.PreferredInput.KeyboardAndMouse]
 end
 
 return Controls
