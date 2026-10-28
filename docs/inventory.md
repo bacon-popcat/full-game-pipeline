@@ -35,16 +35,30 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 |---|---|
 | `StarterGui.HUD` | `Hotbar`, `Backpack` window, `DragGhost`, `ItemName`, `SideButtons.Backpack` |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage` |
-| `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id: six cubes plus copies of the 53 `Workspace.IslandsMachines` models |
+| `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): six cubes plus copies of the 53 `Workspace.IslandsMachines` models |
 | `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe`, `Axe` Tools |
 
 The RemoteEvents are the exception: they are declared in `default.project.json`.
+
+## Block templates
+
+A block template's `PrimaryPart` is its hitbox, and its centre is the template's only pivot.
+The hitbox is a box of whole 3-stud cells: its size is the footprint, and placing the block
+fills the placement's cells with it. A cube is its own hitbox. A machine has an invisible,
+queryable, non-colliding part named `Hitbox` around its art. The art may poke out of the
+hitbox by up to 0.15 studs, which `Build`'s overlap margin allows for.
+
+For conveyors to connect, a machine's conveyor runs down the middle of a column of cells,
+and a conveyor end that meets a neighbour sits on a hitbox face. The Islands pipeline builds
+the hitboxes and the copies in `Assets.Blocks` with `IslandsMachines/build/studio_blocks.luau`.
+That folder is outside git, and its README covers the rules.
 
 ## Adding an item
 
 1. Add it to `src/shared/Inventory/Items.luau`.
 2. Put its art in `Assets.Blocks` (blocks and machines) or `Assets.Tools` (a Tool), named
-   exactly the item id. Footprints are measured from the model, so no size is entered.
+   exactly the item id. A block also needs its hitbox `PrimaryPart` (above). The footprint
+   comes from the hitbox, so no size is entered.
 
 ## Not built yet
 

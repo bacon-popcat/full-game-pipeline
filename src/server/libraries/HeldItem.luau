@@ -19,7 +19,7 @@ local HELD_BLOCK_GRIP = CFrame.new(0, 0, -0.5)
 
 local HeldItem = {}
 
-local function blockTool(item: Inventory.Item, template: Model): Tool
+local function blockTool(item: Inventory.Item, copy: Model): Tool
 	local tool = Instance.new("Tool")
 	tool.Name = item.name
 	tool.RequiresHandle = true
@@ -34,7 +34,6 @@ local function blockTool(item: Inventory.Item, template: Model): Tool
 	handle.CFrame = CFrame.new()
 	handle.Parent = tool
 
-	local copy = template:Clone()
 	local _, size = copy:GetBoundingBox()
 	copy:ScaleTo(copy:GetScale() * HELD_BLOCK_SIZE / math.max(size.X, size.Y, size.Z))
 	local box = copy:GetBoundingBox()
@@ -67,11 +66,11 @@ function HeldItem.create(itemId: string): Tool?
 		end
 		tool = template:Clone()
 	else
-		local template = Build.getTemplate(itemId)
-		if not template then
+		local art = Build.copyArt(itemId)
+		if not art then
 			return nil
 		end
-		tool = blockTool(item, template)
+		tool = blockTool(item, art)
 	end
 
 	for _, part in tool:GetDescendants() do

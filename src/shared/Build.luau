@@ -2,28 +2,30 @@
 -- Build: the placement grid, shared so the client's ghost and the server's check agree.
 --
 -- The world is cut into GRID-stud cells from the world origin (the baseplate's top is
--- Y = 0). A placeable occupies a footprint of whole cells -- its template's bounding box
--- rounded up -- sits on the floor of its origin (minimum) cell, and turns in quarter
--- steps about Y. A placement is legal when it is within REACH of the placer and nothing
--- queryable overlaps its box. That one geometric test covers placed blocks, world props
--- and characters alike, so there is no occupancy map to fall out of sync with the world.
+-- Y = 0). A placeable occupies a footprint of whole cells, sits on the floor of its
+-- origin (minimum) cell, and turns in quarter steps about Y. A placement is legal when it
+-- is within REACH of the placer and nothing queryable overlaps its box. That one
+-- geometric test covers placed blocks, world props and characters alike, so there is no
+-- occupancy map to fall out of sync with the world.
 --
--- Templates live in ReplicatedStorage.Assets.Blocks, named by item id. Their footprints
--- are measured once and cached.
+-- Templates live in ReplicatedStorage.Assets.Blocks, named by item id. A template's
+-- PrimaryPart is its hitbox: a box of whole cells whose centre is the template's pivot,
+-- so its size is the footprint and placing it fills the placement's box. A machine's
+-- hitbox is an invisible part named Hitbox around its art, which may poke past it by up
+-- to 0.15 studs (docs/inventory.md); a plain cube is its own hitbox.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 type Measure = {
 	footprint: Vector3,
-	-- The template's pivot relative to the bottom-centre of its bounding box.
+	-- The template's pivot relative to its hitbox (identity unless someone moved it).
 	pivotOffset: CFrame,
 }
 
 local GRID = 3
--- Studs a model may poke past a cell edge and still count as fitting the cell.
-local FIT_TOLERANCE = 0.15
--- Shrinks overlap boxes so blocks that only touch faces don't count as overlapping.
-local TOUCH_MARGIN = 0.1
+-- Shrinks overlap boxes so blocks that only touch faces, or whose art pokes past its
+-- hitbox by the 0.15 studs allowed, don't count as overlapping.
+local TOUCH_MARGIN = 0.2
 -- Cells from the origin a placement may name; keeps untrusted cells to sane numbers.
 local MAX_CELL = 10000
 
@@ -45,28 +47,47 @@ function Build.getTemplate(itemId: string): Model?
 	return nil
 end
 
-local function cells(studs: number): number
-	return math.max(1, math.ceil((studs - FIT_TOLERANCE) / GRID))
-end
-
 local function measure(itemId: string): Measure?
 	local cached = measures[itemId]
 	if cached then
 		return cached
 	end
 	local template = Build.getTemplate(itemId)
-	if not template then
-		warn(`Build: no template for "{itemId}" in ReplicatedStorage.Assets.Blocks`)
+	local hitbox = if template then template.PrimaryPart else nil
+	if not template or not hitbox then
+		warn(`Build: "{itemId}" needs a template with a PrimaryPart hitbox in ReplicatedStorage.Assets.Blocks`)
 		return nil
 	end
-	local box, size = template:GetBoundingBox()
-	local bottom = box * CFrame.new(0, -size.Y / 2, 0)
+	local cells = hitbox.Size / GRID
+	local footprint = Vector3.new(math.round(cells.X), math.round(cells.Y), math.round(cells.Z))
+	if (cells - footprint).Magnitude > 0.01 or math.min(footprint.X, footprint.Y, footprint.Z) < 1 then
+		warn(`Build: "{itemId}"'s hitbox is {hitbox.Size}, not whole {GRID}-stud cells`)
+		return nil
+	end
 	local result = {
-		footprint = Vector3.new(cells(size.X), cells(size.Y), cells(size.Z)),
-		pivotOffset = bottom:ToObjectSpace(template:GetPivot()),
+		footprint = footprint,
+		pivotOffset = hitbox.CFrame:ToObjectSpace(template:GetPivot()),
 	}
 	measures[itemId] = result
 	return result
+end
+
+-- A copy of an item's art for display (icons, the hand): its template without the
+-- invisible Hitbox, so only what can be seen is sized and framed. The pivot is kept.
+function Build.copyArt(itemId: string): Model?
+	local template = Build.getTemplate(itemId)
+	if not template then
+		return nil
+	end
+	local copy = template:Clone()
+	local hitbox = copy:FindFirstChild("Hitbox")
+	if hitbox then
+		local pivot = copy:GetPivot()
+		copy.PrimaryPart = nil
+		copy.WorldPivot = pivot
+		hitbox:Destroy()
+	end
+	return copy
 end
 
 -- For validating an untrusted cell: whole numbers within MAX_CELL of the origin.
@@ -123,16 +144,16 @@ function Build.box(origin: Vector3, footprint: Vector3): (CFrame, Vector3)
 	return CFrame.new(origin * GRID + size / 2), size - Vector3.one * (TOUCH_MARGIN * 2)
 end
 
--- Where a template's pivot goes for a placement.
+-- Where a template's pivot goes for a placement: its hitbox fills the placement's box,
+-- turned `rotation` quarter turns about Y.
 function Build.pivotFor(itemId: string, origin: Vector3, rotation: number): CFrame?
 	local measured = measure(itemId)
 	local footprint = Build.footprint(itemId, rotation)
 	if not measured or not footprint then
 		return nil
 	end
-	local size = footprint * GRID
-	local bottomCentre = origin * GRID + Vector3.new(size.X / 2, 0, size.Z / 2)
-	return CFrame.new(bottomCentre) * CFrame.Angles(0, rotation * math.pi / 2, 0) * measured.pivotOffset
+	local centre = Build.box(origin, footprint)
+	return CFrame.new(centre.Position) * CFrame.Angles(0, rotation * math.pi / 2, 0) * measured.pivotOffset
 end
 
 function Build.inReach(from: Vector3, origin: Vector3, footprint: Vector3): boolean

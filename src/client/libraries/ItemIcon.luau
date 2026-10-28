@@ -25,8 +25,7 @@ local drawn: { [ViewportFrame]: Drawn } = {}
 
 local function displayModel(itemId: string): Model?
 	if Inventory.isPlaceable(Inventory.getItem(itemId)) then
-		local template = Build.getTemplate(itemId)
-		return if template then template:Clone() else nil
+		return Build.copyArt(itemId)
 	end
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local tools = if assets then assets:FindFirstChild("Tools") else nil
