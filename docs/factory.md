@@ -35,6 +35,10 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   leaves it and slide items with the same Lane rule in between.
 - **Machines never lose items.** A job starts only when its output fits; a full machine stops,
   its input belt backs up, and so does everything behind it.
+- **Items go into a machine at its port.** A machine with belt art on its input face rides
+  items along that belt (a lane `Factory.lanes` adds, as long as its hitbox's `PortDepth*`)
+  and takes the front one where the belt meets the port. A face with no belt art takes items
+  right at the face.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or
@@ -47,6 +51,9 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   conveyor or router while holding a resource does the same; clicking a machine feeds it.
 - Drops are real physics in `Workspace.Drops`. Walking into one picks it up (after a 1 s
   grace), and they despawn after 5 minutes.
+- Walking over a belt picks up the items under your feet (feet on the belt, not the floor
+  beside it). An item you dropped onto a belt can't be walked back up by you for 1.5 s;
+  anyone else can take it at once.
 - A drop over any block's belt (in the belt's cell, at belt height or resting on art above
   it) joins that lane there if there is room. One over a machine's input end goes in if the
   machine takes it. `FactoryService` registers both rules, and where an aimed drop appears,

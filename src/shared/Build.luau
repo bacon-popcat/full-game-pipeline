@@ -4,9 +4,11 @@
 -- The world is cut into GRID-stud cells from the world origin (the baseplate's top is
 -- Y = 0). A placeable occupies a footprint of whole cells, sits on the floor of its
 -- origin (minimum) cell, and turns in quarter steps about Y. A placement is legal when it
--- is within REACH of the placer and nothing queryable overlaps its box. That one
--- geometric test covers placed blocks, world props and characters alike, so there is no
--- occupancy map to fall out of sync with the world.
+-- is within REACH of the placer, nothing queryable but characters overlaps its box, and
+-- the block's own parts don't clip a character. Those geometric tests cover placed blocks,
+-- world props and characters alike, so there is no occupancy map to fall out of sync with
+-- the world. Characters are tested against the art, not the box, so a player can stand in
+-- the empty corner of a machine's cells, or on a conveyor's floor cell beside its belt.
 --
 -- Templates live in ReplicatedStorage.Assets.Blocks, named by item id. A template's
 -- PrimaryPart is its hitbox: a box of whole cells, so its size is the footprint and
@@ -15,6 +17,7 @@
 -- invisible part named Hitbox around its art, which may poke past it by up to 0.15 studs
 -- (docs/inventory.md); a plain cube is its own hitbox.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 type Measure = {
@@ -27,6 +30,9 @@ local GRID = 3
 -- Shrinks overlap boxes so blocks that only touch faces, or whose art pokes past its
 -- hitbox by the 0.15 studs allowed, don't count as overlapping.
 local TOUCH_MARGIN = 0.2
+-- Studs each art part shrinks by on every side before testing it against characters, so a
+-- character merely brushing a block's surface doesn't count as clipping it.
+local CLIP_MARGIN = 0.1
 -- Cells from the origin a placement may name; keeps untrusted cells to sane numbers.
 local MAX_CELL = 10000
 
@@ -37,6 +43,11 @@ Build.GRID = GRID
 Build.REACH = 30
 
 local measures: { [string]: Measure } = {}
+-- A shrunken copy of each template's colliding art, kept out of the world, moved to a
+-- placement and tested against characters (`clipsCharacter`).
+local probes: { [string]: { model: Model, parts: { BasePart } } } = {}
+local characterParams = OverlapParams.new()
+characterParams.FilterType = Enum.RaycastFilterType.Include
 
 function Build.getTemplate(itemId: string): Model?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
@@ -184,15 +195,75 @@ function Build.isLoose(part: Instance): boolean
 	return drops ~= nil and part:IsDescendantOf(drops)
 end
 
--- Whether nothing queryable but loose drops overlaps a placement's box.
+-- Whether `part` belongs to a player's character, including what it wears and holds.
+function Build.isCharacter(part: Instance): boolean
+	local model = part:FindFirstAncestorOfClass("Model")
+	while model do
+		if Players:GetPlayerFromCharacter(model) then
+			return true
+		end
+		model = model:FindFirstAncestorOfClass("Model")
+	end
+	return false
+end
+
+-- Whether nothing queryable but characters and loose drops overlaps a placement's box.
+-- Characters are `clipsCharacter`'s to judge, against the block's art.
 function Build.isFree(origin: Vector3, footprint: Vector3, params: OverlapParams): boolean
 	local centre, size = Build.box(origin, footprint)
 	for _, part in workspace:GetPartBoundsInBox(centre, size, params) do
-		if not Build.isLoose(part) then
+		if not Build.isLoose(part) and not Build.isCharacter(part) then
 			return false
 		end
 	end
 	return true
+end
+
+local function probe(itemId: string): { model: Model, parts: { BasePart } }?
+	local cached = probes[itemId]
+	if cached then
+		return cached
+	end
+	local template = Build.getTemplate(itemId)
+	if not template then
+		return nil
+	end
+	local model = template:Clone()
+	local parts = {}
+	for _, part in model:GetDescendants() do
+		-- A plain cube is its own hitbox, so only a part named Hitbox is left out.
+		if part:IsA("BasePart") and part.Name ~= "Hitbox" and part.CanCollide then
+			part.Size = (part.Size - Vector3.one * (CLIP_MARGIN * 2)):Max(Vector3.one * 0.05)
+			table.insert(parts, part)
+		end
+	end
+	local result = { model = model, parts = parts }
+	probes[itemId] = result
+	return result
+end
+
+-- Whether any colliding part of the block's art, with its pivot at `pivot`, would clip a
+-- player's character. Tests the parts' real shapes, so empty space inside the block's
+-- cells is free to stand in.
+function Build.clipsCharacter(itemId: string, pivot: CFrame): boolean
+	local art = probe(itemId)
+	local characters = {}
+	for _, player in Players:GetPlayers() do
+		if player.Character then
+			table.insert(characters, player.Character)
+		end
+	end
+	if not art or #characters == 0 then
+		return false
+	end
+	characterParams.FilterDescendantsInstances = characters
+	art.model:PivotTo(pivot)
+	for _, part in art.parts do
+		if #workspace:GetPartsInPart(part, characterParams) > 0 then
+			return true
+		end
+	end
+	return false
 end
 
 return Build

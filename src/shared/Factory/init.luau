@@ -26,6 +26,10 @@ export type Port = { position: Vector3, normal: Vector3 }
 
 -- Belt surface height above a block's floor, where machine ports meet conveyors.
 local BELT = 1.59
+-- Studs per second items ride a machine's input belt (a tier 1 conveyor's speed).
+local INPUT_SPEED = 4
+-- Shortest input belt worth riding; a port closer to the face than this takes items there.
+local MIN_INPUT_BELT = 0.5
 local NO_RECIPES: { Recipe } = {}
 
 local Factory = {}
@@ -76,7 +80,20 @@ function Factory.extents(itemId: string): Extents?
 	return result
 end
 
--- The block's lanes in its authored frame.
+-- Studs from a machine's `face` to where its belt runs into the machine's port, from its
+-- template's hitbox (PortDepthBack / PortDepthFront, measured by the Islands pipeline's
+-- studio_blocks.luau). Nil when the face has no belt worth riding.
+local function portDepth(itemId: string, face: Face): number?
+	local template = Build.getTemplate(itemId)
+	local hitbox = if template then template.PrimaryPart else nil
+	local depth = if hitbox
+		then hitbox:GetAttribute(if face == "+Z" then "PortDepthFront" else "PortDepthBack")
+		else nil
+	return if typeof(depth) == "number" and depth >= MIN_INPUT_BELT then depth else nil
+end
+
+-- The block's lanes in its authored frame: a conveyor's or router's own, or a machine's
+-- input belt, which carries items from its input face to its port before they go in.
 function Factory.lanes(itemId: string): { LaneDef }
 	local cached = lanesCache[itemId]
 	if cached then
@@ -85,6 +102,17 @@ function Factory.lanes(itemId: string): { LaneDef }
 	local def = Blocks[itemId]
 	local ext = Factory.extents(itemId)
 	local result = if def and def.lanes and ext then def.lanes(ext) else {}
+	local depth = if def and def.input then portDepth(itemId, def.input) else nil
+	if def and def.input and ext and depth then
+		local z, inward = if def.input == "+Z" then ext.max.Z else ext.min.Z, if def.input == "+Z" then -1 else 1
+		table.insert(result, {
+			points = { Vector3.new(0, BELT, z), Vector3.new(0, BELT, z + inward * depth) },
+			speed = INPUT_SPEED,
+			entry = true,
+			exit = false,
+			feeds = true,
+		})
+	end
 	lanesCache[itemId] = result
 	return result
 end

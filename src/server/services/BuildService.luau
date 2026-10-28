@@ -78,6 +78,9 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown)
 	if not Build.inReach(root.Position, origin, footprint) or not Build.isFree(origin, footprint, overlapParams) then
 		return
 	end
+	if Build.clipsCharacter(itemId, pivot) then
+		return
+	end
 	if not InventoryService.consumeHeld(player, itemId) then
 		return
 	end

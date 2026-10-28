@@ -25,6 +25,8 @@ type Drop = {
 	root: BasePart,
 	-- os.clock() when it appeared.
 	born: number,
+	-- The player who dropped it, if one did.
+	dropper: Player?,
 }
 
 -- Seconds an untouched drop lasts.
@@ -57,7 +59,7 @@ end
 
 local folder = dropFolder()
 local drops: { [Model]: Drop } = {}
-local absorber: ((itemId: string, position: Vector3) -> boolean)? = nil
+local absorber: ((itemId: string, position: Vector3, dropper: Player?) -> boolean)? = nil
 local beltPoint: ((model: Model) -> Vector3?)? = nil
 local lastAction: { [Player]: number } = {}
 local absorbTimer = 0
@@ -93,8 +95,8 @@ local function onTouched(drop: Drop, hit: BasePart)
 	use(drop, drop.count - left)
 end
 
--- A physical item in the world at `cframe`, moving at `velocity`.
-function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, count: number?)
+-- A physical item in the world at `cframe`, moving at `velocity`, and who dropped it.
+function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, count: number?, dropper: Player?)
 	local model = ItemArt.copy(itemId) or Instance.new("Model")
 	model.Name = itemId
 	local box, size = model:GetBoundingBox()
@@ -127,7 +129,8 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 	model:PivotTo(cframe)
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("Count", count or 1)
-	local drop: Drop = { itemId = itemId, count = count or 1, model = model, root = root, born = os.clock() }
+	local drop: Drop =
+		{ itemId = itemId, count = count or 1, model = model, root = root, born = os.clock(), dropper = dropper }
 	drops[model] = drop
 	model.Parent = folder
 	root:SetNetworkOwner(nil)
@@ -139,10 +142,10 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 end
 
 -- Sets the rules for belts: `catch` decides whether a belt (or machine) takes one unit of a
--- drop at `position`; `dropPoint` says where a drop aimed at a placed block appears, or nil
--- when it has no belt.
+-- drop at `position` (and learns who dropped it); `dropPoint` says where a drop aimed at a
+-- placed block appears, or nil when it has no belt.
 function DropService.setBelts(
-	catch: (itemId: string, position: Vector3) -> boolean,
+	catch: (itemId: string, position: Vector3, dropper: Player?) -> boolean,
 	dropPoint: (model: Model) -> Vector3?
 )
 	absorber = catch
@@ -157,7 +160,7 @@ local function absorb(dt: number)
 	end
 	absorbTimer = 0
 	for _, drop in drops do
-		if rule(drop.itemId, drop.root.Position) then
+		if rule(drop.itemId, drop.root.Position, drop.dropper) then
 			use(drop, 1)
 		end
 	end
@@ -207,10 +210,10 @@ local function onDrop(player: Player, onto: unknown)
 		return
 	end
 	if above then
-		DropService.spawn(held, above, Vector3.zero)
+		DropService.spawn(held, above, Vector3.zero, 1, player)
 	else
 		local facing = root.CFrame.Rotation
-		DropService.spawn(held, root.CFrame * CFrame.new(0, 0, -DROP_DISTANCE), facing * TOSS)
+		DropService.spawn(held, root.CFrame * CFrame.new(0, 0, -DROP_DISTANCE), facing * TOSS, 1, player)
 	end
 end
 

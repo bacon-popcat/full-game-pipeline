@@ -14,7 +14,12 @@
 -- output face, that connects to nothing is thrown off as a physical drop when the cell in
 -- front is empty -- and waits, as at any blocked end, when something stands there. A drop
 -- that touches any block's belt joins it where it touched, if there is room; one landing on
--- a machine's input end goes into the machine, if it takes it.
+-- a machine's input end goes into the machine, if it takes it. A player walking over a
+-- belt picks up the items under their feet.
+--
+-- A machine whose input face has belt art takes items only where that belt meets its port:
+-- the belt is a lane of its own (Factory.lanes) that items ride in on, and the machine
+-- takes the front one at its end, or leaves it waiting there while it is full.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -105,6 +110,13 @@ local MACHINE_THROW = 4
 local DROP_HEIGHT = 0.5
 -- Seconds between one player's interactions; caps how fast a client can spam remotes.
 local COOLDOWN = 0.15
+-- Seconds between checks for players walking over belt items.
+local PICKUP_EVERY = 0.1
+-- Studs across the belt from a player's feet within which they walk an item up.
+local PICKUP_RADIUS = 1.75
+-- Seconds an item caught off a player's drop rides before that player can walk it up, so
+-- dropping onto a belt you stand on doesn't put the item straight back in your hand.
+local PICKUP_GRACE = 1.5
 local NEIGHBOURS = {
 	Vector3.xAxis,
 	-Vector3.xAxis,
@@ -142,6 +154,10 @@ local sapTimers: { [WorldService.Node]: number } = {}
 local lastAction: { [Player]: number } = {}
 -- Whether the cell past an unconnected port is empty, and when (os.clock()) that was seen.
 local openCache: { [Factory.Port]: { open: boolean, checked: number } } = setmetatable({}, { __mode = "k" }) :: any
+-- Item id -> the player who dropped it, and the os.clock() before which they can't walk it
+-- up (PICKUP_GRACE).
+local graces: { [number]: { dropper: Player, expires: number } } = {}
+local pickupTimer = 0
 local topology = 0
 local overlapParams = Build.newOverlapParams()
 local tubesStale = true
@@ -346,7 +362,7 @@ end
 -- there, or into the machine whose input end it lies on, if it takes it. Only the drop's
 -- cell and the one just under it are looked at, so a belt never reaches through a block
 -- above it. Returns whether it did.
-local function catch(itemId: string, position: Vector3): boolean
+local function catch(itemId: string, position: Vector3, dropper: Player?): boolean
 	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
 		local block = cellIndex[cellKey(cell)]
 		if not block then
@@ -357,11 +373,15 @@ local function catch(itemId: string, position: Vector3): boolean
 			local item = { id = newItemId(), itemId = itemId, d = d }
 			if isOver(lane.points, position) and Lane.insert(lane.items, item) then
 				markDirty(lane)
+				if dropper then
+					graces[item.id] = { dropper = dropper, expires = os.clock() + PICKUP_GRACE }
+				end
 				return true
 			end
 		end
+		-- A machine with no input belt to ride takes a drop lying on its input end directly.
 		local machine = block.machine
-		local port = block.inputPort
+		local port = if #block.lanes == 0 then block.inputPort else nil
 		local onInput = port ~= nil and isOver(inputBelt(port), position)
 		if machine and onInput and Machine.insert(machine, itemId, 1) == 1 then
 			return true
@@ -401,7 +421,14 @@ local function stepLanes(dt: number)
 		if not front then
 			continue
 		end
-		if lane.def.exit then
+		if lane.def.feeds then
+			-- A machine's input belt: the item goes in once it reaches the port, or waits there.
+			local machine = lane.block.machine
+			if machine and Machine.insert(machine, front.itemId, 1) == 1 then
+				table.remove(lane.items, 1)
+				markDirty(lane)
+			end
+		elseif lane.def.exit then
 			local target = laneTarget(lane)
 			if target and deliver(target, front.itemId, front.id) then
 				table.remove(lane.items, 1)
@@ -821,7 +848,10 @@ local function register(model: Instance)
 	if def.input then
 		local port = Factory.facePort(frame, ext, def.input)
 		block.inputPort = port
-		addEntry(port, { block = block, lane = nil, normal = port.normal })
+		-- With an input belt, items enter by riding it to the port (its lane's entry above).
+		if #block.lanes == 0 then
+			addEntry(port, { block = block, lane = nil, normal = port.normal })
+		end
 	end
 	if def.output then
 		block.outputPort = Factory.facePort(frame, ext, def.output)
@@ -906,6 +936,63 @@ local function rootOf(player: Player): BasePart?
 		return nil
 	end
 	return root
+end
+
+-- Takes every item on `block`'s lanes lying under `feet` into the player's inventory, while
+-- it has room. An item counts when it is within PICKUP_RADIUS across the belt and the feet
+-- are on the belt or just above it, not on the floor beside it.
+local function pickUpFrom(player: Player, block: Block, feet: Vector3)
+	for _, lane in block.lanes do
+		for index = #lane.items, 1, -1 do
+			local item = lane.items[index]
+			local at = Lane.pointAt(lane.points, item.d)
+			local across = Vector3.new(at.X - feet.X, 0, at.Z - feet.Z).Magnitude
+			local onBelt = feet.Y >= at.Y - 1 and feet.Y <= at.Y + 2
+			local grace = graces[item.id]
+			if across <= PICKUP_RADIUS and onBelt and not (grace and grace.dropper == player) then
+				if InventoryService.give(player, item.itemId, 1) > 0 then
+					return
+				end
+				table.remove(lane.items, index)
+				randomChoice[item.id] = nil
+				markDirty(lane)
+			end
+		end
+	end
+end
+
+-- Players walking over belt items pick them up, as they do loose drops.
+local function pickUpUnderfoot(dt: number)
+	pickupTimer += dt
+	if pickupTimer < PICKUP_EVERY then
+		return
+	end
+	pickupTimer = 0
+	local now = os.clock()
+	for id, grace in graces do
+		if grace.expires <= now then
+			graces[id] = nil
+		end
+	end
+	for _, player in Players:GetPlayers() do
+		local root = rootOf(player)
+		local humanoid = if root and player.Character then player.Character:FindFirstChildOfClass("Humanoid") else nil
+		if not root or not humanoid then
+			continue
+		end
+		local feet = root.Position - Vector3.yAxis * (root.Size.Y / 2 + humanoid.HipHeight)
+		local under = cellOf(feet - Vector3.yAxis * 0.5)
+		local seen: { [Block]: boolean } = {}
+		for dx = -1, 1 do
+			for dz = -1, 1 do
+				local block = cellIndex[cellKey(under + Vector3.new(dx, 0, dz))]
+				if block and not seen[block] then
+					seen[block] = true
+					pickUpFrom(player, block, feet)
+				end
+			end
+		end
+	end
 end
 
 local function ready(player: Player): boolean
@@ -1017,6 +1104,7 @@ function FactoryService.init()
 		lastAction[player] = nil
 	end)
 	RunService.Heartbeat:Connect(step)
+	RunService.Heartbeat:Connect(pickUpUnderfoot)
 	DropService.setBelts(catch, dropPoint)
 end
 

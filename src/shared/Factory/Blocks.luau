@@ -24,6 +24,9 @@ export type LaneDef = {
 	entry: boolean,
 	-- The end hands items to a neighbour's entry; otherwise it ends at a router's hub.
 	exit: boolean,
+	-- The end feeds the block's machine: a machine's input belt, from its input face to
+	-- where the belt meets the machine's port (Factory.lanes adds it).
+	feeds: boolean?,
 }
 
 export type Recipe = {

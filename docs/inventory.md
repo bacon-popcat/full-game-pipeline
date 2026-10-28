@@ -51,6 +51,15 @@ on the floor at a convenient cell centre (the conveyor's, or under the drill col
 Drill); placement reads it relative to the hitbox, so where it sits never changes placement.
 Machine parts collide with their exact shape.
 
+A placement is blocked by anything but a character (or a loose drop) inside its cells, and
+by a character only where the block's own colliding parts would clip them
+(`Build.clipsCharacter`, which tests a shrunken copy of the art). A player can stand in a
+machine's empty corner, or beside a conveyor's belt, and still place it.
+
+A machine's hitbox also carries `PortDepthBack` and `PortDepthFront`: how far the belt at
+its -Z and +Z face runs before it meets the machine's port. `Shared/Factory` turns the input
+face's depth into the belt items ride in on (docs/factory.md).
+
 For conveyors to connect, a machine's conveyor runs down the middle of a column of cells,
 and a conveyor end that meets a neighbour sits on a hitbox face. The Islands pipeline builds
 the hitboxes and the copies in `Assets.Blocks` with `IslandsMachines/build/studio_blocks.luau`.

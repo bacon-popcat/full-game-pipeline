@@ -148,7 +148,9 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	if not footprint or not from or not origin or not pivot then
 		return nil
 	end
-	local valid = Build.inReach(from, origin, footprint) and Build.isFree(origin, footprint, overlapParams)
+	local valid = Build.inReach(from, origin, footprint)
+		and Build.isFree(origin, footprint, overlapParams)
+		and not Build.clipsCharacter(item.id, pivot)
 	placement = { origin = origin, valid = valid }
 	model:PivotTo(pivot)
 	model.Parent = workspace.CurrentCamera
