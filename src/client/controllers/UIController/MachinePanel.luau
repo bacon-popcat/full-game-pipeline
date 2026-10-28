@@ -211,7 +211,8 @@ end
 local function aimed(): (Model?, string?)
 	local character = player.Character
 	raycastParams.FilterDescendantsInstances = if character then { character } else {}
-	local result = Aim.cast(raycastParams, AIM_DISTANCE)
+	-- The art, as the hover panel aims, so the key opens what the hover panel names.
+	local result = Aim.castArt(raycastParams, AIM_DISTANCE)
 	local target = if result then Aim.modelUnder(result.Instance, "Placed") else nil
 	local itemId = if target then target:GetAttribute("ItemId") else nil
 	if target and typeof(itemId) == "string" and Factory.hasControls(itemId) and inReach(target) then

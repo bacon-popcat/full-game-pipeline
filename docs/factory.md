@@ -17,7 +17,8 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
    |  status attributes on each block model ----------------> UIController/BlockInfo (hover panel)
    |  FactorySync: a lane's items whenever one joins or leaves --> FactoryController (draws items)
    ^
-   +-- Interact (feed, take, set a filter, switch a split) <-- BuildController (what the hand does)
+   +-- Interact (panel: load, collect, take back; hand: take belt items, filter, switch)
+         <-- UIController/MachinePanel, BuildController (what the hand does)
 ```
 
 - `Shared/Factory/Blocks` is the content: each block's lanes, route, ports, recipes, fuel,
@@ -39,6 +40,13 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   items along that belt (a lane `Factory.lanes` adds, as long as its hitbox's `PortDepth*`)
   and takes the front one where the belt meets the port. A face with no belt art takes items
   right at the face.
+- **Items leave a machine at its port too.** A machine with belt art on its output face puts
+  each finished item on that belt (a lane `Factory.lanes` adds, as long as its hitbox's
+  `PortDepth*`), and it rides out to the face like any conveyor's: on to a connected entry,
+  thrown off when nothing stands in front, or waiting there while something does. Every machine
+  that makes items has that belt; one whose belt runs clear through its art (berry basket,
+  truffle barrel) gives its depth as `belt` in `Blocks`. Only the Drill, whose port collars sit
+  at its faces, puts output straight off its face.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or
@@ -48,7 +56,7 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
 
 - **Q / Backspace / D-pad down** drops one of the held item: onto the belt aimed at (any
   conveyor or router, or a machine's input end), or tossed in front of the player. Clicking a
-  conveyor or router while holding a resource does the same; clicking a machine feeds it.
+  conveyor or router while holding a resource does the same; clicking a machine does nothing.
 - Drops are real physics in `Workspace.Drops`. Walking into one picks it up (after a 1 s
   grace), and they despawn after 5 minutes.
 - Walking over a belt picks up the items under your feet (feet on the belt, not the floor
@@ -66,6 +74,7 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
 
 ## Machine panel
 
+The panel is the only way to work a machine: the hand never feeds one or empties it.
 **E / D-pad up** (an **Open** button on touch) while aiming at a machine, split conveyor or
 filter conveyor within reach opens its panel (`UIController/MachinePanel`, which takes the
 backpack's place on screen). It shows the same status as the hover panel (both word it with
@@ -83,15 +92,17 @@ walking out of reach, or the block being picked up.
 
 ## What the hand does
 
+Machines aren't in this table: a press does nothing to one (use its panel). The hover panel
+and the panel's interact key only see a block's or node's art (`Aim.castArt`), not the empty
+cells of its hitbox; the hand still aims at hitboxes, so placing snaps to their faces.
+
 | Held | Aimed at | Press does |
 |---|---|---|
-| Anything a machine takes (`Factory.takesByHand`) | that machine | Puts in as many as it has room for |
 | Any item | a Filter Conveyor | Toggles sending that item left |
 | Placeable | anything else | Places it (ghost) |
 | Hammer | your placed block | Picks it up, with whatever it held |
 | Pickaxe / Axe | your placed cube it breaks (`breaksWith`) | Breaks it back into your inventory |
 | Pickaxe / Axe | a world node it fits | Mines or chops it |
-| Nothing | a machine | Collects its output |
 | Nothing | a conveyor | Takes the items on it |
 | Nothing | a Split Conveyor / Filter | Switches it / clears the filter |
 | Nothing | a berry bush or flower patch | Picks one |

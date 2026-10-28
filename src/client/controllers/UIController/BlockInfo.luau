@@ -1,7 +1,8 @@
 -- BlockInfo: the panel saying what the aimed-at factory block or world node is doing -- a
 -- machine's state, fuel, contents and output, a router's setting, a node's use -- and what
 -- a press would do with what is in hand. It only reads: the attributes FactoryService
--- publishes on placed blocks, worded by BlockText, and the hints in Shared/World.
+-- publishes on placed blocks, worded by BlockText, and the hints in Shared/World. It shows
+-- only while the aim is on a block's or node's art, not the empty cells of its hitbox.
 --
 -- The panel is authored in StarterGui.HUD.BlockInfo, sized by its Content frame (the
 -- corner brackets stay outside it, since they size to the panel), and its rows are clones
@@ -63,18 +64,17 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	local isConveyor = def.kind == "Conveyor"
 	local hasLanes = def.lanes ~= nil
 	local onInput = def.input ~= nil
-	if held and Factory.takesByHand(itemId, held.id) then
-		info.hint = if def.route == "Filter"
-			then `Click to toggle sending {held.name} left.`
-			else `Click to put in {held.name}.`
+	-- Machines are only worked through their panel, so a click does nothing to them.
+	if def.kind == "Machine" then
+		if held and held.kind == "Resource" and onInput and not Factory.takesByHand(itemId, held.id) then
+			info.hint = `It doesn't take {held.name}.`
+		end
+	elseif held and def.route == "Filter" then
+		info.hint = `Click to toggle sending {held.name} left.`
 	elseif held and held.kind == "Resource" and hasLanes then
 		info.hint = `Click to drop a {held.name} onto it.`
-	elseif held and held.kind == "Resource" and onInput then
-		info.hint = `It doesn't take {held.name}.`
 	elseif not held then
-		if def.kind == "Machine" and BlockText.hasOutput(model) then
-			info.hint = "Click to collect the output."
-		elseif def.route == "Split" then
+		if def.route == "Split" then
 			info.hint = "Click to switch it."
 		elseif def.route == "Filter" then
 			info.hint = "Click to clear the filter."
@@ -108,7 +108,7 @@ end
 local function target(): Info?
 	local character = player.Character
 	raycastParams.FilterDescendantsInstances = if character then { character } else {}
-	local result = Aim.cast(raycastParams, LOOK_DISTANCE)
+	local result = Aim.castArt(raycastParams, LOOK_DISTANCE)
 	if not result then
 		return nil
 	end

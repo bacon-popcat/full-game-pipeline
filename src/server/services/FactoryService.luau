@@ -2,7 +2,8 @@
 -- when it lands in Workspace.Placed, connects it to its neighbours by their ports, and
 -- every frame moves items along lanes, through router hubs and into and out of machines.
 -- Wood tubes form networks that carry sap and syrup between maple trees, sap boilers and
--- syrup bottlers. Players feed machines, take output and switch routers through Interact.
+-- syrup bottlers. Players work machines only through their panel (load, collect, take
+-- back), and take belt items and switch routers by hand, all through Interact.
 --
 -- Two ports connect when one block's exit and another's entry share a point and face each
 -- other; there is no other wiring. Items only ever move on the server: clients get each
@@ -12,7 +13,9 @@
 --
 -- Belts meet loose items too (DropService). An item reaching a lane end, or a machine's
 -- output face, that connects to nothing is thrown off as a physical drop when the cell in
--- front is empty -- and waits, as at any blocked end, when something stands there. A drop
+-- front is empty -- and waits, as at any blocked end, when something stands there. A
+-- machine with belt art on its output face puts what it makes onto that belt (its own
+-- lane, Factory.lanes), so its output rides out and falls off the end like any conveyor's. A drop
 -- that touches any block's belt joins it where it touched, if there is room; one landing on
 -- a machine's input end goes into the machine, if it takes it. A player walking over a
 -- belt picks up the items under their feet.
@@ -74,6 +77,9 @@ export type Block = {
 	footprint: Vector3,
 	lanes: { LaneState },
 	machine: Machine.State?,
+	-- A machine's input belt (items ride it in) and output belt (its products ride it out).
+	feedLane: LaneState?,
+	outputLane: LaneState?,
 	inputPort: Factory.Port?,
 	outputPort: Factory.Port?,
 	outputTarget: Entry?,
@@ -382,7 +388,7 @@ local function catch(itemId: string, position: Vector3, dropper: Player?): boole
 		end
 		-- A machine with no input belt to ride takes a drop lying on its input end directly.
 		local machine = block.machine
-		local port = if #block.lanes == 0 then block.inputPort else nil
+		local port = if block.feedLane then nil else block.inputPort
 		local onInput = port ~= nil and isOver(inputBelt(port), position)
 		if machine and onInput and Machine.insert(machine, itemId, 1) == 1 then
 			return true
@@ -400,7 +406,7 @@ local function dropPoint(model: Model): Vector3?
 		return nil
 	end
 	local box, size = Build.box(block.origin, block.footprint)
-	local first = block.lanes[1]
+	local first = if block.machine then block.feedLane else block.lanes[1]
 	local over: Vector3? = nil
 	if first then
 		over = Lane.pointAt(first.points, math.min(first.length / 2, Build.GRID / 2))
@@ -569,6 +575,16 @@ local function stepMachines(dt: number)
 		end
 		Machine.step(machine, dt, envFor(block))
 		local itemId = Machine.peekOutput(machine)
+		local belt = block.outputLane
+		if belt then
+			-- Onto its output belt, which hands it on or throws it off at the face (stepLanes).
+			if itemId and Lane.hasRoom(belt.items) then
+				Machine.popOutput(machine)
+				table.insert(belt.items, { id = newItemId(), itemId = itemId, d = 0 })
+				markDirty(belt)
+			end
+			continue
+		end
 		local port = block.outputPort
 		local target = if itemId then outputTarget(block) else nil
 		if itemId and target and deliver(target, itemId, newItemId()) then
@@ -830,6 +846,8 @@ local function register(model: Instance)
 		footprint = footprint,
 		lanes = {},
 		machine = if def.kind == "Machine" then Machine.new(def) else nil,
+		feedLane = nil,
+		outputLane = nil,
 		inputPort = nil,
 		outputPort = nil,
 		outputTarget = nil,
@@ -862,6 +880,11 @@ local function register(model: Instance)
 		if laneDef.entry then
 			addEntry(entry, { block = block, lane = lane, normal = entry.normal })
 		end
+		if laneDef.feeds then
+			block.feedLane = lane
+		elseif laneDef.emits then
+			block.outputLane = lane
+		end
 		block.lanes[index] = lane
 		laneSet[lane] = true
 	end
@@ -869,7 +892,7 @@ local function register(model: Instance)
 		local port = Factory.facePort(frame, ext, def.input)
 		block.inputPort = port
 		-- With an input belt, items enter by riding it to the port (its lane's entry above).
-		if #block.lanes == 0 then
+		if not block.feedLane then
 			addEntry(port, { block = block, lane = nil, normal = port.normal })
 		end
 	end
@@ -1046,35 +1069,23 @@ local function collect(player: Player, machine: Machine.State)
 	end
 end
 
--- Feeds the held item into a machine or a filter.
+-- Toggles the held item in a filter. Machines are only worked through their panel
+-- (`control`), never by hand.
 local function use(player: Player, block: Block)
 	local held = InventoryService.getHeldItemId(player)
-	if not held or not Factory.takesByHand(block.itemId, held) then
-		return
-	end
-	if block.def.route == "Filter" then
+	if held and block.def.route == "Filter" then
 		toggleFilter(block, held)
 		refreshStatus(block)
-		return
 	end
-	local machine = block.machine
-	if not machine then
-		return
-	end
-	local taken = InventoryService.takeHeld(player, held, Machine.room(machine, held))
-	Machine.insert(machine, held, taken)
-	refreshStatus(block)
 end
 
--- An empty hand: collect a machine's output or a conveyor's items, or switch a router.
+-- An empty hand: take a conveyor's items, or switch a router. Machines are only worked
+-- through their panel.
 local function take(player: Player, block: Block)
-	if InventoryService.getHeldItemId(player) then
+	if InventoryService.getHeldItemId(player) or block.machine then
 		return
 	end
-	local machine = block.machine
-	if machine then
-		collect(player, machine)
-	elseif block.def.route == "Split" then
+	if block.def.route == "Split" then
 		block.powered = not block.powered
 	elseif block.def.route == "Filter" then
 		table.clear(block.filter)

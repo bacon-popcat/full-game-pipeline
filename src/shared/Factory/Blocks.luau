@@ -27,6 +27,9 @@ export type LaneDef = {
 	-- The end feeds the block's machine: a machine's input belt, from its input face to
 	-- where the belt meets the machine's port (Factory.lanes adds it).
 	feeds: boolean?,
+	-- The start takes the block's machine's finished items: a machine's output belt, from
+	-- its port to its output face (Factory.lanes adds it).
+	emits: boolean?,
 }
 
 export type Recipe = {
@@ -74,6 +77,9 @@ export type Def = {
 	produce: Produce?,
 	-- Anything arriving at the input rides straight through to the output.
 	passThrough: boolean?,
+	-- Studs of belt at each end face for a machine whose belt runs clear through its art, so
+	-- the art gives no port depth to measure (Factory.lanes).
+	belt: number?,
 	-- Takes any resource and sells one a second.
 	sells: boolean?,
 	-- Food it keeps to feed animals within `feedRadius` cells.
@@ -276,6 +282,7 @@ local BLOCKS: { [string]: Def } = {
 		input = "-Z",
 		output = "+Z",
 		passThrough = true,
+		belt = 3,
 		produce = { where = "Near", sources = { BerryBush = { item = "Blueberry", every = 10 } }, radius = 6 },
 	},
 	IndustrialFlowerPicker = {
@@ -289,6 +296,7 @@ local BLOCKS: { [string]: Def } = {
 		input = "-Z",
 		output = "+Z",
 		passThrough = true,
+		belt = 3,
 		produce = { where = "Animals", sources = { Pig = { item = "Truffle", every = 30 } }, radius = 6 },
 	},
 	IndustrialMerchantTeleseller = { kind = "Machine", input = "-Z", sells = true },

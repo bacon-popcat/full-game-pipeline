@@ -3,13 +3,14 @@
 -- press would do where the player aims, and outlines it:
 --   * a placeable shows a grid-snapped ghost -- green when the shared Build rules say the
 --     server will accept it, red when not -- and asks to place it;
---   * an item a factory block takes by hand (Factory.takesByHand) outlines that block and
---     feeds it instead, so a stonecutter takes the stone aimed at it;
+--   * any item aimed at a filter conveyor toggles it in the filter. Machines are only
+--     worked through their panel (UIController/MachinePanel), so a press never feeds or
+--     empties one;
 --   * the Hammer picks up the player's own placed block; a Pickaxe or Axe breaks their own
 --     cubes it fits and mines the world nodes it fits;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
---   * an empty hand takes from a factory block (output, belt items, router switch) or
---     picks a bush.
+--   * an empty hand takes from a conveyor (its belt items) or switches a router, or picks
+--     a bush.
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
 -- The server re-checks everything; nothing here is trusted.
 --
@@ -129,10 +130,16 @@ local function nodeDef(model: Model): World.Node?
 end
 
 -- Conveyors and routers: a click with a resource drops it on. A machine's input end takes
--- drops too, but only from the drop key, since a click there feeds the machine by hand.
+-- drops too, but only from the drop key.
 local function hasLanes(itemId: string?): boolean
 	local def = if itemId then Factory.get(itemId) else nil
 	return def ~= nil and def.lanes ~= nil
+end
+
+-- Machines answer only their panel, never a press of the hand.
+local function isMachine(itemId: string?): boolean
+	local def = if itemId then Factory.get(itemId) else nil
+	return def ~= nil and def.kind == "Machine"
 end
 
 local function isOwn(model: Model): boolean
@@ -174,7 +181,7 @@ local function decide(): Action?
 	end
 
 	if not item then
-		if placed and placedId and Factory.get(placedId) then
+		if placed and placedId and Factory.get(placedId) and not isMachine(placedId) then
 			return { kind = "Take", model = placed }
 		end
 		local def = if node then nodeDef(node) else nil
@@ -183,7 +190,7 @@ local function decide(): Action?
 		end
 		return nil
 	end
-	if placed and placedId and Factory.takesByHand(placedId, item.id) then
+	if placed and placedId and not isMachine(placedId) and Factory.takesByHand(placedId, item.id) then
 		return { kind = "Use", model = placed }
 	end
 	if item.kind == "Resource" and placed and hasLanes(placedId) then
