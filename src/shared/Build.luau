@@ -177,10 +177,22 @@ function Build.newOverlapParams(): OverlapParams
 	return params
 end
 
--- Whether nothing queryable overlaps a placement's box.
+-- Whether `part` belongs to an item lying loose in Workspace.Drops. Drops collide, and
+-- CanQuery only hides parts that don't, so queries have to skip them by hand.
+function Build.isLoose(part: Instance): boolean
+	local drops = workspace:FindFirstChild("Drops")
+	return drops ~= nil and part:IsDescendantOf(drops)
+end
+
+-- Whether nothing queryable but loose drops overlaps a placement's box.
 function Build.isFree(origin: Vector3, footprint: Vector3, params: OverlapParams): boolean
 	local centre, size = Build.box(origin, footprint)
-	return #workspace:GetPartBoundsInBox(centre, size, params) == 0
+	for _, part in workspace:GetPartBoundsInBox(centre, size, params) do
+		if not Build.isLoose(part) then
+			return false
+		end
+	end
+	return true
 end
 
 return Build

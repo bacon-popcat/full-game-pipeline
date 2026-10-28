@@ -39,6 +39,13 @@ function Factory.get(itemId: string): Def?
 	return Blocks[itemId]
 end
 
+-- Whether a dropped item can land on the block's belt: a conveyor or router's lanes, or a
+-- machine's input end.
+function Factory.hasBelt(itemId: string): boolean
+	local def = Blocks[itemId]
+	return def ~= nil and (def.lanes ~= nil or def.input ~= nil)
+end
+
 -- The world frame a block's lanes and ports are authored in, from a placed block or a
 -- template. Nil when the block has no authored origin (plain cubes).
 function Factory.originFrame(model: Model): CFrame?

@@ -128,9 +128,11 @@ local function nodeDef(model: Model): World.Node?
 	return if typeof(nodeType) == "string" then World.NODES[nodeType] else nil
 end
 
-local function isConveyor(itemId: string?): boolean
+-- Conveyors and routers: a click with a resource drops it on. A machine's input end takes
+-- drops too, but only from the drop key, since a click there feeds the machine by hand.
+local function hasLanes(itemId: string?): boolean
 	local def = if itemId then Factory.get(itemId) else nil
-	return def ~= nil and def.kind == "Conveyor"
+	return def ~= nil and def.lanes ~= nil
 end
 
 local function isOwn(model: Model): boolean
@@ -182,7 +184,7 @@ local function decide(): Action?
 	if placed and placedId and Factory.takesByHand(placedId, item.id) then
 		return { kind = "Use", model = placed }
 	end
-	if item.kind == "Resource" and placed and isConveyor(placedId) then
+	if item.kind == "Resource" and placed and hasLanes(placedId) then
 		return { kind = "Drop", model = placed }
 	end
 	if item.picksUp then
@@ -269,7 +271,8 @@ local function onDrop(_: string, state: Enum.UserInputState): Enum.ContextAction
 	if state == Enum.UserInputState.Begin then
 		local result = Aim.cast(raycastParams, AIM_DISTANCE)
 		local placed = if result then Aim.modelUnder(result.Instance, "Placed") else nil
-		local onto = if placed and inReach(placed) and isConveyor(placedItemId(placed)) then placed else nil
+		local placedId = if placed then placedItemId(placed) else nil
+		local onto = if placed and placedId and inReach(placed) and Factory.hasBelt(placedId) then placed else nil
 		Remotes.DropItem:FireServer(onto)
 	end
 	return Enum.ContextActionResult.Sink

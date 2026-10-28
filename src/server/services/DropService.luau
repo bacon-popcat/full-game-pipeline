@@ -1,19 +1,19 @@
 -- DropService: items lying loose in the world, in Workspace.Drops. A player drops one from
--- their hand (DropItem), and a conveyor throws one off an end with nothing in front of it.
--- Drops are real physics, simulated by the server: they fall, tumble and pile up until a
--- player walks into one, which picks it up, or a conveyor takes it. A drop that touches a
--- belt with room joins the lane there; FactoryService registers that rule through
--- `setAbsorber`, so the two services never require each other. A drop nobody takes
--- despawns after LIFETIME.
+-- their hand (DropItem), and a conveyor or machine throws one off an end with nothing in
+-- front of it. Drops are real physics, simulated by the server: they fall, tumble and pile
+-- up until a player walks into one, which picks it up, or a belt takes it. Which belts take
+-- a drop, and where a drop aimed at a block appears, are FactoryService's rules; it
+-- registers them through `setBelts`, so the two services never require each other. A drop
+-- nobody takes despawns after LIFETIME.
 --
--- Drops have CanQuery off, so they never block a placement or catch an aim ray.
+-- A drop's root collides, so CanQuery can't hide it from spatial queries; placement, the
+-- aim and open belt ends skip Workspace.Drops by hand (Build.isLoose).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
-local Factory = require(ReplicatedStorage.Shared.Factory)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local InventoryService = require(script.Parent.InventoryService)
@@ -58,6 +58,7 @@ end
 local folder = dropFolder()
 local drops: { [Model]: Drop } = {}
 local absorber: ((itemId: string, position: Vector3) -> boolean)? = nil
+local beltPoint: ((model: Model) -> Vector3?)? = nil
 local lastAction: { [Player]: number } = {}
 local absorbTimer = 0
 
@@ -137,9 +138,15 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 	task.delay(LIFETIME, remove, drop)
 end
 
--- Sets the rule that decides whether a conveyor takes one unit of a drop at `position`.
-function DropService.setAbsorber(rule: (itemId: string, position: Vector3) -> boolean)
-	absorber = rule
+-- Sets the rules for belts: `catch` decides whether a belt (or machine) takes one unit of a
+-- drop at `position`; `dropPoint` says where a drop aimed at a placed block appears, or nil
+-- when it has no belt.
+function DropService.setBelts(
+	catch: (itemId: string, position: Vector3) -> boolean,
+	dropPoint: (model: Model) -> Vector3?
+)
+	absorber = catch
+	beltPoint = dropPoint
 end
 
 local function absorb(dt: number)
@@ -166,10 +173,11 @@ local function rootOf(player: Player): BasePart?
 	return root
 end
 
--- Above the middle of a placed conveyor within reach, or nil.
-local function aboveConveyor(player: Player, root: BasePart, onto: unknown): CFrame?
+-- Above the belt of a placed block within reach, or nil.
+local function aboveBelt(root: BasePart, onto: unknown): CFrame?
 	local placed = workspace:FindFirstChild("Placed")
-	if typeof(onto) ~= "Instance" or not onto:IsA("Model") or not placed or onto.Parent ~= placed then
+	local rule = beltPoint
+	if typeof(onto) ~= "Instance" or not onto:IsA("Model") or not placed or onto.Parent ~= placed or not rule then
 		return nil
 	end
 	local itemId = onto:GetAttribute("ItemId")
@@ -178,16 +186,12 @@ local function aboveConveyor(player: Player, root: BasePart, onto: unknown): CFr
 	if typeof(itemId) ~= "string" or typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
 		return nil
 	end
-	local def = Factory.get(itemId)
-	local hitbox = onto.PrimaryPart
-	if not def or def.kind ~= "Conveyor" or not hitbox then
-		return nil
-	end
 	local footprint = Build.footprint(itemId, rotation)
 	if not footprint or not Build.inReach(root.Position, origin, footprint) then
 		return nil
 	end
-	return CFrame.new(hitbox.Position + Vector3.yAxis * (hitbox.Size.Y / 2 + 0.5))
+	local point = rule(onto)
+	return if point then CFrame.new(point) else nil
 end
 
 local function onDrop(player: Player, onto: unknown)
@@ -198,7 +202,7 @@ local function onDrop(player: Player, onto: unknown)
 		return
 	end
 	lastAction[player] = now
-	local above = aboveConveyor(player, root, onto)
+	local above = aboveBelt(root, onto)
 	if InventoryService.takeHeld(player, held, 1) < 1 then
 		return
 	end

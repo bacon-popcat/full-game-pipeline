@@ -42,14 +42,20 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
 
 ## Loose items (DropService)
 
-- **Q / Backspace / D-pad down** drops one of the held item: onto the conveyor aimed at, or
-  tossed in front of the player. Clicking a conveyor while holding a resource does the same.
+- **Q / Backspace / D-pad down** drops one of the held item: onto the belt aimed at (any
+  conveyor or router, or a machine's input end), or tossed in front of the player. Clicking a
+  conveyor or router while holding a resource does the same; clicking a machine feeds it.
 - Drops are real physics in `Workspace.Drops`. Walking into one picks it up (after a 1 s
   grace), and they despawn after 5 minutes.
-- A drop touching a belt joins that lane where it touched if there is room
-  (`FactoryService` registers the rule with `DropService.setAbsorber`).
-- An item reaching a lane end that connects to nothing is thrown off as a drop when the cell
-  in front is empty; anything else standing there blocks it as before.
+- A drop over any block's belt (in the belt's cell, at belt height or resting on art above
+  it) joins that lane there if there is room. One over a machine's input end goes in if the
+  machine takes it. `FactoryService` registers both rules, and where an aimed drop appears,
+  with `DropService.setBelts`.
+- An item reaching a lane end, or a machine's output face, that connects to nothing is thrown
+  off as a drop when the cell in front holds nothing but characters and other drops;
+  anything else standing there blocks it.
+- Drops collide, so `CanQuery` can't hide them: placement (`Build.isFree`), the aim
+  (`Aim.cast`) and open-end checks skip `Workspace.Drops` by hand (`Build.isLoose`).
 
 ## What the hand does
 

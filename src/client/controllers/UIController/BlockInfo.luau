@@ -115,12 +115,16 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	end
 
 	local isConveyor = def.kind == "Conveyor"
+	local hasLanes = def.lanes ~= nil
+	local onInput = def.input ~= nil
 	if held and Factory.takesByHand(itemId, held.id) then
 		info.hint = if def.route == "Filter"
 			then `Click to toggle sending {held.name} left.`
 			else `Click to put in {held.name}.`
-	elseif held and held.kind == "Resource" and isConveyor then
+	elseif held and held.kind == "Resource" and hasLanes then
 		info.hint = `Click to drop a {held.name} onto it.`
+	elseif held and held.kind == "Resource" and onInput then
+		info.hint = `It doesn't take {held.name}.`
 	elseif not held then
 		if def.kind == "Machine" and describe(model:GetAttribute("Output"), itemName) then
 			info.hint = "Click to collect the output."

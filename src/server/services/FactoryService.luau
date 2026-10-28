@@ -10,10 +10,11 @@
 -- with the same Lane rule in between. Machines publish what they hold and why they are
 -- idle as attributes on their model, for players to read.
 --
--- Belts meet loose items too (DropService). An item reaching a lane end that connects to
--- nothing is thrown off as a physical drop when the cell in front is empty -- and waits, as
--- at any blocked end, when something stands there. A drop that touches a belt joins it
--- where it touched, if there is room.
+-- Belts meet loose items too (DropService). An item reaching a lane end, or a machine's
+-- output face, that connects to nothing is thrown off as a physical drop when the cell in
+-- front is empty -- and waits, as at any blocked end, when something stands there. A drop
+-- that touches any block's belt joins it where it touched, if there is room; one landing on
+-- a machine's input end goes into the machine, if it takes it.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -49,9 +50,6 @@ type LaneState = {
 	-- Cached neighbour at the exit, valid while `version` matches the topology.
 	target: Entry?,
 	version: number,
-	-- Whether the cell past an unconnected exit is empty, as of `openChecked` (os.clock()).
-	open: boolean,
-	openChecked: number,
 }
 
 type Network = {
@@ -70,6 +68,7 @@ export type Block = {
 	footprint: Vector3,
 	lanes: { LaneState },
 	machine: Machine.State?,
+	inputPort: Factory.Port?,
 	outputPort: Factory.Port?,
 	outputTarget: Entry?,
 	outputVersion: number,
@@ -100,6 +99,10 @@ local OPEN_RECHECK = 0.5
 local CATCH_DISTANCE = 1.8
 -- Upward studs per second an item thrown off an open end leaves with.
 local THROW_LIFT = 1.5
+-- Studs per second a machine pushes its output off an open face.
+local MACHINE_THROW = 4
+-- Studs above a block's hitbox a drop aimed at its belt appears.
+local DROP_HEIGHT = 0.5
 -- Seconds between one player's interactions; caps how fast a client can spam remotes.
 local COOLDOWN = 0.15
 local NEIGHBOURS = {
@@ -137,6 +140,8 @@ local randomChoice: { [number]: number } = {}
 local networks: { Network } = {}
 local sapTimers: { [WorldService.Node]: number } = {}
 local lastAction: { [Player]: number } = {}
+-- Whether the cell past an unconnected port is empty, and when (os.clock()) that was seen.
+local openCache: { [Factory.Port]: { open: boolean, checked: number } } = setmetatable({}, { __mode = "k" }) :: any
 local topology = 0
 local overlapParams = Build.newOverlapParams()
 local tubesStale = true
@@ -291,55 +296,100 @@ local function routeOut(block: Block, item: Lane.Item): LaneState?
 	return lanes[choice]
 end
 
--- Whether nothing but characters stands in the cell past a lane's exit.
-local function isOpen(lane: LaneState): boolean
-	local port = lane.exitPort
-	if not port then
-		return false
-	end
+-- Whether nothing but characters and loose drops stands in the cell past an unconnected
+-- port.
+local function isOpen(port: Factory.Port): boolean
 	local now = os.clock()
-	if now - lane.openChecked < OPEN_RECHECK then
-		return lane.open
+	local cached = openCache[port]
+	if cached and now - cached.checked < OPEN_RECHECK then
+		return cached.open
 	end
 	local centre, size = Build.box(cellOf(port.position + port.normal * (Build.GRID / 2)), Vector3.one)
 	local open = true
 	for _, part in workspace:GetPartBoundsInBox(centre, size, overlapParams) do
 		local model = part:FindFirstAncestorOfClass("Model")
-		if not model or not Players:GetPlayerFromCharacter(model) then
+		if not Build.isLoose(part) and (not model or not Players:GetPlayerFromCharacter(model)) then
 			open = false
 			break
 		end
 	end
-	lane.open, lane.openChecked = open, now
+	openCache[port] = { open = open, checked = now }
 	return open
 end
 
-local function throwOff(lane: LaneState, itemId: string)
-	local port = lane.exitPort
-	if port then
-		local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
-		DropService.spawn(itemId, at, port.normal * lane.def.speed + Vector3.yAxis * THROW_LIFT)
-	end
+-- Sends an item flying off `port` at `speed` studs per second.
+local function throwOff(port: Factory.Port, speed: number, itemId: string)
+	local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
+	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT)
 end
 
--- Puts one item a drop at `position` carries onto the belt it touches, if there is room
--- there. Returns whether it did.
+-- The stretch of belt just inside a machine's input face, from the face inwards.
+local function inputBelt(port: Factory.Port): { Vector3 }
+	return { port.position, port.position - port.normal * Build.GRID }
+end
+
+-- Whether a drop at `position` lies over a belt, at its height or above. Height is left
+-- out of the distance: a drop resting on a router's hub cover, or on top of a machine with
+-- no belt art over its input, still counts, as does one caught on the art's collision hull
+-- before it settles.
+local function isOver(points: { Vector3 }, position: Vector3): boolean
+	local flat = {}
+	for index, point in points do
+		flat[index] = Vector3.new(point.X, position.Y, point.Z)
+	end
+	local d, distance = Lane.project(flat, position)
+	local belt = Lane.pointAt(points, d * Lane.length(points) / math.max(Lane.length(flat), 1e-3))
+	return distance <= CATCH_DISTANCE and position.Y >= belt.Y - 1
+end
+
+-- Puts one item a drop at `position` carries onto the belt it lies over, if there is room
+-- there, or into the machine whose input end it lies on, if it takes it. Only the drop's
+-- cell and the one just under it are looked at, so a belt never reaches through a block
+-- above it. Returns whether it did.
 local function catch(itemId: string, position: Vector3): boolean
 	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
 		local block = cellIndex[cellKey(cell)]
-		if block and block.def.kind == "Conveyor" then
-			for _, lane in block.lanes do
-				local d, distance = Lane.project(lane.points, position)
-				if
-					distance <= CATCH_DISTANCE and Lane.insert(lane.items, { id = newItemId(), itemId = itemId, d = d })
-				then
-					markDirty(lane)
-					return true
-				end
+		if not block then
+			continue
+		end
+		for _, lane in block.lanes do
+			local d = Lane.project(lane.points, position)
+			local item = { id = newItemId(), itemId = itemId, d = d }
+			if isOver(lane.points, position) and Lane.insert(lane.items, item) then
+				markDirty(lane)
+				return true
 			end
+		end
+		local machine = block.machine
+		local port = block.inputPort
+		local onInput = port ~= nil and isOver(inputBelt(port), position)
+		if machine and onInput and Machine.insert(machine, itemId, 1) == 1 then
+			return true
 		end
 	end
 	return false
+end
+
+-- Where a drop aimed at a placed block's belt appears: over its first lane, a cell's
+-- half in from the start (the middle of a plain conveyor, and clear of a router's hub
+-- cover), or over a machine's input end; nil for a block with no belt to drop onto.
+local function dropPoint(model: Model): Vector3?
+	local block = blocks[model]
+	if not block then
+		return nil
+	end
+	local box, size = Build.box(block.origin, block.footprint)
+	local first = block.lanes[1]
+	local over: Vector3? = nil
+	if first then
+		over = Lane.pointAt(first.points, math.min(first.length / 2, Build.GRID / 2))
+	elseif block.inputPort then
+		over = block.inputPort.position - block.inputPort.normal * (Build.GRID / 2)
+	end
+	if not over then
+		return nil
+	end
+	return Vector3.new(over.X, box.Position.Y + size.Y / 2 + DROP_HEIGHT, over.Z)
 end
 
 local function stepLanes(dt: number)
@@ -356,10 +406,10 @@ local function stepLanes(dt: number)
 			if target and deliver(target, front.itemId, front.id) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
-			elseif not target and isOpen(lane) then
+			elseif not target and lane.exitPort and isOpen(lane.exitPort) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
-				throwOff(lane, front.itemId)
+				throwOff(lane.exitPort, lane.def.speed, front.itemId)
 			end
 		else
 			local out = routeOut(lane.block, front)
@@ -491,9 +541,13 @@ local function stepMachines(dt: number)
 		end
 		Machine.step(machine, dt, envFor(block))
 		local itemId = Machine.peekOutput(machine)
+		local port = block.outputPort
 		local target = if itemId then outputTarget(block) else nil
 		if itemId and target and deliver(target, itemId, newItemId()) then
 			Machine.popOutput(machine)
+		elseif itemId and port and not target and isOpen(port) then
+			Machine.popOutput(machine)
+			throwOff(port, MACHINE_THROW, itemId)
 		end
 	end
 end
@@ -729,6 +783,7 @@ local function register(model: Instance)
 		footprint = footprint,
 		lanes = {},
 		machine = if def.kind == "Machine" then Machine.new(def) else nil,
+		inputPort = nil,
 		outputPort = nil,
 		outputTarget = nil,
 		outputVersion = -1,
@@ -756,8 +811,6 @@ local function register(model: Instance)
 			exitPort = if laneDef.exit then exit else nil,
 			target = nil,
 			version = -1,
-			open = false,
-			openChecked = -math.huge,
 		}
 		if laneDef.entry then
 			addEntry(entry, { block = block, lane = lane, normal = entry.normal })
@@ -767,6 +820,7 @@ local function register(model: Instance)
 	end
 	if def.input then
 		local port = Factory.facePort(frame, ext, def.input)
+		block.inputPort = port
 		addEntry(port, { block = block, lane = nil, normal = port.normal })
 	end
 	if def.output then
@@ -963,7 +1017,7 @@ function FactoryService.init()
 		lastAction[player] = nil
 	end)
 	RunService.Heartbeat:Connect(step)
-	DropService.setAbsorber(catch)
+	DropService.setBelts(catch, dropPoint)
 end
 
 return FactoryService

@@ -29,7 +29,14 @@ function Aim.ray(): Ray?
 	return camera:ViewportPointToRay(mouse.X, mouse.Y)
 end
 
+-- Loose drops (Workspace.Drops) collide, so CanQuery can't hide them from a ray; an
+-- excluding `params` gets their folder added, so the aim passes through them.
 function Aim.cast(params: RaycastParams, distance: number): RaycastResult?
+	local drops = workspace:FindFirstChild("Drops")
+	local excluding = params.FilterType == Enum.RaycastFilterType.Exclude
+	if drops and excluding and not table.find(params.FilterDescendantsInstances, drops) then
+		params:AddToFilter(drops)
+	end
 	local ray = Aim.ray()
 	return if ray then workspace:Raycast(ray.Origin, ray.Direction * distance, params) else nil
 end
