@@ -646,6 +646,19 @@ local function rebuildTubes()
 		end
 		table.insert(networks, network)
 	end
+	-- Forget trees no tube touches any more, so chopped trees don't pile up here.
+	for tree in sapTimers do
+		local tapped = false
+		for _, network in networks do
+			if network.trees[tree] then
+				tapped = true
+				break
+			end
+		end
+		if not tapped then
+			sapTimers[tree] = nil
+		end
+	end
 	tubesStale = false
 end
 
@@ -672,10 +685,16 @@ local function stepTubes(dt: number)
 	end
 	local elapsed = tubeTimer
 	tubeTimer = 0
+	-- A tree touching several networks still fills once per tick; any of them can take it.
+	local advanced: { [WorldService.Node]: boolean } = {}
 	for _, network in networks do
 		for tree in network.trees do
 			local every = World.getNode(tree.nodeType).sap or math.huge
-			local timer = math.min((sapTimers[tree] or 0) + elapsed, every)
+			local timer = sapTimers[tree] or 0
+			if not advanced[tree] then
+				advanced[tree] = true
+				timer = math.min(timer + elapsed, every)
+			end
 			if timer >= every and sendFluid(network, "Sap") then
 				timer = 0
 			end

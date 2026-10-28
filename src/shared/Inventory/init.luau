@@ -122,6 +122,17 @@ function Inventory.canAdd(slots: Slots, itemId: string, count: number): boolean
 	return Inventory.add(table.clone(slots), itemId, count) == 0
 end
 
+-- Whether every item in `counts` would fit at once, each sharing room with the others.
+function Inventory.canAddAll(slots: Slots, counts: { [string]: number }): boolean
+	local probe = table.clone(slots)
+	for itemId, count in counts do
+		if Inventory.add(probe, itemId, count) > 0 then
+			return false
+		end
+	end
+	return true
+end
+
 -- Takes up to `max` of `itemId` out of slot `index`. Returns how many it took.
 function Inventory.take(slots: Slots, index: number, itemId: string, max: number): number
 	local stack = Inventory.stackAt(slots, index)

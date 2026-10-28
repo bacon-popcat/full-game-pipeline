@@ -368,10 +368,8 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 			return
 		end
 		local drops = def.drops or {}
-		for itemId, count in drops do
-			if not InventoryService.canGive(player, itemId, count) then
-				return
-			end
+		if not InventoryService.canGiveAll(player, drops) then
+			return
 		end
 		removeNode(node)
 		giveAll(player, drops)

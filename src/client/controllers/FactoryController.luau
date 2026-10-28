@@ -106,7 +106,8 @@ end
 local function apply(key: string, items: { Lane.Item }, t: number)
 	local view = viewFor(key)
 	if not view then
-		pending[key] = { items = items, t = t }
+		-- An empty lane with no block to show it on has nothing to wait for.
+		pending[key] = if #items > 0 then { items = items, t = t } else nil
 		return
 	end
 	pending[key] = nil
@@ -144,6 +145,11 @@ local function dropBlock(blockId: number)
 				end
 			end
 			lanes[key] = nil
+		end
+	end
+	for key in pending do
+		if string.sub(key, 1, #prefix) == prefix then
+			pending[key] = nil
 		end
 	end
 	sweep()

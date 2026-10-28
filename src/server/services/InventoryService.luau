@@ -123,6 +123,12 @@ function InventoryService.canGive(player: Player, itemId: string, count: number)
 	return state ~= nil and Inventory.canAdd(state.slots, itemId, count)
 end
 
+-- Whether all of `counts` fits together, so a multi-item drop is given whole or not at all.
+function InventoryService.canGiveAll(player: Player, counts: { [string]: number }): boolean
+	local state = states[player]
+	return state ~= nil and Inventory.canAddAll(state.slots, counts)
+end
+
 -- Adds items to the player's inventory. Returns how many did not fit.
 function InventoryService.give(player: Player, itemId: string, count: number): number
 	local state = states[player]
