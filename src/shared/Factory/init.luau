@@ -125,12 +125,20 @@ function Factory.worldPoints(frame: CFrame, points: { Vector3 }): { Vector3 }
 	return result
 end
 
+-- Which way a lane end at `from` -> `to` faces: level, since ports sit on a hitbox's upright
+-- faces. A ramp's belt climbs, but its ends still face a flat conveyor's straight on.
+local function facing(from: Vector3, to: Vector3): Vector3
+	local along = to - from
+	local level = Vector3.new(along.X, 0, along.Z)
+	return if level.Magnitude > 1e-3 then level.Unit else along.Unit
+end
+
 -- A lane's entry (its start, facing back out) and exit (its end, facing on), in world space.
 function Factory.laneEnds(frame: CFrame, lane: LaneDef): (Port, Port)
 	local points = Factory.worldPoints(frame, lane.points)
 	local first, second = points[1], points[2]
 	local last, before = points[#points], points[#points - 1]
-	return { position = first, normal = (first - second).Unit }, { position = last, normal = (last - before).Unit }
+	return { position = first, normal = facing(second, first) }, { position = last, normal = facing(before, last) }
 end
 
 -- A machine's port on its -Z or +Z hitbox face, in world space.
