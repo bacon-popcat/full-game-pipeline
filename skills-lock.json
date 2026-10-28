@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "roblox-ui": {
+      "source": "AbhishekBarali/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/other-engines/roblox-ui/SKILL.md",
+      "computedHash": "d74afdae9aa479874ace9163ee5e2192136ba54d9b909cedbd2fe745983267a1"
+    },
+    "sound-effects": {
+      "source": "glebis/humane-agentic-design",
+      "sourceType": "github",
+      "skillPath": "humane/skills/sound-effects/SKILL.md",
+      "computedHash": "198406631eb3f154cb17be4ff5710643884eaea4c49cf6452867abefa0d92b99"
+    }
+  }
+}

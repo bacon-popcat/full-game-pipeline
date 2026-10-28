@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sound Effects"
+  short_description: "Opt-in semantic feedback sound palettes"
+  default_prompt: "Use $sound-effects to turn these approved semantic feedback events into a small, coherent, opt-in sound palette."
