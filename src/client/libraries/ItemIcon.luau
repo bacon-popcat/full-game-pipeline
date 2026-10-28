@@ -1,0 +1,79 @@
+--!strict
+-- ItemIcon: draws an item's 3D art into a ViewportFrame, framed the same way everywhere
+-- (slots, the drag ghost, the backpack preview). Showing the item a viewport already
+-- shows is free, so callers can call `show` on every render.
+--
+-- Only the model and camera added here are ever removed, so anything authored inside a
+-- viewport survives a redraw.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Build = require(ReplicatedStorage.Shared.Build)
+local Inventory = require(ReplicatedStorage.Shared.Inventory)
+
+type Drawn = { itemId: string?, model: Model?, camera: Camera? }
+
+-- Camera sits up and to the front-right of the item.
+local VIEW_DIRECTION = Vector3.new(1, 0.75, -1).Unit
+local FIELD_OF_VIEW = 30
+-- Above 1 leaves a margin around the item.
+local FRAMING = 0.95
+
+local ItemIcon = {}
+
+local drawn: { [ViewportFrame]: Drawn } = {}
+
+local function displayModel(itemId: string): Model?
+	if Inventory.isPlaceable(Inventory.getItem(itemId)) then
+		local template = Build.getTemplate(itemId)
+		return if template then template:Clone() else nil
+	end
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local tools = if assets then assets:FindFirstChild("Tools") else nil
+	local template = if tools then tools:FindFirstChild(itemId) else nil
+	if not template or not template:IsA("Tool") then
+		return nil
+	end
+	local model = Instance.new("Model")
+	for _, child in template:Clone():GetChildren() do
+		child.Parent = model
+	end
+	return model
+end
+
+function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
+	local current = drawn[viewport]
+	if current and current.itemId == itemId then
+		return
+	end
+	if current then
+		if current.model then
+			current.model:Destroy()
+		end
+		if current.camera then
+			current.camera:Destroy()
+		end
+	end
+	local entry: Drawn = { itemId = itemId }
+	drawn[viewport] = entry
+	if not itemId then
+		return
+	end
+
+	local model = displayModel(itemId)
+	if not model then
+		return
+	end
+	local box, size = model:GetBoundingBox()
+	local distance = (size.Magnitude / 2) * FRAMING / math.sin(math.rad(FIELD_OF_VIEW / 2))
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = FIELD_OF_VIEW
+	camera.CFrame = CFrame.lookAt(box.Position + VIEW_DIRECTION * distance, box.Position)
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	model.Parent = viewport
+	entry.model = model
+	entry.camera = camera
+end
+
+return ItemIcon

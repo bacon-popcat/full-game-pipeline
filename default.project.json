@@ -1,5 +1,5 @@
 {
-  "name": "incremental",
+  "name": "full game pipeline",
   "tree": {
     "$className": "DataModel",
 
@@ -9,6 +9,14 @@
       },
       "Packages": {
         "$path": "Packages"
+      },
+      "Remotes": {
+        "$className": "Folder",
+        "InventorySync": { "$className": "RemoteEvent" },
+        "InventoryMove": { "$className": "RemoteEvent" },
+        "InventorySelect": { "$className": "RemoteEvent" },
+        "PlaceBlock": { "$className": "RemoteEvent" },
+        "PickUpBlock": { "$className": "RemoteEvent" }
       }
     },
 
