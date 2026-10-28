@@ -8,8 +8,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Build = require(ReplicatedStorage.Shared.Build)
-local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 
 type Drawn = { itemId: string?, model: Model?, camera: Camera? }
 
@@ -22,23 +21,6 @@ local FRAMING = 0.95
 local ItemIcon = {}
 
 local drawn: { [ViewportFrame]: Drawn } = {}
-
-local function displayModel(itemId: string): Model?
-	if Inventory.isPlaceable(Inventory.getItem(itemId)) then
-		return Build.copyArt(itemId)
-	end
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local tools = if assets then assets:FindFirstChild("Tools") else nil
-	local template = if tools then tools:FindFirstChild(itemId) else nil
-	if not template or not template:IsA("Tool") then
-		return nil
-	end
-	local model = Instance.new("Model")
-	for _, child in template:Clone():GetChildren() do
-		child.Parent = model
-	end
-	return model
-end
 
 function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
 	local current = drawn[viewport]
@@ -59,7 +41,7 @@ function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
 		return
 	end
 
-	local model = displayModel(itemId)
+	local model = ItemArt.copy(itemId)
 	if not model then
 		return
 	end

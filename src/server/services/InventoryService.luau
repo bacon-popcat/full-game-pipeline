@@ -7,8 +7,9 @@
 -- separately, `refreshHeld` re-derives the hand after anything that can change that
 -- slot, swapping the Tool only when the item actually changed.
 --
--- Not persisted: a player starts with one full stack of every item (a test kit while
--- there is no economy) and loses it all on leaving.
+-- Not persisted: a player starts with one full stack of every tool, block and machine (a
+-- test kit) and loses it all on leaving. Resources are never handed out: they come from
+-- the world (WorldService) and the machines (FactoryService).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -81,6 +82,21 @@ function InventoryService.consumeHeld(player: Player, itemId: string): boolean
 	return true
 end
 
+-- Takes up to `max` of the held item if the hand still holds `itemId`. Returns how many
+-- it took.
+function InventoryService.takeHeld(player: Player, itemId: string, max: number): number
+	local state = states[player]
+	if not state or state.selected == 0 then
+		return 0
+	end
+	local taken = Inventory.take(state.slots, state.selected, itemId, max)
+	if taken > 0 then
+		sync(player, state)
+		refreshHeld(player, state)
+	end
+	return taken
+end
+
 function InventoryService.canGive(player: Player, itemId: string, count: number): boolean
 	local state = states[player]
 	return state ~= nil and Inventory.canAdd(state.slots, itemId, count)
@@ -126,7 +142,9 @@ end
 local function onPlayerAdded(player: Player)
 	local slots = Inventory.emptySlots()
 	for _, item in Inventory.ITEMS do
-		Inventory.add(slots, item.id, item.stack)
+		if item.kind ~= "Resource" then
+			Inventory.add(slots, item.id, item.stack)
+		end
 	end
 	local state: State = { slots = slots, selected = 1, held = nil, heldItemId = nil }
 	states[player] = state

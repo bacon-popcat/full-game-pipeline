@@ -4,9 +4,10 @@
 -- overlap are re-checked against the server's world with the shared Build rules.
 --
 -- Placed blocks live in Workspace.Placed with ItemId, Owner (UserId), Origin and
--- Rotation attributes. Only the owner can pick a block up, and only into free space in
--- their inventory. Not persisted: placed blocks outlive their owner's session but not
--- the server's.
+-- Rotation attributes. Only the owner can take a block back: any block with the Hammer, or
+-- a cube with the tool its item breaks with. Whatever a factory block held comes back
+-- with it (FactoryService.drain); what doesn't fit in the inventory is lost. Not
+-- persisted: placed blocks outlive their owner's session but not the server's.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local FactoryService = require(script.Parent.FactoryService)
 local InventoryService = require(script.Parent.InventoryService)
 
 -- Seconds between one player's build actions; caps how fast a client can spam remotes.
@@ -99,13 +101,16 @@ local function onPickUp(player: Player, model: unknown)
 		return
 	end
 	local held = InventoryService.getHeldItemId(player)
-	if not held or not Inventory.getItem(held).picksUp or model:GetAttribute("Owner") ~= player.UserId then
+	if not held or model:GetAttribute("Owner") ~= player.UserId then
 		return
 	end
 	local itemId = model:GetAttribute("ItemId")
 	local origin = model:GetAttribute("Origin")
 	local rotation = model:GetAttribute("Rotation")
 	if typeof(itemId) ~= "string" or typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
+		return
+	end
+	if not Inventory.getItem(held).picksUp and Inventory.getItem(itemId).breaksWith ~= held then
 		return
 	end
 	local footprint = Build.footprint(itemId, rotation)
@@ -116,8 +121,12 @@ local function onPickUp(player: Player, model: unknown)
 	if not InventoryService.canGive(player, itemId, 1) then
 		return
 	end
+	local contents = FactoryService.drain(model)
 	model:Destroy()
 	InventoryService.give(player, itemId, 1)
+	for contentId, count in contents do
+		InventoryService.give(player, contentId, count)
+	end
 end
 
 function BuildService.init()

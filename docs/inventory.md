@@ -42,11 +42,14 @@ The RemoteEvents are the exception: they are declared in `default.project.json`.
 
 ## Block templates
 
-A block template's `PrimaryPart` is its hitbox, and its centre is the template's only pivot.
-The hitbox is a box of whole 3-stud cells: its size is the footprint, and placing the block
-fills the placement's cells with it. A cube is its own hitbox. A machine has an invisible,
-queryable, non-colliding part named `Hitbox` around its art. The art may poke out of the
-hitbox by up to 0.15 studs, which `Build`'s overlap margin allows for.
+A block template's `PrimaryPart` is its hitbox, and the hitbox's pivot is the template's only
+pivot. The hitbox is a box of whole 3-stud cells: its size is the footprint, and placing the
+block fills the placement's cells with it. A cube is its own hitbox. A machine has an
+invisible, queryable, non-colliding part named `Hitbox` around its art. The art may poke out
+of the hitbox by up to 0.15 studs, which `Build`'s overlap margin allows for. The pivot sits
+on the floor at a convenient cell centre (the conveyor's, or under the drill column for the
+Drill); placement reads it relative to the hitbox, so where it sits never changes placement.
+Machine parts collide with their exact shape.
 
 For conveyors to connect, a machine's conveyor runs down the middle of a column of cells,
 and a conveyor end that meets a neighbour sits on a hitbox face. The Islands pipeline builds
@@ -60,8 +63,10 @@ That folder is outside git, and its README covers the rules.
    exactly the item id. A block also needs its hitbox `PrimaryPart` (above). The footprint
    comes from the hitbox, so no size is entered.
 
+What placed blocks do once they are down -- and what the Pickaxe, Axe and an empty hand do --
+is docs/factory.md.
+
 ## Not built yet
 
-- Persistence: inventories reset on join (everyone gets a full stack of every item) and
-  placed blocks only last as long as the server.
-- Pickaxe and Axe equip and swing but have nothing to act on.
+- Persistence: inventories reset on join (everyone gets a full stack of every tool, block
+  and machine, but no resources) and placed blocks only last as long as the server.

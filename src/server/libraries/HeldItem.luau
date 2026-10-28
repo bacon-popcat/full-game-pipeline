@@ -1,7 +1,8 @@
 --!strict
 -- HeldItem: builds the Tool a character holds for an item. Tool items clone their
--- authored Tool from Assets.Tools; blocks and machines get a generated Tool carrying a
--- shrunken copy of the block, so whatever the hotbar has selected is visibly in hand.
+-- authored Tool from Assets.Tools; blocks, machines and resources get a generated Tool
+-- carrying a shrunken copy of their art (ItemArt), so whatever the hotbar has selected is
+-- visibly in hand.
 --
 -- Every Tool made here carries an ItemId attribute (the client reads it to decide what
 -- the hand does), cannot be dropped, and has CanQuery off on every part, so a player's
@@ -9,8 +10,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 
 -- Studs along the longest side of a block held in hand.
 local HELD_BLOCK_SIZE = 1.3
@@ -66,7 +67,7 @@ function HeldItem.create(itemId: string): Tool?
 		end
 		tool = template:Clone()
 	else
-		local art = Build.copyArt(itemId)
+		local art = ItemArt.copy(itemId)
 		if not art then
 			return nil
 		end

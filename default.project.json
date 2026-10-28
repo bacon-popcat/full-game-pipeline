@@ -16,7 +16,10 @@
         "InventoryMove": { "$className": "RemoteEvent" },
         "InventorySelect": { "$className": "RemoteEvent" },
         "PlaceBlock": { "$className": "RemoteEvent" },
-        "PickUpBlock": { "$className": "RemoteEvent" }
+        "PickUpBlock": { "$className": "RemoteEvent" },
+        "Interact": { "$className": "RemoteEvent" },
+        "FactorySync": { "$className": "RemoteEvent" },
+        "DropItem": { "$className": "RemoteEvent" }
       }
     },
 

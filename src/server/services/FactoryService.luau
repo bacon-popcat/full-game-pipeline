@@ -1,0 +1,969 @@
+-- FactoryService: runs every placed factory block (Shared/Factory). It registers a block
+-- when it lands in Workspace.Placed, connects it to its neighbours by their ports, and
+-- every frame moves items along lanes, through router hubs and into and out of machines.
+-- Wood tubes form networks that carry sap and syrup between maple trees, sap boilers and
+-- syrup bottlers. Players feed machines, take output and switch routers through Interact.
+--
+-- Two ports connect when one block's exit and another's entry share a point and face each
+-- other; there is no other wiring. Items only ever move on the server: clients get each
+-- lane's item list when an item joins or leaves it (FactorySync) and slide items along
+-- with the same Lane rule in between. Machines publish what they hold and why they are
+-- idle as attributes on their model, for players to read.
+--
+-- Belts meet loose items too (DropService). An item reaching a lane end that connects to
+-- nothing is thrown off as a physical drop when the cell in front is empty -- and waits, as
+-- at any blocked end, when something stands there. A drop that touches a belt joins it
+-- where it touched, if there is room.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+local Build = require(ReplicatedStorage.Shared.Build)
+local Factory = require(ReplicatedStorage.Shared.Factory)
+local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local World = require(ReplicatedStorage.Shared.World)
+local Machine = require(ServerScriptService.Libraries.Machine)
+local DropService = require(script.Parent.DropService)
+local InventoryService = require(script.Parent.InventoryService)
+local WorldService = require(script.Parent.WorldService)
+
+type Entry = {
+	block: Block,
+	-- The lane whose start this is, or nil for a machine's input face.
+	lane: LaneState?,
+	normal: Vector3,
+}
+
+type LaneState = {
+	key: string,
+	block: Block,
+	index: number,
+	def: Factory.LaneDef,
+	points: { Vector3 },
+	length: number,
+	items: { Lane.Item },
+	exitPort: Factory.Port?,
+	-- Cached neighbour at the exit, valid while `version` matches the topology.
+	target: Entry?,
+	version: number,
+	-- Whether the cell past an unconnected exit is empty, as of `openChecked` (os.clock()).
+	open: boolean,
+	openChecked: number,
+}
+
+type Network = {
+	machines: { [Block]: boolean },
+	trees: { [WorldService.Node]: boolean },
+}
+
+export type Block = {
+	id: number,
+	model: Model,
+	itemId: string,
+	def: Factory.Def,
+	frame: CFrame,
+	ext: Factory.Extents,
+	origin: Vector3,
+	footprint: Vector3,
+	lanes: { LaneState },
+	machine: Machine.State?,
+	outputPort: Factory.Port?,
+	outputTarget: Entry?,
+	outputVersion: number,
+	-- Routers.
+	filter: { [string]: boolean },
+	powered: boolean,
+	pulseUntil: number,
+	-- Tubes: outward world directions of the openings.
+	openings: { Vector3 },
+	env: Machine.Env?,
+}
+
+-- Seconds between machine status refreshes.
+local STATUS_EVERY = 0.25
+-- Seconds between wood tube rounds, and between full network rebuilds (which catch trees
+-- that grew or were chopped).
+local TUBE_EVERY = 0.5
+local TUBE_REBUILD_EVERY = 5
+-- Seconds a sensor powers the split conveyors touching it.
+local PULSE = 1
+-- Seconds a sensor's light curtain shows after an item passes.
+local FLASH = 0.4
+-- Most items a filter conveyor filters.
+local FILTER_MAX = 4
+-- Seconds an open-end check stays good; the world in front can change without the topology.
+local OPEN_RECHECK = 0.5
+-- Studs from a lane's path within which a drop counts as touching the belt.
+local CATCH_DISTANCE = 1.8
+-- Upward studs per second an item thrown off an open end leaves with.
+local THROW_LIFT = 1.5
+-- Seconds between one player's interactions; caps how fast a client can spam remotes.
+local COOLDOWN = 0.15
+local NEIGHBOURS = {
+	Vector3.xAxis,
+	-Vector3.xAxis,
+	Vector3.yAxis,
+	-Vector3.yAxis,
+	Vector3.zAxis,
+	-Vector3.zAxis,
+}
+
+local FactoryService = {}
+
+local function placedFolder(): Folder
+	local existing = workspace:FindFirstChild("Placed")
+	if existing and existing:IsA("Folder") then
+		return existing
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = "Placed"
+	folder.Parent = workspace
+	return folder
+end
+
+local placed = placedFolder()
+local blocks: { [Model]: Block } = {}
+local cellIndex: { [string]: Block } = {}
+local entries: { [string]: { Entry } } = {}
+local laneSet: { [LaneState]: boolean } = {}
+local dirty: { [LaneState]: boolean } = {}
+-- Lanes cleared since the last update, by key.
+local cleared: { [string]: boolean } = {}
+-- Random routers decide once per item, so a blocked item doesn't flip-flop.
+local randomChoice: { [number]: number } = {}
+local networks: { Network } = {}
+local sapTimers: { [WorldService.Node]: number } = {}
+local lastAction: { [Player]: number } = {}
+local topology = 0
+local overlapParams = Build.newOverlapParams()
+local tubesStale = true
+local nextBlockId = 0
+local nextItemId = 0
+local statusTimer = 0
+local tubeTimer = 0
+local rebuildTimer = 0
+
+local function cellKey(cell: Vector3): string
+	return `{cell.X},{cell.Y},{cell.Z}`
+end
+
+local function newItemId(): number
+	nextItemId += 1
+	return nextItemId
+end
+
+local function markDirty(lane: LaneState)
+	dirty[lane] = true
+end
+
+local function eachCell(origin: Vector3, footprint: Vector3, visit: (Vector3) -> ())
+	for x = 0, footprint.X - 1 do
+		for y = 0, footprint.Y - 1 do
+			for z = 0, footprint.Z - 1 do
+				visit(origin + Vector3.new(x, y, z))
+			end
+		end
+	end
+end
+
+local function cellOf(position: Vector3): Vector3
+	local scaled = position / Build.GRID
+	return Vector3.new(math.floor(scaled.X), math.floor(scaled.Y), math.floor(scaled.Z))
+end
+
+local function centreOf(block: Block): Vector3
+	return Build.box(block.origin, block.footprint).Position
+end
+
+local function addEntry(port: Factory.Port, entry: Entry)
+	local key = Factory.portKey(port.position)
+	local list = entries[key]
+	if not list then
+		list = {}
+		entries[key] = list
+	end
+	table.insert(list, entry)
+end
+
+-- The entry facing `port` at the same point, if a block offers one.
+local function connect(port: Factory.Port): Entry?
+	local list = entries[Factory.portKey(port.position)]
+	if not list then
+		return nil
+	end
+	for _, entry in list do
+		if entry.normal:Dot(port.normal) < -0.9 then
+			return entry
+		end
+	end
+	return nil
+end
+
+local function laneTarget(lane: LaneState): Entry?
+	local port = lane.exitPort
+	if not port then
+		return nil
+	end
+	if lane.version ~= topology then
+		lane.target = connect(port)
+		lane.version = topology
+	end
+	return lane.target
+end
+
+local function outputTarget(block: Block): Entry?
+	local port = block.outputPort
+	if not port then
+		return nil
+	end
+	if block.outputVersion ~= topology then
+		block.outputTarget = connect(port)
+		block.outputVersion = topology
+	end
+	return block.outputTarget
+end
+
+local function isPowered(block: Block): boolean
+	return block.powered or block.pulseUntil > workspace:GetServerTimeNow()
+end
+
+local function flash(block: Block)
+	local curtain = block.model:FindFirstChild(`Mesh_{block.itemId}_LightCurtain`)
+	if curtain and curtain:IsA("BasePart") then
+		curtain.Transparency = 0.4
+		task.delay(FLASH, function()
+			curtain.Transparency = 1
+		end)
+	end
+end
+
+-- A sensor saw an item: flash, and power every split conveyor touching it.
+local function pulse(sensor: Block)
+	flash(sensor)
+	local poweredUntil = workspace:GetServerTimeNow() + PULSE
+	eachCell(sensor.origin, sensor.footprint, function(cell)
+		for _, offset in NEIGHBOURS do
+			local other = cellIndex[cellKey(cell + offset)]
+			if other and other ~= sensor and other.def.route == "Split" then
+				other.pulseUntil = poweredUntil
+			end
+		end
+	end)
+end
+
+-- Hands an item to an entry. Returns whether it was taken.
+local function deliver(entry: Entry, itemId: string, id: number): boolean
+	local lane = entry.lane
+	if lane then
+		if not Lane.hasRoom(lane.items) then
+			return false
+		end
+		table.insert(lane.items, { id = id, itemId = itemId, d = 0 })
+		markDirty(lane)
+		if entry.block.def.sensor then
+			pulse(entry.block)
+		end
+		return true
+	end
+	local machine = entry.block.machine
+	return machine ~= nil and Machine.insert(machine, itemId, 1) == 1
+end
+
+-- The out-lane an item at a router's hub goes to.
+local function routeOut(block: Block, item: Lane.Item): LaneState?
+	local route = block.def.route
+	local lanes = block.lanes
+	if route == "Merge" then
+		return lanes[3]
+	elseif route == "Split" then
+		return if isPowered(block) then lanes[3] else lanes[2]
+	elseif route == "Filter" then
+		return if block.filter[item.itemId] then lanes[3] else lanes[2]
+	end
+	local choice = randomChoice[item.id]
+	if not choice then
+		choice = math.random(2, 3)
+		randomChoice[item.id] = choice
+	end
+	return lanes[choice]
+end
+
+-- Whether nothing but characters stands in the cell past a lane's exit.
+local function isOpen(lane: LaneState): boolean
+	local port = lane.exitPort
+	if not port then
+		return false
+	end
+	local now = os.clock()
+	if now - lane.openChecked < OPEN_RECHECK then
+		return lane.open
+	end
+	local centre, size = Build.box(cellOf(port.position + port.normal * (Build.GRID / 2)), Vector3.one)
+	local open = true
+	for _, part in workspace:GetPartBoundsInBox(centre, size, overlapParams) do
+		local model = part:FindFirstAncestorOfClass("Model")
+		if not model or not Players:GetPlayerFromCharacter(model) then
+			open = false
+			break
+		end
+	end
+	lane.open, lane.openChecked = open, now
+	return open
+end
+
+local function throwOff(lane: LaneState, itemId: string)
+	local port = lane.exitPort
+	if port then
+		local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
+		DropService.spawn(itemId, at, port.normal * lane.def.speed + Vector3.yAxis * THROW_LIFT)
+	end
+end
+
+-- Puts one item a drop at `position` carries onto the belt it touches, if there is room
+-- there. Returns whether it did.
+local function catch(itemId: string, position: Vector3): boolean
+	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
+		local block = cellIndex[cellKey(cell)]
+		if block and block.def.kind == "Conveyor" then
+			for _, lane in block.lanes do
+				local d, distance = Lane.project(lane.points, position)
+				if
+					distance <= CATCH_DISTANCE and Lane.insert(lane.items, { id = newItemId(), itemId = itemId, d = d })
+				then
+					markDirty(lane)
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+local function stepLanes(dt: number)
+	for lane in laneSet do
+		Lane.advance(lane.items, dt, lane.def.speed, lane.length)
+	end
+	for lane in laneSet do
+		local front = Lane.waiting(lane.items, lane.length)
+		if not front then
+			continue
+		end
+		if lane.def.exit then
+			local target = laneTarget(lane)
+			if target and deliver(target, front.itemId, front.id) then
+				table.remove(lane.items, 1)
+				markDirty(lane)
+			elseif not target and isOpen(lane) then
+				table.remove(lane.items, 1)
+				markDirty(lane)
+				throwOff(lane, front.itemId)
+			end
+		else
+			local out = routeOut(lane.block, front)
+			if out and Lane.hasRoom(out.items) then
+				table.remove(lane.items, 1)
+				table.insert(out.items, { id = front.id, itemId = front.itemId, d = 0 })
+				randomChoice[front.id] = nil
+				markDirty(lane)
+				markDirty(out)
+			end
+		end
+	end
+end
+
+local function sourceNames(sources: { [string]: Factory.Source }, lookup: (string) -> string): string
+	local names = {}
+	for sourceType in sources do
+		table.insert(names, lookup(sourceType))
+	end
+	table.sort(names)
+	return table.concat(names, " or ")
+end
+
+local function withArticle(text: string): string
+	return if string.find(text, "^[AEIOU]") then `an {text}` else `a {text}`
+end
+
+local function nodeName(nodeType: string): string
+	return World.getNode(nodeType).name
+end
+
+local function animalName(animalType: string): string
+	return World.getAnimal(animalType).name
+end
+
+local function treeCellOf(block: Block): Vector3?
+	local treeCell = block.def.treeCell
+	return if treeCell then cellOf(block.frame:PointToWorldSpace(treeCell(block.ext))) else nil
+end
+
+local function treeNode(block: Block): WorldService.Node?
+	local produce = block.def.produce
+	local cell = treeCellOf(block)
+	local node = if cell then WorldService.nodeAt(cell) else nil
+	return if node and produce and produce.sources[node.nodeType] then node else nil
+end
+
+-- What the world offers a producer right now, or nil and why not.
+local function findSource(block: Block): (Factory.Source?, string?)
+	local produce = block.def.produce
+	if not produce then
+		return nil, nil
+	end
+	local sources = produce.sources
+	local radius = (produce.radius or 6) * Build.GRID
+	if produce.where == "Below" then
+		local below = block.origin - Vector3.yAxis
+		for x = 0, block.footprint.X - 1 do
+			for z = 0, block.footprint.Z - 1 do
+				local node = WorldService.nodeAt(below + Vector3.new(x, 0, z))
+				if node and sources[node.nodeType] then
+					return sources[node.nodeType], nil
+				end
+			end
+		end
+		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} below`
+	elseif produce.where == "Near" then
+		local node = WorldService.nodesNear(centreOf(block), radius, sources)[1]
+		if node then
+			return sources[node.nodeType], nil
+		end
+		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} nearby`
+	elseif produce.where == "Tree" then
+		local node = treeNode(block)
+		if node then
+			return sources[node.nodeType], nil
+		end
+		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} in front`
+	end
+	for _, animal in WorldService.animalsNear(centreOf(block), radius, sources) do
+		if WorldService.isFed(animal) then
+			return sources[animal.animalType], nil
+		end
+	end
+	return nil, `Needs a fed {sourceNames(sources, animalName)} nearby`
+end
+
+local function envFor(block: Block): Machine.Env
+	local existing = block.env
+	if existing then
+		return existing
+	end
+	local def = block.def
+	local env: Machine.Env = {}
+	if def.produce then
+		env.source = function()
+			return findSource(block)
+		end
+		env.chop = function()
+			local node = treeNode(block)
+			return if node then WorldService.chop(node) else nil
+		end
+	end
+	if def.plants then
+		local plants = def.plants
+		env.canPlant = function()
+			local cell = treeCellOf(block)
+			return cell ~= nil and WorldService.isCellFree(cell)
+		end
+		env.plant = function()
+			local cell = treeCellOf(block)
+			return cell ~= nil and WorldService.plant(cell, plants)
+		end
+	end
+	if def.feeds then
+		env.feed = function(food)
+			return WorldService.feedNear(centreOf(block), (def.feedRadius or 6) * Build.GRID, food)
+		end
+	end
+	block.env = env
+	return env
+end
+
+local function stepMachines(dt: number)
+	for _, block in blocks do
+		local machine = block.machine
+		if not machine then
+			continue
+		end
+		Machine.step(machine, dt, envFor(block))
+		local itemId = Machine.peekOutput(machine)
+		local target = if itemId then outputTarget(block) else nil
+		if itemId and target and deliver(target, itemId, newItemId()) then
+			Machine.popOutput(machine)
+		end
+	end
+end
+
+local function blockAt(cell: Vector3): Block?
+	return cellIndex[cellKey(cell)]
+end
+
+local function tubeCell(block: Block): Vector3
+	return block.origin
+end
+
+local function isTube(block: Block?): boolean
+	return block ~= nil and block.def.kind == "Tube"
+end
+
+local function hasOpening(block: Block, direction: Vector3): boolean
+	for _, opening in block.openings do
+		if opening:Dot(direction) > 0.9 then
+			return true
+		end
+	end
+	return false
+end
+
+local function setFluidVisible(block: Block, visible: boolean)
+	local fluid = block.model:FindFirstChild(`Mesh_{block.itemId}_Fluid`)
+	if fluid and fluid:IsA("BasePart") then
+		fluid.Transparency = if visible then 0 else 1
+	end
+end
+
+-- Regroups the tubes into networks, with the machines and maple trees each one touches,
+-- and shows a tube's sap only when every opening of it is connected.
+local function rebuildTubes()
+	table.clear(networks)
+	local seen: { [Block]: boolean } = {}
+	for _, start in blocks do
+		if not isTube(start) or seen[start] then
+			continue
+		end
+		local network: Network = { machines = {}, trees = {} }
+		local queue = { start }
+		seen[start] = true
+		while #queue > 0 do
+			local tube = queue[#queue]
+			queue[#queue] = nil
+			local connected = 0
+			for _, direction in tube.openings do
+				local cell = tubeCell(tube) + direction
+				local other = blockAt(cell)
+				local node = WorldService.nodeAt(cell)
+				if other and isTube(other) and hasOpening(other, -direction) then
+					connected += 1
+					if not seen[other] then
+						seen[other] = true
+						table.insert(queue, other)
+					end
+				elseif other and other.def.tubes then
+					connected += 1
+					network.machines[other] = true
+				elseif node and World.getNode(node.nodeType).sap then
+					connected += 1
+					network.trees[node] = true
+				end
+			end
+			setFluidVisible(tube, connected == #tube.openings)
+		end
+		table.insert(networks, network)
+	end
+	tubesStale = false
+end
+
+local function sendFluid(network: Network, fluid: string): boolean
+	for block in network.machines do
+		local machine = block.machine
+		if machine and Machine.acceptsFluid(machine, fluid) then
+			Machine.addFluid(machine, fluid)
+			return true
+		end
+	end
+	return false
+end
+
+local function stepTubes(dt: number)
+	rebuildTimer += dt
+	if tubesStale or rebuildTimer >= TUBE_REBUILD_EVERY then
+		rebuildTimer = 0
+		rebuildTubes()
+	end
+	tubeTimer += dt
+	if tubeTimer < TUBE_EVERY then
+		return
+	end
+	local elapsed = tubeTimer
+	tubeTimer = 0
+	for _, network in networks do
+		for tree in network.trees do
+			local every = World.getNode(tree.nodeType).sap or math.huge
+			local timer = math.min((sapTimers[tree] or 0) + elapsed, every)
+			if timer >= every and sendFluid(network, "Sap") then
+				timer = 0
+			end
+			sapTimers[tree] = timer
+		end
+		-- A boiler's syrup goes on to whichever machine on the same tubes takes it.
+		for block in network.machines do
+			local machine = block.machine
+			local fluid = if machine then next(machine.fluidOut) else nil
+			if machine and fluid and sendFluid(network, fluid) then
+				Machine.takeFluid(machine)
+			end
+		end
+	end
+end
+
+local function encode(counts: { [string]: number }): string
+	local parts = {}
+	for itemId, count in counts do
+		table.insert(parts, `{itemId}:{count}`)
+	end
+	table.sort(parts)
+	return table.concat(parts, ",")
+end
+
+local function countList(list: { string }): { [string]: number }
+	local counts = {}
+	for _, itemId in list do
+		counts[itemId] = (counts[itemId] or 0) + 1
+	end
+	return counts
+end
+
+local function setAttribute(model: Model, name: string, value: any)
+	if model:GetAttribute(name) ~= value then
+		model:SetAttribute(name, value)
+	end
+end
+
+local function refreshStatus(block: Block)
+	local model = block.model
+	local machine = block.machine
+	if machine then
+		setAttribute(model, "Status", machine.status)
+		setAttribute(model, "Fuel", math.ceil(machine.fuel))
+		setAttribute(model, "Contents", encode(machine.inputs))
+		setAttribute(model, "Output", encode(countList(machine.outputs)))
+		local fluids = table.clone(machine.fluidIn)
+		for fluid, count in machine.fluidOut do
+			fluids[fluid] = (fluids[fluid] or 0) + count
+		end
+		setAttribute(model, "Fluid", encode(fluids))
+		setAttribute(model, "Progress", math.floor(Machine.progress(machine) * 10) / 10)
+		if block.def.sells then
+			setAttribute(model, "Sold", machine.sold)
+		end
+	elseif block.def.route == "Split" then
+		setAttribute(model, "Powered", isPowered(block))
+	elseif block.def.route == "Filter" then
+		local filtered = {}
+		for itemId in block.filter do
+			table.insert(filtered, itemId)
+		end
+		table.sort(filtered)
+		setAttribute(model, "Filter", table.concat(filtered, ","))
+	end
+end
+
+local function snapshot(lane: LaneState): { Lane.Item }
+	local items = table.create(#lane.items)
+	for index, item in lane.items do
+		items[index] = { id = item.id, itemId = item.itemId, d = item.d }
+	end
+	return items
+end
+
+local function replicate()
+	if next(dirty) == nil and next(cleared) == nil then
+		return
+	end
+	local lanes = {}
+	for key in cleared do
+		lanes[key] = {}
+	end
+	for lane in dirty do
+		lanes[lane.key] = snapshot(lane)
+	end
+	table.clear(dirty)
+	table.clear(cleared)
+	Remotes.FactorySync:FireAllClients({ t = workspace:GetServerTimeNow(), lanes = lanes })
+end
+
+local function step(dt: number)
+	stepLanes(dt)
+	stepMachines(dt)
+	stepTubes(dt)
+	statusTimer += dt
+	if statusTimer >= STATUS_EVERY then
+		statusTimer = 0
+		for _, block in blocks do
+			refreshStatus(block)
+		end
+	end
+	replicate()
+end
+
+local function register(model: Instance)
+	if not model:IsA("Model") or blocks[model] then
+		return
+	end
+	local itemId = model:GetAttribute("ItemId")
+	local origin = model:GetAttribute("Origin")
+	local rotation = model:GetAttribute("Rotation")
+	if typeof(itemId) ~= "string" or typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
+		return
+	end
+	local def = Factory.get(itemId)
+	local frame = Factory.originFrame(model)
+	local ext = Factory.extents(itemId)
+	local footprint = Build.footprint(itemId, rotation)
+	if not def or not frame or not ext or not footprint then
+		return
+	end
+	nextBlockId += 1
+	local block: Block = {
+		id = nextBlockId,
+		model = model,
+		itemId = itemId,
+		def = def,
+		frame = frame,
+		ext = ext,
+		origin = origin,
+		footprint = footprint,
+		lanes = {},
+		machine = if def.kind == "Machine" then Machine.new(def) else nil,
+		outputPort = nil,
+		outputTarget = nil,
+		outputVersion = -1,
+		filter = {},
+		powered = false,
+		pulseUntil = 0,
+		openings = {},
+		env = nil,
+	}
+	model:SetAttribute("BlockId", block.id)
+	eachCell(origin, footprint, function(cell)
+		cellIndex[cellKey(cell)] = block
+	end)
+	for index, laneDef in Factory.lanes(itemId) do
+		local points = Factory.worldPoints(frame, laneDef.points)
+		local entry, exit = Factory.laneEnds(frame, laneDef)
+		local lane: LaneState = {
+			key = `{block.id}/{index}`,
+			block = block,
+			index = index,
+			def = laneDef,
+			points = points,
+			length = Lane.length(points),
+			items = {},
+			exitPort = if laneDef.exit then exit else nil,
+			target = nil,
+			version = -1,
+			open = false,
+			openChecked = -math.huge,
+		}
+		if laneDef.entry then
+			addEntry(entry, { block = block, lane = lane, normal = entry.normal })
+		end
+		block.lanes[index] = lane
+		laneSet[lane] = true
+	end
+	if def.input then
+		local port = Factory.facePort(frame, ext, def.input)
+		addEntry(port, { block = block, lane = nil, normal = port.normal })
+	end
+	if def.output then
+		block.outputPort = Factory.facePort(frame, ext, def.output)
+	end
+	for _, opening in def.openings or {} do
+		local direction = frame:VectorToWorldSpace(opening)
+		table.insert(
+			block.openings,
+			Vector3.new(math.round(direction.X), math.round(direction.Y), math.round(direction.Z))
+		)
+	end
+	if def.sensor then
+		flash(block)
+	end
+	blocks[model] = block
+	topology += 1
+	tubesStale = true
+end
+
+local function unregister(model: Instance)
+	if not model:IsA("Model") then
+		return
+	end
+	local block = blocks[model]
+	if not block then
+		return
+	end
+	blocks[model] = nil
+	eachCell(block.origin, block.footprint, function(cell)
+		if cellIndex[cellKey(cell)] == block then
+			cellIndex[cellKey(cell)] = nil
+		end
+	end)
+	for key, list in entries do
+		for index = #list, 1, -1 do
+			if list[index].block == block then
+				table.remove(list, index)
+			end
+		end
+		if #list == 0 then
+			entries[key] = nil
+		end
+	end
+	for _, lane in block.lanes do
+		laneSet[lane] = nil
+		dirty[lane] = nil
+		cleared[lane.key] = true
+	end
+	topology += 1
+	tubesStale = true
+end
+
+-- Everything a placed block holds -- items on its lanes, a machine's inputs and output --
+-- removed from it, for the player picking it up.
+function FactoryService.drain(model: Model): { [string]: number }
+	local block = blocks[model]
+	local counts: { [string]: number } = {}
+	if not block then
+		return counts
+	end
+	for _, lane in block.lanes do
+		for _, item in lane.items do
+			counts[item.itemId] = (counts[item.itemId] or 0) + 1
+		end
+		table.clear(lane.items)
+		markDirty(lane)
+	end
+	local machine = block.machine
+	if machine then
+		for itemId, count in Machine.drain(machine) do
+			counts[itemId] = (counts[itemId] or 0) + count
+		end
+	end
+	return counts
+end
+
+local function rootOf(player: Player): BasePart?
+	local character = player.Character
+	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	if not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then
+		return nil
+	end
+	return root
+end
+
+local function ready(player: Player): boolean
+	local now = os.clock()
+	if now - (lastAction[player] or 0) < COOLDOWN then
+		return false
+	end
+	lastAction[player] = now
+	return true
+end
+
+-- Feeds the held item into a machine or a filter.
+local function use(player: Player, block: Block)
+	local held = InventoryService.getHeldItemId(player)
+	if not held or not Factory.takesByHand(block.itemId, held) then
+		return
+	end
+	if block.def.route == "Filter" then
+		local count = 0
+		for _ in block.filter do
+			count += 1
+		end
+		if block.filter[held] then
+			block.filter[held] = nil
+		elseif count < FILTER_MAX then
+			block.filter[held] = true
+		end
+		refreshStatus(block)
+		return
+	end
+	local machine = block.machine
+	if not machine then
+		return
+	end
+	local taken = InventoryService.takeHeld(player, held, Machine.room(machine, held))
+	Machine.insert(machine, held, taken)
+	refreshStatus(block)
+end
+
+-- An empty hand: collect a machine's output or a conveyor's items, or switch a router.
+local function take(player: Player, block: Block)
+	if InventoryService.getHeldItemId(player) then
+		return
+	end
+	local machine = block.machine
+	if machine then
+		local itemId = Machine.peekOutput(machine)
+		while itemId and InventoryService.give(player, itemId, 1) == 0 do
+			Machine.popOutput(machine)
+			itemId = Machine.peekOutput(machine)
+		end
+	elseif block.def.route == "Split" then
+		block.powered = not block.powered
+	elseif block.def.route == "Filter" then
+		table.clear(block.filter)
+	elseif block.def.kind == "Conveyor" then
+		for _, lane in block.lanes do
+			for index = #lane.items, 1, -1 do
+				if InventoryService.give(player, lane.items[index].itemId, 1) > 0 then
+					break
+				end
+				table.remove(lane.items, index)
+				markDirty(lane)
+			end
+		end
+	end
+	refreshStatus(block)
+end
+
+local function onInteract(player: Player, target: unknown, action: unknown)
+	if typeof(target) ~= "Instance" or not target:IsA("Model") or target.Parent ~= placed then
+		return
+	end
+	local block = blocks[target]
+	local root = rootOf(player)
+	if not block or not root or (action ~= "Use" and action ~= "Take") or not ready(player) then
+		return
+	end
+	if not Build.inReach(root.Position, block.origin, block.footprint) then
+		return
+	end
+	if action == "Use" then
+		use(player, block)
+	else
+		take(player, block)
+	end
+end
+
+-- Every lane's items, for a player who just joined.
+local function sendAll(player: Player)
+	local lanes = {}
+	for lane in laneSet do
+		if #lane.items > 0 then
+			lanes[lane.key] = snapshot(lane)
+		end
+	end
+	Remotes.FactorySync:FireClient(player, { t = workspace:GetServerTimeNow(), lanes = lanes })
+end
+
+function FactoryService.init()
+	placed.ChildAdded:Connect(register)
+	placed.ChildRemoved:Connect(unregister)
+	for _, model in placed:GetChildren() do
+		register(model)
+	end
+	Remotes.Interact.OnServerEvent:Connect(onInteract)
+	Players.PlayerAdded:Connect(sendAll)
+	Players.PlayerRemoving:Connect(function(player)
+		lastAction[player] = nil
+	end)
+	RunService.Heartbeat:Connect(step)
+	DropService.setAbsorber(catch)
+end
+
+return FactoryService

@@ -7,8 +7,7 @@
 -- `false`, never nil, so the list stays dense through a RemoteEvent (nil holes cut
 -- arrays short in transit). `selected` is a hotbar index, 0 for an empty hand.
 --
--- Item art is keyed by id: Assets.Blocks[id] for blocks and machines (see Build),
--- Assets.Tools[id] for tools.
+-- Item art is keyed by id; Shared/ItemArt owns where each kind keeps it.
 
 local Items = require(script.Items)
 
@@ -19,7 +18,7 @@ export type Slots = { Stack | false }
 export type Snapshot = { slots: Slots, selected: number }
 
 local HOTBAR_SIZE = 9
-local BACKPACK_SIZE = 54
+local BACKPACK_SIZE = 81
 
 local byId: { [string]: Item } = {}
 for _, item in Items do
@@ -42,7 +41,7 @@ function Inventory.getItem(itemId: string): Item
 end
 
 function Inventory.isPlaceable(item: Item): boolean
-	return item.kind ~= "Tool"
+	return item.kind == "Block" or item.kind == "Machine"
 end
 
 -- For validating untrusted indices: a whole number naming a real slot.
@@ -123,14 +122,20 @@ function Inventory.canAdd(slots: Slots, itemId: string, count: number): boolean
 	return Inventory.add(table.clone(slots), itemId, count) == 0
 end
 
+-- Takes up to `max` of `itemId` out of slot `index`. Returns how many it took.
+function Inventory.take(slots: Slots, index: number, itemId: string, max: number): number
+	local stack = Inventory.stackAt(slots, index)
+	if not stack or stack.itemId ~= itemId or max < 1 then
+		return 0
+	end
+	local taken = math.min(math.floor(max), stack.count)
+	slots[index] = if stack.count > taken then { itemId = itemId, count = stack.count - taken } else false
+	return taken
+end
+
 -- Takes one `itemId` out of slot `index`. Returns whether it was there to take.
 function Inventory.takeOne(slots: Slots, index: number, itemId: string): boolean
-	local stack = Inventory.stackAt(slots, index)
-	if not stack or stack.itemId ~= itemId then
-		return false
-	end
-	slots[index] = if stack.count > 1 then { itemId = itemId, count = stack.count - 1 } else false
-	return true
+	return Inventory.take(slots, index, itemId, 1) == 1
 end
 
 return Inventory

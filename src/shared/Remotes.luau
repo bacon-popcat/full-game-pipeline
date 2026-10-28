@@ -23,6 +23,18 @@ return {
 	InventorySelect = get("InventorySelect"),
 	-- client -> server: (origin: Vector3, rotation: number) a Build cell and 0-3 turns
 	PlaceBlock = get("PlaceBlock"),
-	-- client -> server: (model: Model) a block in Workspace.Placed
+	-- client -> server: (model: Model) a block in Workspace.Placed, to pick up with the
+	-- Hammer or break with the tool its item names
 	PickUpBlock = get("PickUpBlock"),
+	-- client -> server: (target: Model, action: "Use" | "Take") a placed factory block or a
+	-- world node. "Use" applies the held item (feed a machine, set a filter, mine a rock);
+	-- "Take" is an empty hand (collect output, pick berries, switch a split conveyor).
+	Interact = get("Interact"),
+	-- server -> client: (update: { t: number, lanes: { [string]: { Lane.Item } } }) the items
+	-- on every lane that gained or lost one, keyed "<BlockId>/<lane index>", as of server
+	-- time `t`. An empty list clears a lane.
+	FactorySync = get("FactorySync"),
+	-- client -> server: (onto: Model?) drop one of the held item: onto a placed conveyor
+	-- within reach, or in front of the player when `onto` is nil
+	DropItem = get("DropItem"),
 }

@@ -9,10 +9,11 @@
 -- occupancy map to fall out of sync with the world.
 --
 -- Templates live in ReplicatedStorage.Assets.Blocks, named by item id. A template's
--- PrimaryPart is its hitbox: a box of whole cells whose centre is the template's pivot,
--- so its size is the footprint and placing it fills the placement's box. A machine's
--- hitbox is an invisible part named Hitbox around its art, which may poke past it by up
--- to 0.15 studs (docs/inventory.md); a plain cube is its own hitbox.
+-- PrimaryPart is its hitbox: a box of whole cells, so its size is the footprint and
+-- placing it fills the placement's box. The template's pivot is read relative to the
+-- hitbox, so it can sit wherever is convenient to hold it by. A machine's hitbox is an
+-- invisible part named Hitbox around its art, which may poke past it by up to 0.15 studs
+-- (docs/inventory.md); a plain cube is its own hitbox.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

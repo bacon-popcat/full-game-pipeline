@@ -1,15 +1,21 @@
--- BuildController: what the held item does in the world. InventoryService puts a Tool in
--- the character's hand with an ItemId attribute, and this module acts on it:
+-- BuildController: what the hand does in the world. InventoryService puts a Tool in the
+-- character's hand with an ItemId attribute; every frame this module works out what a
+-- press would do where the player aims, and outlines it:
 --   * a placeable shows a grid-snapped ghost -- green when the shared Build rules say the
---     server will accept it, red when not -- and asks to place it on activation;
---   * a tool that picks up outlines the player's own placed block under the aim and asks
---     to pick it up on activation;
---   * a Tool item swings on activation.
+--     server will accept it, red when not -- and asks to place it;
+--   * an item a factory block takes by hand (Factory.takesByHand) outlines that block and
+--     feeds it instead, so a stonecutter takes the stone aimed at it;
+--   * the Hammer picks up the player's own placed block; a Pickaxe or Axe breaks their own
+--     cubes it fits and mines the world nodes it fits;
+--   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
+--   * an empty hand takes from a factory block (output, belt items, router switch) or
+--     picks a bush.
+-- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
 -- The server re-checks everything; nothing here is trusted.
 --
--- Aim follows the mouse, the last touch in the world, or the screen centre on a gamepad.
--- Everything bound for a held item lives in `heldTrove` and is cleaned the moment the
--- hand changes, so a swap can never leave a ghost or a rotate binding behind.
+-- Aim comes from the Aim library, which this module also feeds touches. Everything bound
+-- for a held item lives in `heldTrove` and is cleaned the moment the hand changes, so a
+-- swap can never leave a ghost or a rotate binding behind.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -18,15 +24,20 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
+local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local World = require(ReplicatedStorage.Shared.World)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
+local Aim = require(Players.LocalPlayer.PlayerScripts.Libraries.Aim)
 local Controls = require(Players.LocalPlayer.PlayerScripts.Libraries.Controls)
 
-type Target = { origin: Vector3, valid: boolean }
+type Placement = { origin: Vector3, valid: boolean }
+type Action = { kind: "Place" | "PickUp" | "Use" | "Take" | "Drop", model: Model? }
 
 local ROTATE_ACTION = "RotateBlock"
+local DROP_ACTION = "DropItem"
 -- Studs the aim ray reaches from the camera.
 local AIM_DISTANCE = 150
 -- How far a ghost's parts fade from their own transparency toward invisible.
@@ -34,7 +45,8 @@ local GHOST_FADE = 0.45
 local VALID_COLOR = Color3.fromRGB(90, 230, 120)
 local INVALID_COLOR = Color3.fromRGB(255, 80, 90)
 local PICK_UP_COLOR = Color3.fromRGB(255, 255, 255)
--- Studs the outline stands proud of the cells it marks.
+local USE_COLOR = Color3.fromRGB(255, 200, 60)
+-- Studs the outline stands proud of the box it marks.
 local OUTLINE_MARGIN = 0.15
 
 local BuildController = {}
@@ -50,14 +62,12 @@ local heldTool: Tool? = nil
 local heldItem: Inventory.Item? = nil
 local ghost: Model? = nil
 local rotation = 0
-local target: Target? = nil
-local hovered: Model? = nil
--- Last touch on the world (not on UI), in GUI space; touch aim has no live cursor.
-local lastTouch: Vector2? = nil
+local placement: Placement? = nil
+local action: Action? = nil
 
--- One footprint outline, shared by the ghost and the pick-up target: an invisible box
--- wrapped in a SelectionBox. Not a Highlight -- those skip translucent parts, so they
--- can't draw on a ghost, and one with no Adornee lights up its whole parent instead.
+-- One outline, shared by the ghost and every target: an invisible box wrapped in a
+-- SelectionBox. Not a Highlight -- those skip translucent parts, so they can't draw on a
+-- ghost, and one with no Adornee lights up its whole parent instead.
 local outline = Instance.new("Part")
 outline.Name = "BuildOutline"
 outline.Anchored = true
@@ -72,12 +82,11 @@ outlineBox.LineThickness = 0.06
 outlineBox.SurfaceTransparency = 0.85
 outlineBox.Parent = outline
 
-local function showOutline(origin: Vector3, footprint: Vector3, color: Color3)
-	-- Sized just outside the cells: Build.box shrinks inward for overlap tests, which
-	-- would bury the lines inside an opaque block being picked up.
-	local centre = Build.box(origin, footprint)
-	outline.CFrame = centre
-	outline.Size = footprint * Build.GRID + Vector3.one * OUTLINE_MARGIN
+local function showOutline(cframe: CFrame, size: Vector3, color: Color3)
+	-- Sized just outside the box: Build.box shrinks inward for overlap tests, which would
+	-- bury the lines inside an opaque block.
+	outline.CFrame = cframe
+	outline.Size = size + Vector3.one * OUTLINE_MARGIN
 	outlineBox.Color3 = color
 	outlineBox.SurfaceColor3 = color
 	outline.Parent = workspace.CurrentCamera
@@ -87,96 +96,131 @@ local function hideOutline()
 	outline.Parent = nil
 end
 
-local function aim(): RaycastResult?
-	local camera = workspace.CurrentCamera
-	local ray
-	local preferred = UserInputService.PreferredInput
-	if preferred == Enum.PreferredInput.Gamepad then
-		local centre = camera.ViewportSize / 2
-		ray = camera:ViewportPointToRay(centre.X, centre.Y)
-	elseif preferred == Enum.PreferredInput.Touch then
-		if not lastTouch then
-			return nil
-		end
-		ray = camera:ScreenPointToRay(lastTouch.X, lastTouch.Y)
-	else
-		local mouse = UserInputService:GetMouseLocation()
-		ray = camera:ViewportPointToRay(mouse.X, mouse.Y)
-	end
-	return workspace:Raycast(ray.Origin, ray.Direction * AIM_DISTANCE, raycastParams)
-end
-
 local function rootPosition(): Vector3?
 	local character = player.Character
 	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
 	return if root and root:IsA("BasePart") then root.Position else nil
 end
 
-local function placedModelOf(part: Instance): Model?
-	local placed = workspace:FindFirstChild("Placed")
-	local node: Instance? = part
-	while node and placed and node.Parent ~= placed do
-		node = node.Parent
+local function inReach(model: Model): boolean
+	local from = rootPosition()
+	local hitbox = model.PrimaryPart
+	if not from or not hitbox then
+		return false
 	end
-	return if node and node:IsA("Model") then node else nil
+	local offset = hitbox.CFrame:PointToObjectSpace(from)
+	local half = hitbox.Size / 2
+	local nearest = Vector3.new(
+		math.clamp(offset.X, -half.X, half.X),
+		math.clamp(offset.Y, -half.Y, half.Y),
+		math.clamp(offset.Z, -half.Z, half.Z)
+	)
+	return (offset - nearest).Magnitude <= Build.REACH
 end
 
-local function updatePlacement(item: Inventory.Item, model: Model)
-	local result = aim()
+local function placedItemId(model: Model): string?
+	local itemId = model:GetAttribute("ItemId")
+	return if typeof(itemId) == "string" then itemId else nil
+end
+
+local function nodeDef(model: Model): World.Node?
+	local nodeType = model:GetAttribute("NodeType")
+	return if typeof(nodeType) == "string" then World.NODES[nodeType] else nil
+end
+
+local function isConveyor(itemId: string?): boolean
+	local def = if itemId then Factory.get(itemId) else nil
+	return def ~= nil and def.kind == "Conveyor"
+end
+
+local function isOwn(model: Model): boolean
+	return model:GetAttribute("Owner") == player.UserId
+end
+
+local function choosePlacement(item: Inventory.Item, model: Model, result: RaycastResult?): Action?
 	local footprint = Build.footprint(item.id, rotation)
 	local from = rootPosition()
 	local cell = if result and footprint then Build.cellAt(result.Position, result.Normal) else nil
 	local origin = if result and footprint and cell then Build.originFor(cell, result.Normal, footprint) else nil
 	local pivot = if origin then Build.pivotFor(item.id, origin, rotation) else nil
 	if not footprint or not from or not origin or not pivot then
-		target = nil
-		model.Parent = nil
-		hideOutline()
-		return
+		return nil
 	end
 	local valid = Build.inReach(from, origin, footprint) and Build.isFree(origin, footprint, overlapParams)
-	target = { origin = origin, valid = valid }
+	placement = { origin = origin, valid = valid }
 	model:PivotTo(pivot)
 	model.Parent = workspace.CurrentCamera
-	showOutline(origin, footprint, if valid then VALID_COLOR else INVALID_COLOR)
+	local centre = Build.box(origin, footprint)
+	showOutline(centre, footprint * Build.GRID, if valid then VALID_COLOR else INVALID_COLOR)
+	return { kind = "Place", model = nil }
 end
 
-local function updatePickUp()
-	local result = aim()
-	local model = if result then placedModelOf(result.Instance) else nil
-	local origin = if model then model:GetAttribute("Origin") else nil
-	local turns = if model then model:GetAttribute("Rotation") else nil
-	local itemId = if model then model:GetAttribute("ItemId") else nil
-	local from = rootPosition()
-	hovered = nil
-	if
-		model
-		and from
-		and model:GetAttribute("Owner") == player.UserId
-		and typeof(origin) == "Vector3"
-		and typeof(turns) == "number"
-		and typeof(itemId) == "string"
-	then
-		local footprint = Build.footprint(itemId, turns)
-		if footprint and Build.inReach(from, origin, footprint) then
-			hovered = model
-			showOutline(origin, footprint, PICK_UP_COLOR)
+-- What a press would do right now, given the hand and the aim.
+local function decide(): Action?
+	local result = Aim.cast(raycastParams, AIM_DISTANCE)
+	local placed = if result then Aim.modelUnder(result.Instance, "Placed") else nil
+	local node = if result then Aim.modelUnder(result.Instance, "World") else nil
+	local placedId = if placed then placedItemId(placed) else nil
+	local item = heldItem
+	if placed and not inReach(placed) then
+		placed, placedId = nil, nil
+	end
+	if node and not inReach(node) then
+		node = nil
+	end
+
+	if not item then
+		if placed and placedId and Factory.get(placedId) then
+			return { kind = "Take", model = placed }
 		end
+		local def = if node then nodeDef(node) else nil
+		if node and def and def.pick then
+			return { kind = "Take", model = node }
+		end
+		return nil
 	end
-	if not hovered then
-		hideOutline()
+	if placed and placedId and Factory.takesByHand(placedId, item.id) then
+		return { kind = "Use", model = placed }
 	end
+	if item.kind == "Resource" and placed and isConveyor(placedId) then
+		return { kind = "Drop", model = placed }
+	end
+	if item.picksUp then
+		return if placed and isOwn(placed) then { kind = "PickUp", model = placed } else nil
+	end
+	if item.kind == "Tool" then
+		if placed and placedId and isOwn(placed) and Inventory.getItem(placedId).breaksWith == item.id then
+			return { kind = "PickUp", model = placed }
+		end
+		local def = if node then nodeDef(node) else nil
+		if node and def and def.tool == item.id then
+			return { kind = "Use", model = node }
+		end
+		return nil
+	end
+	local model = ghost
+	if model and Inventory.isPlaceable(item) then
+		return choosePlacement(item, model, result)
+	end
+	return nil
 end
 
 local function update()
-	local item = heldItem
-	if not item then
-		return
+	local chosen = decide()
+	action = chosen
+	if not chosen or chosen.kind ~= "Place" then
+		placement = nil
+		if ghost then
+			ghost.Parent = nil
+		end
 	end
-	if ghost and Inventory.isPlaceable(item) then
-		updatePlacement(item, ghost)
-	elseif item.picksUp then
-		updatePickUp()
+	local target = if chosen then chosen.model else nil
+	local hitbox = if target then target.PrimaryPart else nil
+	if chosen and chosen.kind ~= "Place" and hitbox then
+		local useColor = chosen.kind == "Use" or chosen.kind == "Drop"
+		showOutline(hitbox.CFrame, hitbox.Size, if useColor then USE_COLOR else PICK_UP_COLOR)
+	elseif not chosen then
+		hideOutline()
 	end
 end
 
@@ -188,22 +232,47 @@ local function swing(tool: Tool)
 	animation.Parent = tool
 end
 
+-- Does what the aim and hand call for, re-aimed at where the press happened rather than
+-- where the last frame was.
+local function perform()
+	update()
+	local chosen = action
+	if not chosen then
+		return
+	end
+	local target = chosen.model
+	if chosen.kind == "Place" then
+		local placing = placement
+		if placing and placing.valid then
+			Remotes.PlaceBlock:FireServer(placing.origin, rotation)
+		end
+	elseif chosen.kind == "PickUp" and target then
+		Remotes.PickUpBlock:FireServer(target)
+	elseif chosen.kind == "Drop" then
+		Remotes.DropItem:FireServer(target)
+	elseif target then
+		Remotes.Interact:FireServer(target, chosen.kind)
+	end
+end
+
 local function onActivated()
 	local tool = heldTool
 	local item = heldItem
-	if not tool or not item then
-		return
-	end
-	if item.kind == "Tool" then
+	if tool and item and item.kind == "Tool" then
 		swing(tool)
 	end
-	update() -- aim at where the press happened, not where the last frame was
-	local placing = target
-	if Inventory.isPlaceable(item) and placing and placing.valid then
-		Remotes.PlaceBlock:FireServer(placing.origin, rotation)
-	elseif item.picksUp and hovered then
-		Remotes.PickUpBlock:FireServer(hovered)
+	perform()
+end
+
+-- Drops one of the held item: onto the conveyor aimed at, or in front of the player.
+local function onDrop(_: string, state: Enum.UserInputState): Enum.ContextActionResult
+	if state == Enum.UserInputState.Begin then
+		local result = Aim.cast(raycastParams, AIM_DISTANCE)
+		local placed = if result then Aim.modelUnder(result.Instance, "Placed") else nil
+		local onto = if placed and inReach(placed) and isConveyor(placedItemId(placed)) then placed else nil
+		Remotes.DropItem:FireServer(onto)
 	end
+	return Enum.ContextActionResult.Sink
 end
 
 local function onRotate(_: string, state: Enum.UserInputState): Enum.ContextActionResult
@@ -238,8 +307,8 @@ local function clearHeld()
 	heldTool = nil
 	heldItem = nil
 	ghost = nil
-	target = nil
-	hovered = nil
+	placement = nil
+	action = nil
 	hideOutline()
 end
 
@@ -259,6 +328,11 @@ local function refreshHeld(character: Model)
 	heldTool = tool
 	heldItem = item
 	heldTrove:Connect(tool.Activated, onActivated)
+	ContextActionService:BindAction(DROP_ACTION, onDrop, true, table.unpack(Controls.DROP))
+	ContextActionService:SetTitle(DROP_ACTION, "Drop")
+	heldTrove:Add(function()
+		ContextActionService:UnbindAction(DROP_ACTION)
+	end)
 
 	if Inventory.isPlaceable(item) then
 		local model = makeGhost(itemId)
@@ -271,9 +345,6 @@ local function refreshHeld(character: Model)
 		heldTrove:Add(function()
 			ContextActionService:UnbindAction(ROTATE_ACTION)
 		end)
-	end
-	if Inventory.isPlaceable(item) or item.picksUp then
-		heldTrove:Connect(RunService.RenderStepped, update)
 	end
 end
 
@@ -290,12 +361,35 @@ local function bindCharacter(character: Model)
 	refreshHeld(character)
 end
 
+-- A press with nothing in hand: tools report presses through Activated, so an empty hand
+-- needs its own.
+local function onInputBegan(input: InputObject, processed: boolean)
+	if processed then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.Touch then
+		Aim.setTouch(Vector2.new(input.Position.X, input.Position.Y))
+		return
+	end
+	if heldTool then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2 then
+		perform()
+	end
+end
+
+local function onTouchTap(position: Vector2, processed: boolean)
+	if not processed and not heldTool then
+		Aim.setTouch(position)
+		perform()
+	end
+end
+
 function BuildController.init()
-	UserInputService.InputBegan:Connect(function(input: InputObject, processed: boolean)
-		if input.UserInputType == Enum.UserInputType.Touch and not processed then
-			lastTouch = Vector2.new(input.Position.X, input.Position.Y)
-		end
-	end)
+	UserInputService.InputBegan:Connect(onInputBegan)
+	UserInputService.TouchTapInWorld:Connect(onTouchTap)
+	RunService.RenderStepped:Connect(update)
 	player.CharacterAdded:Connect(bindCharacter)
 	if player.Character then
 		bindCharacter(player.Character)
