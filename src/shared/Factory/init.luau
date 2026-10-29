@@ -194,7 +194,11 @@ function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	if def.kind ~= "Machine" then
 		return false
 	end
-	if (def.fuel and def.fuel[itemId]) or (def.feeds and def.feeds[itemId]) or def.plants == itemId then
+	if
+		(def.fuel and def.fuel[itemId])
+		or (def.feeds and def.feeds[itemId])
+		or (def.plants and table.find(def.plants, itemId))
+	then
 		return true
 	end
 	if def.sells and Inventory.getItem(itemId).kind == "Resource" then

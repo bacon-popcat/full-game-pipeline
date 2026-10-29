@@ -643,16 +643,28 @@ local function envFor(block: Block): Machine.Env
 			local node = treeNode(block)
 			return if node then WorldService.chop(node) else nil
 		end
+		env.reap = function(source)
+			local produce = def.produce
+			if not produce then
+				return false
+			end
+			local radius = (produce.radius or 6) * Build.GRID
+			for _, node in WorldService.nodesNear(centreOf(block), radius, produce.sources) do
+				if produce.sources[node.nodeType] == source and WorldService.reap(node) then
+					return true
+				end
+			end
+			return false
+		end
 	end
 	if def.plants then
-		local plants = def.plants
-		env.canPlant = function()
+		env.canPlant = function(itemId)
 			local cell = treeCellOf(block)
-			return cell ~= nil and WorldService.isCellFree(cell)
+			return cell ~= nil and WorldService.canPlant(cell, itemId)
 		end
-		env.plant = function()
+		env.plant = function(itemId)
 			local cell = treeCellOf(block)
-			return cell ~= nil and WorldService.plant(cell, plants)
+			return cell ~= nil and WorldService.plant(cell, itemId)
 		end
 	end
 	if def.feeds then

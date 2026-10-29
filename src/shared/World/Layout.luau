@@ -2,7 +2,8 @@
 -- Layout: where the world spawns its resource nodes and animal pens, in Build cells (the
 -- baseplate's top is y = 0). Everything sits west of spawn (negative x), clear of the
 -- Workspace.IslandsMachines showcase to the east: an ore field with the deposits, a
--- quarry of rocks, a grove of trees, a meadow of bushes and flowers, and three pens.
+-- quarry of rocks, a grove of trees, a meadow of bushes and flowers, a farm field of
+-- farmland to plant seeds on, and three pens.
 --
 -- Deposits are spaced so a Drill (5 x 2 blocks) or Pumpjack (3 x 5) fits on each.
 
@@ -60,6 +61,13 @@ local NODES: { Spot } = {
 	at("FlowerPatch", -33, 19),
 	at("FlowerPatch", -35, 17),
 }
+
+-- farm field: rows of farmland, crops grow in the cells above it
+for x = -14, -19, -1 do
+	for z = 23, 25 do
+		table.insert(NODES, at("Farmland", x, z))
+	end
+end
 
 local PENS: { Pen } = {
 	{ animal = "Cow", centre = Vector3.new(-48, 0, -10), count = 3, radius = 4 },

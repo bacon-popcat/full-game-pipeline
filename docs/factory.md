@@ -145,6 +145,8 @@ cells of its hitbox; the hand still aims at hitboxes, so placing snaps to their 
 | Nothing | a conveyor | Takes the items on it |
 | Nothing | a Split Conveyor / Filter | Switches it / clears the filter |
 | Nothing | a berry bush or flower patch | Picks one |
+| Nothing | a crop | Harvests it when ripe, or digs it up for its seed (docs/farming.md) |
+| Seed | soil (grass, dirt, farmland) | Plants it (ghost; red off soil) |
 
 ## What lives only in the place file
 
@@ -167,6 +169,7 @@ The `Interact` and `FactorySync` RemoteEvents are declared in `default.project.j
   `Items`, and an entry in `Blocks`.
 - **A node type or animal:** an entry in `Shared/World`, art in `Assets.World`, and spots or a
   pen in `Shared/World/Layout`.
+- **A crop:** see docs/farming.md.
 
 ## Not built yet
 

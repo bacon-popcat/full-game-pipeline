@@ -9,6 +9,10 @@
 -- that travel. `ext` is the block's hitbox in that frame (Factory.extents), so a lane or
 -- port reaches exactly to a hitbox face, where the next block's port sits.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local World = require(ReplicatedStorage.Shared.World)
+
 -- Belt surface height above a block's floor (the art's BELT_TOP).
 local BELT = 1.59
 local TIER1 = 4
@@ -43,7 +47,13 @@ export type Recipe = {
 	fluidOut: string?,
 }
 
-export type Source = { item: string, every: number, count: number? }
+export type Source = {
+	item: string,
+	every: number,
+	count: number?,
+	-- The node is a ripe crop the machine reaps (it starts again from a sprout) for its item.
+	reaps: boolean?,
+}
 
 export type Produce = {
 	-- Below: a node in a cell under the footprint (deposits). Near: a node within
@@ -88,8 +98,9 @@ export type Def = {
 	-- Food it keeps to feed animals within `feedRadius` cells.
 	feeds: { [string]: boolean }?,
 	feedRadius: number?,
-	-- Planter: the item it plants into `treeCell`, and seconds per planting.
-	plants: string?,
+	-- Planter: the items it plants into `treeCell` (saplings anywhere, seeds on soil), tried in
+	-- order, and seconds per planting.
+	plants: { string }?,
 	plantEvery: number?,
 	-- Tree and planter machines: centre of the cell they work on.
 	treeCell: ((ext: Extents) -> Vector3)?,
@@ -207,6 +218,16 @@ local function treeSources(item: string, every: number): { [string]: Source }
 	return sources
 end
 
+-- A picker's sources: flower patches for tulips, and every ripe crop, reaped for its produce.
+local function pickerSources(): { [string]: Source }
+	local sources: { [string]: Source } = { FlowerPatch = { item = "Tulip", every = 15 } }
+	for cropId, crop in World.CROPS do
+		sources[World.cropStage(cropId, #World.STAGES)] =
+			{ item = crop.produce, every = 15, count = crop.reaped, reaps = true }
+	end
+	return sources
+end
+
 -- The cell just past a lumbermill's tower (+Z), and just past a planter's or shaker's forks
 -- (on the -X column, beyond -Z).
 local function pastTower(ext: Extents): Vector3
@@ -291,7 +312,7 @@ local BLOCKS: { [string]: Def } = {
 		kind = "Machine",
 		output = "+Z",
 		fuel = PETROLEUM_60,
-		produce = { where = "Near", sources = { FlowerPatch = { item = "Tulip", every = 15 } }, radius = 6 },
+		produce = { where = "Near", sources = pickerSources(), radius = 6 },
 	},
 	IndustrialTruffleBarrel = {
 		kind = "Machine",
@@ -342,7 +363,7 @@ local BLOCKS: { [string]: Def } = {
 		kind = "Machine",
 		input = "+Z",
 		fuel = PETROLEUM_60,
-		plants = "Sapling",
+		plants = { "Sapling", "WheatSeeds", "CarrotSeeds", "PotatoSeeds" },
 		plantEvery = 10,
 		treeCell = pastForks,
 	},
@@ -356,7 +377,7 @@ local BLOCKS: { [string]: Def } = {
 	AutomatedTrough = {
 		kind = "Machine",
 		input = "-Z",
-		feeds = { Apple = true, Blueberry = true },
+		feeds = { Apple = true, Blueberry = true, Wheat = true, Carrot = true },
 		feedRadius = 6,
 	},
 	WoolVacuum = {

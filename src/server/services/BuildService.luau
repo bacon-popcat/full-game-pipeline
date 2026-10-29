@@ -3,6 +3,8 @@
 -- always comes from the player's own held slot (never from the request), and reach and
 -- overlap are re-checked against the server's world with the shared Build rules.
 --
+-- Seeds place like blocks but only on soil (Shared/World/Soil); WorldService turns them into crops.
+--
 -- Placed blocks live in Workspace.Placed with ItemId, Owner (UserId), Origin and
 -- Rotation attributes, and Against: the axis of the surface it was placed on, when that
 -- was a unit axis (a wood tube joins the block there). Only the owner can take a block back: any block with the Hammer, or
@@ -16,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Soil = require(ReplicatedStorage.Shared.World.Soil)
 local FactoryService = require(script.Parent.FactoryService)
 local InventoryService = require(script.Parent.InventoryService)
 
@@ -63,7 +66,9 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 		return
 	end
 	-- Only a unit axis counts; anything else just means it went against nothing in particular.
-	local side = if typeof(against) == "Vector3" and Build.isCell(against) and against.Magnitude == 1
+	local side = if typeof(against) == "Vector3"
+			and Build.isCell(against)
+			and against.Magnitude == 1
 		then against
 		else nil
 	if not Build.isCell(origin) or not Build.isRotation(rotation) or not ready(player) then
@@ -83,7 +88,7 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	if not Build.inReach(root.Position, origin, footprint) or not Build.isFree(origin, footprint, overlapParams) then
 		return
 	end
-	if Build.clipsCharacter(itemId, pivot) then
+	if Build.clipsCharacter(itemId, pivot) or not Soil.canPlant(itemId, origin) then
 		return
 	end
 	if not InventoryService.consumeHeld(player, itemId) then

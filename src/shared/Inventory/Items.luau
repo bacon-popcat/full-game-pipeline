@@ -39,6 +39,12 @@ local function block(id: string, name: string, description: string, breaksWith: 
 	}
 end
 
+-- Seeds are blocks only so the hand places them with a ghost; a placed seed becomes a crop at once
+-- (WorldService), so it never sits on the grid to be broken.
+local function seed(id: string, name: string, description: string): Item
+	return { id = id, name = name, kind = "Block", stack = BLOCK_STACK, description = description }
+end
+
 local function machine(id: string, name: string, description: string, stack: number?): Item
 	return { id = id, name = name, kind = "Machine", stack = stack or MACHINE_STACK, description = description }
 end
@@ -61,6 +67,9 @@ local ITEMS: { Item } = {
 	block("Bricks", "Bricks", "Fired clay, stacked tight.", "Pickaxe"),
 	block("Glass", "Glass", "See-through and surprisingly sturdy.", "Pickaxe"),
 	block("Sapling", "Sapling", "Plant it and it grows into an oak tree in a minute.", "Axe"),
+	seed("WheatSeeds", "Wheat Seeds", "Plant on grass, dirt or farmland. Grows into a sheaf of wheat."),
+	seed("CarrotSeeds", "Carrot Seeds", "Plant on grass, dirt or farmland. Grows into a big carrot."),
+	seed("PotatoSeeds", "Potato Seeds", "Plant on grass, dirt or farmland. Grows into a hill of potatoes."),
 
 	machine("ConveyorBelt", "Conveyor Belt", "Carries items forward.", CONVEYOR_STACK),
 	machine("ConveyorBeltLeft", "Conveyor Belt Left", "Turns items to the left.", CONVEYOR_STACK),
@@ -120,7 +129,7 @@ local ITEMS: { Item } = {
 	machine(
 		"IndustrialFlowerPicker",
 		"Industrial Flower Picker",
-		"Picks tulips from flower patches near it. Runs on petroleum."
+		"Picks tulips from flower patches, and reaps ripe crops, near it. Runs on petroleum."
 	),
 	machine("IndustrialTruffleBarrel", "Industrial Truffle Barrel", "Collects the truffles fed pigs near it dig up."),
 	machine(
@@ -150,14 +159,18 @@ local ITEMS: { Item } = {
 	machine(
 		"SaplingAutomaticPlanter",
 		"Sapling Automatic Planter",
-		"Plants saplings just past its forks. Runs on petroleum."
+		"Plants saplings, or seeds on soil, just past its forks. Runs on petroleum."
 	),
 	machine(
 		"TreeFruitShaker",
 		"Tree Fruit Shaker",
 		"Shakes apples off the apple tree just past its forks. Runs on petroleum."
 	),
-	machine("AutomatedTrough", "Automated Trough", "Feeds apples or blueberries to cows, sheep and pigs near it."),
+	machine(
+		"AutomatedTrough",
+		"Automated Trough",
+		"Feeds apples, blueberries, wheat or carrots to cows, sheep and pigs near it."
+	),
 	machine("WoolVacuum", "Wool Vacuum", "Shears fed sheep near it."),
 
 	resource("Log", "Log", "Oak wood. Saw it into planks."),
@@ -175,6 +188,9 @@ local ITEMS: { Item } = {
 	resource("Apple", "Apple", "Shaken from apple trees. Animals love them."),
 	resource("Blueberry", "Blueberry", "Picked from berry bushes."),
 	resource("Tulip", "Tulip", "Picked from flower patches."),
+	resource("Wheat", "Wheat", "A braided sheaf of grain. Animals eat it."),
+	resource("Carrot", "Carrot", "Pulled from the ground. Animals eat it."),
+	resource("Potato", "Potato", "Dug from a potato hill."),
 	resource("Truffle", "Truffle", "Dug up by pigs. Still muddy."),
 	resource("CleanTruffle", "Clean Truffle", "A washed truffle, ready to sell."),
 	resource("Wool", "Wool", "Vacuumed from sheep."),

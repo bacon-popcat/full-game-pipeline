@@ -1,5 +1,6 @@
 -- BlockInfo: the panel saying what the aimed-at factory block or world node is doing -- a
--- machine's state, fuel, contents and output, a router's setting, a node's use -- and what
+-- machine's state, fuel, contents and output, a router's setting, a node's use, a crop's
+-- growth -- and what
 -- a press would do with what is in hand. It only reads: the attributes FactoryService
 -- publishes on placed blocks, worded by BlockText, and the hints in Shared/World. It shows
 -- only while the aim is on a block's or node's art, not the empty cells of its hitbox.
@@ -96,12 +97,26 @@ local function nodeInfo(model: Model, nodeType: string): Info?
 	end
 	local held = heldItem()
 	local hint = node.hint
+	local ripe = World.isRipe(node)
 	if held and node.tool == held.id then
 		hint = `Click to {if held.id == "Axe" then "chop" else "mine"} it.`
 	elseif not held and node.pick then
 		hint = `Click to pick a {itemName(node.pick.item):lower()}.`
+	elseif not held and node.harvest then
+		hint = if ripe then "Click to harvest it." else "Click to dig it up for its seed."
 	end
-	return { title = node.name, status = nil, working = false, rows = {}, hint = hint }
+	local info: Info = { title = node.name, status = nil, working = false, rows = {}, hint = hint }
+	local stage = node.stage
+	if node.crop and stage then
+		info.status = if ripe then "Ripe" else `Growing {stage} / {#World.STAGES}`
+		info.working = ripe
+		local growsAt = model:GetAttribute("GrowsAt")
+		if not ripe and typeof(growsAt) == "number" then
+			local left = math.max(0, math.ceil(growsAt - workspace:GetServerTimeNow()))
+			table.insert(info.rows, { key = "Next stage", value = `{left}s` })
+		end
+	end
+	return info
 end
 
 -- What the aim is on, if it is something the panel describes.

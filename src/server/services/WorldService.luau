@@ -5,8 +5,11 @@
 --
 -- Nodes sit on whole cells in Workspace.World and are indexed by every cell they cover.
 -- A node the world spawned comes back `respawn` seconds after it is broken, once its
--- cells are clear; a grown one (a planted sapling's tree) does not. Saplings a player
--- places become sapling nodes at once and grow into oak trees.
+-- cells are clear; a grown one (a planted sapling's tree) does not. Saplings and seeds a
+-- player places become nodes at once (World.PLANTS): a sapling grows into an oak tree, a seed
+-- into a crop that grows a stage at a time (each stage's GrowsAt attribute says when) until
+-- it is ripe. An empty hand harvests a crop; a crop whose soil block is taken away is
+-- uprooted and drops its harvest.
 --
 -- Animals wander their pen. The server moves an animal straight to each destination and
 -- publishes the walk (WalkFrom, WalkTo, WalkStart, WalkTime attributes) for clients to
@@ -20,6 +23,8 @@ local Build = require(ReplicatedStorage.Shared.Build)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
 local Layout = require(ReplicatedStorage.Shared.World.Layout)
+local Soil = require(ReplicatedStorage.Shared.World.Soil)
+local DropService = require(script.Parent.DropService)
 local InventoryService = require(script.Parent.InventoryService)
 
 export type Node = {
@@ -67,7 +72,10 @@ local PLACEHOLDER_COLORS: { [string]: Color3 } = {
 	Cow = Color3.fromRGB(240, 240, 240),
 	Sheep = Color3.fromRGB(230, 230, 220),
 	Pig = Color3.fromRGB(240, 170, 170),
+	Farmland = Color3.fromRGB(110, 82, 54),
 }
+-- Studs per second a crop's harvest is tossed out at when its soil is taken away.
+local UPROOT_SPEED = 8
 
 local WorldService = {}
 
@@ -241,12 +249,13 @@ local function grow(node: Node)
 	if not grows then
 		return
 	end
+	node.model:SetAttribute("GrowsAt", workspace:GetServerTimeNow() + grows.after)
 	task.delay(grows.after, function()
 		if nodesByModel[node.model] ~= node then
-			return -- chopped before it grew
+			return -- chopped or harvested before it grew
 		end
 		removeNode(node)
-		spawnNode(grows.into, node.cell, node.natural)
+		grow(spawnNode(grows.into, node.cell, node.natural))
 	end)
 end
 
@@ -276,17 +285,31 @@ function WorldService.chop(node: Node): { [string]: number }?
 	return drops
 end
 
--- Whether a one-cell node could be planted in `cell`.
-function WorldService.isCellFree(cell: Vector3): boolean
-	return cellsClear(cell, Vector3.one, nil)
+-- Whether `itemId` (a sapling or seed) could be planted in `cell`: nothing there, and soil
+-- under it if it needs some.
+function WorldService.canPlant(cell: Vector3, itemId: string): boolean
+	return World.PLANTS[itemId] ~= nil and cellsClear(cell, Vector3.one, nil) and Soil.canPlant(itemId, cell)
 end
 
--- Plants a node (a sapling) in `cell`. Returns whether it did.
-function WorldService.plant(cell: Vector3, nodeType: string): boolean
-	if not WorldService.isCellFree(cell) then
+-- Plants a sapling or seed in `cell`. Returns whether it did.
+function WorldService.plant(cell: Vector3, itemId: string): boolean
+	if not WorldService.canPlant(cell, itemId) then
 		return false
 	end
-	grow(spawnNode(nodeType, cell, false))
+	grow(spawnNode(World.PLANTS[itemId].node, cell, false))
+	return true
+end
+
+-- Reaps a ripe crop for a machine: it starts again from a sprout in the same cell, so the
+-- machine gets the produce without spending the seed. Returns whether it did.
+function WorldService.reap(node: Node): boolean
+	local def = World.getNode(node.nodeType)
+	local crop = def.crop
+	if nodesByModel[node.model] ~= node or not crop or not World.isRipe(def) then
+		return false
+	end
+	removeNode(node)
+	grow(spawnNode(World.cropStage(crop, 1), node.cell, node.natural))
 	return true
 end
 
@@ -373,6 +396,12 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		end
 		removeNode(node)
 		giveAll(player, drops)
+	elseif action == "Take" and def.harvest then
+		if held or not InventoryService.canGiveAll(player, def.harvest) then
+			return
+		end
+		removeNode(node)
+		giveAll(player, def.harvest)
 	elseif action == "Take" then
 		local pick = def.pick
 		local now = workspace:GetServerTimeNow()
@@ -392,18 +421,41 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 	end
 end
 
--- A sapling a player places becomes a sapling node that grows into a tree.
+-- A sapling or seed a player places becomes the node it plants as (BuildService has already
+-- checked the cell and the soil).
 local function onPlaced(model: Instance)
-	if not model:IsA("Model") or model:GetAttribute("ItemId") ~= "Sapling" then
+	local itemId = model:GetAttribute("ItemId")
+	local plant = if typeof(itemId) == "string" then World.PLANTS[itemId] else nil
+	if not model:IsA("Model") or not plant then
 		return
 	end
 	local origin = model:GetAttribute("Origin")
 	task.defer(function()
 		model:Destroy()
 		if typeof(origin) == "Vector3" then
-			grow(spawnNode("Sapling", origin, false))
+			grow(spawnNode(plant.node, origin, false))
 		end
 	end)
+end
+
+-- A crop whose soil block is picked up or broken is uprooted, its harvest tossed out as drops.
+local function onUnplaced(model: Instance)
+	local itemId = model:GetAttribute("ItemId")
+	local origin = model:GetAttribute("Origin")
+	if typeof(itemId) ~= "string" or not World.SOIL_BLOCKS[itemId] or typeof(origin) ~= "Vector3" then
+		return
+	end
+	local node = nodesByCell[cellKey(origin + Vector3.yAxis)]
+	local def = if node then World.getNode(node.nodeType) else nil
+	if not node or not def or not def.crop then
+		return
+	end
+	local at = node.model:GetPivot().Position + Vector3.yAxis
+	removeNode(node)
+	for dropId, count in def.harvest or {} do
+		local toss = Vector3.new(random:NextNumber(-1, 1), 1.5, random:NextNumber(-1, 1)).Unit * UPROOT_SPEED
+		DropService.spawn(dropId, CFrame.new(at), toss, count)
+	end
 end
 
 local function walk(animal: Animal)
@@ -473,6 +525,7 @@ function WorldService.init()
 	Remotes.Interact.OnServerEvent:Connect(onInteract)
 	local placed = workspace:WaitForChild("Placed")
 	placed.ChildAdded:Connect(onPlaced)
+	placed.ChildRemoved:Connect(onUnplaced)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
 	end)

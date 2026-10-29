@@ -57,9 +57,11 @@ export type Env = {
 	source: (() -> (Factory.Source?, string?))?,
 	-- Tree cutters: chop the tree and return its drops.
 	chop: (() -> { [string]: number }?)?,
-	-- Planters: whether the planting cell is free, and planting into it.
-	canPlant: (() -> boolean)?,
-	plant: (() -> boolean)?,
+	-- Pickers: reap a ripe crop near it that `source` comes from; returns whether it did.
+	reap: ((source: Factory.Source) -> boolean)?,
+	-- Planters: whether an item could be planted in the planting cell, and planting it there.
+	canPlant: ((itemId: string) -> boolean)?,
+	plant: ((itemId: string) -> boolean)?,
 	-- Troughs: feed up to `food` hungry animals; returns how many ate.
 	feed: ((food: number) -> number)?,
 }
@@ -94,7 +96,7 @@ local function capacity(def: Factory.Def, itemId: string): number
 	if def.fuel and def.fuel[itemId] then
 		return FUEL_CAP
 	end
-	if def.plants == itemId then
+	if def.plants and table.find(def.plants, itemId) then
 		return PLANT_CAP
 	end
 	local most = 0
@@ -384,6 +386,11 @@ local function stepProducer(state: State, dt: number, env: Env)
 		state.status = why or "Idle"
 		return
 	end
+	local reap = env.reap
+	if source.reaps and not (reap and reap(source)) then
+		state.status = "Idle"
+		return
+	end
 	local chop = env.chop
 	local drops: { [string]: number } = { [source.item] = source.count or 1 }
 	if produce.cuts and chop then
@@ -402,13 +409,19 @@ local function stepPlanter(state: State, dt: number, env: Env)
 	if not plants or not canPlant or not plant then
 		return
 	end
-	if (state.inputs[plants] or 0) < 1 then
-		state.status = `Needs {Inventory.getItem(plants).name:lower()}s`
-		state.job = nil
-		return
+	-- The first loaded item that could go in the planting cell now.
+	local held, chosen = false, nil
+	for _, itemId in plants do
+		if (state.inputs[itemId] or 0) > 0 then
+			held = true
+			if canPlant(itemId) then
+				chosen = itemId
+				break
+			end
+		end
 	end
-	if not canPlant() then
-		state.status = "Its planting spot is taken"
+	if not chosen then
+		state.status = if held then "Its planting spot is taken or has no soil" else "Needs saplings or seeds"
 		state.job = nil
 		return
 	end
@@ -424,8 +437,8 @@ local function stepPlanter(state: State, dt: number, env: Env)
 	job.elapsed += dt
 	if job.elapsed >= job.time then
 		state.job = nil
-		if plant() then
-			take(state, plants, 1)
+		if plant(chosen) then
+			take(state, chosen, 1)
 		end
 	end
 end

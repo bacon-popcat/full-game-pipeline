@@ -9,8 +9,9 @@
 --   * the Hammer picks up the player's own placed block; a Pickaxe or Axe breaks their own
 --     cubes it fits and mines the world nodes it fits;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
---   * an empty hand takes from a conveyor (its belt items) or switches a router, or picks
---     a bush.
+--   * an empty hand takes from a conveyor (its belt items) or switches a router, picks
+--     a bush, or harvests a crop (a ripe one for its produce, a growing one for its seed);
+--   * a seed's ghost is only green over soil (Shared/World/Soil).
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
 -- The server re-checks everything; nothing here is trusted.
 --
@@ -29,6 +30,7 @@ local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
+local Soil = require(ReplicatedStorage.Shared.World.Soil)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Aim = require(Players.LocalPlayer.PlayerScripts.Libraries.Aim)
@@ -160,6 +162,7 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	local valid = Build.inReach(from, origin, footprint)
 		and Build.isFree(origin, footprint, overlapParams)
 		and not Build.clipsCharacter(item.id, pivot)
+		and Soil.canPlant(item.id, origin)
 	local normal = result.Normal
 	local axis = math.max(math.abs(normal.X), math.abs(normal.Y), math.abs(normal.Z))
 	local against = if math.abs(normal.Y) == axis
@@ -193,7 +196,7 @@ local function decide(): Action?
 			return { kind = "Take", model = placed }
 		end
 		local def = if node then nodeDef(node) else nil
-		if node and def and def.pick then
+		if node and def and (def.pick or def.harvest) then
 			return { kind = "Take", model = node }
 		end
 		return nil
