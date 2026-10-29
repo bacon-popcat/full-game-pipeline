@@ -128,6 +128,11 @@ local ITEMS: { Item } = {
 		"Industrial Merchant Teleseller",
 		"Sells the resources fed into it, one a second."
 	),
+	machine(
+		"IndustrialChest",
+		"Industrial Chest",
+		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out."
+	),
 	machine("CopperPress", "Copper Press", "Presses copper bars into copper plates."),
 	machine("SteelPress", "Steel Press", "Presses steel bars into steel plates."),
 	machine("SteelMill", "Steel Mill", "Turns iron bars into steel bars. Runs on coal."),

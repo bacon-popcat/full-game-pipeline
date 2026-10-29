@@ -82,6 +82,9 @@ export type Def = {
 	belt: number?,
 	-- Takes any resource and sells one a second.
 	sells: boolean?,
+	-- Chest: keeps whatever arrives in this many slots, each up to the item's stack size,
+	-- until a player takes it out through the panel.
+	stores: number?,
 	-- Food it keeps to feed animals within `feedRadius` cells.
 	feeds: { [string]: boolean }?,
 	feedRadius: number?,
@@ -299,6 +302,7 @@ local BLOCKS: { [string]: Def } = {
 		produce = { where = "Animals", sources = { Pig = { item = "Truffle", every = 30 } }, radius = 6 },
 	},
 	IndustrialMerchantTeleseller = { kind = "Machine", input = "-Z", sells = true },
+	IndustrialChest = { kind = "Machine", input = "-Z", stores = 12 },
 	CopperPress = processor({ recipe({ CopperBar = 1 }, { CopperPlate = 1 }, 5) }),
 	SteelPress = processor({ recipe({ SteelBar = 1 }, { SteelPlate = 1 }, 5) }),
 	SteelMill = processor({ recipe({ IronBar = 1 }, { SteelBar = 1 }, 20) }, COAL_30),

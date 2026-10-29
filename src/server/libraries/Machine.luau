@@ -107,9 +107,25 @@ local function capacity(def: Factory.Def, itemId: string): number
 	return most
 end
 
+-- A chest's slots in use: each item fills slots of its stack size.
+function Machine.slotsUsed(state: State): number
+	local used = 0
+	for itemId, count in state.inputs do
+		used += math.ceil(count / Inventory.getItem(itemId).stack)
+	end
+	return used
+end
+
 -- How many more of `itemId` the machine would take right now.
 function Machine.room(state: State, itemId: string): number
 	local def = state.def
+	if def.stores then
+		-- What fits in the free slots, plus what tops up this item's last part-filled slot.
+		local stack = Inventory.getItem(itemId).stack
+		local held = state.inputs[itemId] or 0
+		local topUp = if held % stack > 0 then stack - held % stack else 0
+		return (def.stores - Machine.slotsUsed(state)) * stack + topUp
+	end
 	if def.passThrough then
 		return OUTPUT_CAP - #state.outputs
 	end
@@ -197,6 +213,16 @@ function Machine.takeInputs(state: State): { [string]: number }
 	local counts = table.clone(state.inputs)
 	table.clear(state.inputs)
 	return counts
+end
+
+-- Takes up to `count` of one loaded item out (a chest's take). Returns how many.
+function Machine.takeInput(state: State, itemId: string, count: number): number
+	local taken = math.min(count, state.inputs[itemId] or 0)
+	if taken > 0 then
+		local left = state.inputs[itemId] - taken
+		state.inputs[itemId] = if left > 0 then left else nil
+	end
+	return taken
 end
 
 -- Puts inputs taken out by `takeInputs` back, whatever the room, for what a player's full
@@ -451,6 +477,9 @@ function Machine.step(state: State, dt: number, env: Env)
 	local def = state.def
 	if def.sells then
 		stepSeller(state, dt)
+	elseif def.stores then
+		local used = Machine.slotsUsed(state)
+		state.status = if used == 0 then "Empty" elseif used >= def.stores then "Full" else "Storing"
 	elseif def.feeds then
 		stepFeeder(state, dt, env)
 	elseif def.plants then

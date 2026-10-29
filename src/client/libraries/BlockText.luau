@@ -3,7 +3,7 @@
 -- panel (UIController/BlockInfo) and the machine panel (UIController/MachinePanel) both
 -- show a block through here, so the two always word it the same way. It reads the
 -- attributes FactoryService publishes on the block model: Status, Fuel, Contents, Output,
--- Fluid, Progress, Sold, Powered and Filter.
+-- Fluid, Progress, Sold, Slots, Powered and Filter.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -13,7 +13,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 export type Row = { key: string, value: string }
 
 -- Machine statuses that mean it is doing its job, for the "working" colour.
-local WORKING = { Working = true, Selling = true, Feeding = true }
+local WORKING = { Working = true, Selling = true, Feeding = true, Storing = true }
 
 local BlockText = {}
 
@@ -73,6 +73,18 @@ function BlockText.hasContents(model: Model): boolean
 	return describe(model:GetAttribute("Contents"), BlockText.itemName) ~= nil
 end
 
+-- "IronOre:2,Coal:1" -> { IronOre = 2, Coal = 1 }: what a machine holds, for a chest's grid.
+function BlockText.contents(model: Model): { [string]: number }
+	local counts = {}
+	local encoded = model:GetAttribute("Contents")
+	if typeof(encoded) == "string" then
+		for id, count in string.gmatch(encoded, "([^:,]+):(%d+)") do
+			counts[id] = tonumber(count) or 0
+		end
+	end
+	return counts
+end
+
 -- Key/value rows describing the block. `withProgress` adds a Progress row, for panels
 -- without a progress bar of their own.
 function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): { Row }
@@ -97,6 +109,10 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		local sold = model:GetAttribute("Sold")
 		if def.sells and typeof(sold) == "number" then
 			add("Sold", tostring(sold))
+		end
+		local slots = model:GetAttribute("Slots")
+		if def.stores and typeof(slots) == "number" then
+			add("Slots", `{slots} / {def.stores}`)
 		end
 	elseif def.route == "Filter" then
 		local names = {}

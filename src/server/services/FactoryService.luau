@@ -958,6 +958,9 @@ local function refreshStatus(block: Block)
 		if block.def.sells then
 			setAttribute(model, "Sold", machine.sold)
 		end
+		if block.def.stores then
+			setAttribute(model, "Slots", Machine.slotsUsed(machine))
+		end
 	elseif block.def.route == "Split" then
 		setAttribute(model, "Powered", isPowered(block))
 	elseif block.def.route == "Filter" then
@@ -1322,6 +1325,10 @@ local function control(player: Player, block: Block, action: string, itemId: str
 		for inputId, count in Machine.takeInputs(machine) do
 			Machine.putBack(machine, inputId, InventoryService.give(player, inputId, count))
 		end
+	elseif action == "TakeOut" and machine and itemId and block.def.stores then
+		-- One item out of a chest: as many as the inventory holds.
+		local count = Machine.takeInput(machine, itemId, math.huge)
+		Machine.putBack(machine, itemId, InventoryService.give(player, itemId, count))
 	elseif action == "Switch" and isSplit then
 		block.powered = not block.powered
 	elseif action == "Filter" and itemId and isFilter then
@@ -1332,7 +1339,8 @@ local function control(player: Player, block: Block, action: string, itemId: str
 	refreshStatus(block)
 end
 
-local PANEL_ACTIONS = { Load = true, Collect = true, TakeBack = true, Switch = true, Filter = true, ClearFilter = true }
+local PANEL_ACTIONS =
+	{ Load = true, Collect = true, TakeBack = true, TakeOut = true, Switch = true, Filter = true, ClearFilter = true }
 
 local function onInteract(player: Player, target: unknown, action: unknown, itemId: unknown)
 	if typeof(target) ~= "Instance" or not target:IsA("Model") or target.Parent ~= placed then

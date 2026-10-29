@@ -3,7 +3,8 @@
 -- It shows what the block is doing -- worded by BlockText, from the attributes
 -- FactoryService publishes -- and turns its buttons and item cells into Interact requests:
 -- load an item from anywhere in the inventory, collect the output, take back what is
--- loaded and unused, switch a split conveyor, pick a filter's items. The server checks
+-- loaded and unused, switch a split conveyor, pick a filter's items. A chest (`stores`)
+-- shows what it holds in the grid instead, one cell a slot, and a press takes that item out. The server checks
 -- every request; the panel never changes anything itself.
 --
 -- The window is authored in StarterGui.HUD.MachinePanel (place file only) from the same
@@ -173,6 +174,7 @@ local function bind(hud: ScreenGui): boolean
 		heading = nodes.heading.Text,
 		hint = nodes.hint.Text,
 		empty = nodes.empty.Text,
+		takeBack = nodes.TakeBack.Text,
 		slotColor = slot.BackgroundColor3,
 		slotTransparency = slot.BackgroundTransparency,
 		slotSelectedColor = slot:GetAttribute("SelectedBackgroundColor") or slot.BackgroundColor3,
@@ -314,6 +316,11 @@ local function isFilter(): boolean
 	return def ~= nil and def.route == "Filter"
 end
 
+local function isChest(): boolean
+	local def = if blockItemId then Factory.get(blockItemId) else nil
+	return def ~= nil and def.stores ~= nil
+end
+
 -- The grid's hint names the item under the pointer or focus, and says what a press does.
 local function showHint(cell: Cell?)
 	hovered = cell
@@ -322,9 +329,14 @@ local function showHint(cell: Cell?)
 	end
 	local itemId = if cell then cell.itemId else nil
 	if not itemId then
-		ui.hint.Text = if isFilter() then "Click items to send them left (up to 4)." else look.hint
+		ui.hint.Text = if isFilter()
+			then "Click items to send them left (up to 4)."
+			elseif isChest() then "Click an item to take it out."
+			else look.hint
 	elseif isFilter() then
 		ui.hint.Text = `{BlockText.itemName(itemId)}: click to send it left, or not.`
+	elseif isChest() then
+		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to take it all out.`
 	else
 		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to put in as many as fit.`
 	end
@@ -351,7 +363,7 @@ local function createCell(): Cell
 		onActivate = function()
 			local itemId = cell.itemId
 			if itemId then
-				send(if isFilter() then "Filter" else "Load", itemId)
+				send(if isFilter() then "Filter" elseif isChest() then "TakeOut" else "Load", itemId)
 			end
 		end,
 	}))
@@ -370,7 +382,41 @@ local function createCell(): Cell
 	return cell
 end
 
+-- A chest's contents as its slots fill: each item split into stacks, in name order.
+local function chestSlots(target: Model): { Offer }
+	local list: { Offer } = {}
+	local counts = BlockText.contents(target)
+	local ids = {}
+	for id in counts do
+		table.insert(ids, id)
+	end
+	table.sort(ids, function(a, b)
+		return BlockText.itemName(a) < BlockText.itemName(b)
+	end)
+	for _, id in ids do
+		local ok, item = pcall(Inventory.getItem, id)
+		local stack = if ok then item.stack else counts[id]
+		local left = counts[id]
+		while left > 0 do
+			table.insert(list, { itemId = id, count = math.min(left, stack) })
+			left -= stack
+		end
+	end
+	return list
+end
+
 local function renderGrid(def: Factory.Def, itemId: string)
+	if def.stores and model then
+		local list = chestSlots(model)
+		for index, offer in list do
+			paintCell(cells[index] or createCell(), offer, false)
+		end
+		for index = #list + 1, #cells do
+			paintCell(cells[index], nil, false)
+		end
+		ui.empty.Visible = #list == 0
+		return
+	end
 	local filtered = if def.route == "Filter" and model then BlockText.filter(model) else {}
 	local list = offers(function(candidate)
 		return def.route == "Filter" or Factory.takesByHand(itemId, candidate)
@@ -426,15 +472,19 @@ local function render()
 	local powered = target:GetAttribute("Powered") == true
 	setButton(ui.Collect, isMachine, BlockText.hasOutput(target))
 	setButton(ui.TakeBack, isMachine and not def.passThrough, BlockText.hasContents(target))
+	ui.TakeBack.Text = if def.stores then "Take all" else look.takeBack
 	setButton(ui.Switch, def.route == "Split", true)
 	ui.Switch.Text = if powered then "Send straight on" else "Send to the side"
 	setButton(ui.ClearFilter, def.route == "Filter", next(BlockText.filter(target)) ~= nil)
 	ui.actions.Visible = isMachine or def.route ~= nil
 
-	local showsGrid = def.route == "Filter" or (isMachine and takesAnythingByHand(itemId))
+	local showsGrid = def.route == "Filter" or def.stores ~= nil or (isMachine and takesAnythingByHand(itemId))
 	ui.load.Visible = showsGrid
-	ui.heading.Text = if def.route == "Filter" then "[ Filter ]" else look.heading
-	ui.empty.Text = if def.route == "Filter" then "Your backpack is empty." else look.empty
+	ui.heading.Text = if def.route == "Filter" then "[ Filter ]" elseif def.stores then "[ Chest ]" else look.heading
+	ui.empty.Text = if def.route == "Filter"
+		then "Your backpack is empty."
+		elseif def.stores then "Nothing collected yet."
+		else look.empty
 	if showsGrid then
 		renderGrid(def, itemId)
 	end

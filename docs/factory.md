@@ -74,6 +74,13 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   `WoodTubeVertical`. FactoryService swaps the art parts in under the placed model's Hitbox,
   turned to fit, and reshapes the neighbours a tube was linked to when it is picked up. Those four
   art templates are not items. The Wood Tube Merger stays its own item with fixed openings.
+- **The Industrial Chest collects what a belt brings it** (`stores` in `Blocks`). It is the Islands
+  chest with a conveyor attachment. It takes any item at its input face into 12 slots, each up to
+  the item's stack size, and backs the belt up when the slots are full.
+  - It publishes `Slots` alongside the usual `Contents`.
+  - Its panel lists what it holds in the grid, one cell per slot. A cell's `TakeOut` takes that item
+    out, and **Take all** (`TakeBack`) takes everything.
+  - It never takes items by hand, as in Islands since December 2021.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or
