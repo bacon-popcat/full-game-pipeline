@@ -24,7 +24,8 @@
 --
 -- A machine whose input face has belt art takes items only where that belt meets its port:
 -- the belt is a lane of its own (Factory.lanes) that items ride in on, and the machine
--- takes the front one at its end, or leaves it waiting there while it is full.
+-- takes the front one at its end. When it has no room for that one, it takes the first item
+-- queued up behind it that it does take (pullQueued), so surplus fuel can't starve it of ore.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -133,6 +134,8 @@ local THROW_LIFT = 1.5
 local MACHINE_THROW = 4
 -- Studs above a block's hitbox a drop aimed at its belt appears.
 local DROP_HEIGHT = 0.5
+-- Most queued items a machine looks through past a front item it won't take.
+local PULL_DEPTH = 12
 -- Seconds between one player's interactions; caps how fast a client can spam remotes.
 local COOLDOWN = 0.15
 -- Seconds between checks for players walking over belt items.
@@ -169,6 +172,10 @@ local blocks: { [Model]: Block } = {}
 local cellIndex: { [string]: Block } = {}
 local entries: { [string]: { Entry } } = {}
 local laneSet: { [LaneState]: boolean } = {}
+-- The lanes whose front item moves on into each lane, valid while `feedersVersion` matches
+-- the topology.
+local feeders: { [LaneState]: { LaneState } } = {}
+local feedersVersion = -1
 local dirty: { [LaneState]: boolean } = {}
 -- Lanes cleared since the last update, by key.
 local cleared: { [string]: boolean } = {}
@@ -437,6 +444,73 @@ local function dropPoint(model: Model): Vector3?
 	return Vector3.new(over.X, box.Position.Y + size.Y / 2 + DROP_HEIGHT, over.Z)
 end
 
+-- What moves into `lane`: lanes whose exit joins its start, and a merger's in-lanes for its
+-- out-lane. Other routers decide per item, so the lanes into them are left out.
+local function feedersOf(lane: LaneState): { LaneState }
+	if feedersVersion ~= topology then
+		feeders = {}
+		local function add(from: LaneState, into: LaneState)
+			local list = feeders[into]
+			if not list then
+				list = {}
+				feeders[into] = list
+			end
+			table.insert(list, from)
+		end
+		for other in laneSet do
+			if other.def.exit then
+				local target = laneTarget(other)
+				if target and target.lane then
+					add(other, target.lane)
+				end
+			elseif other.block.def.route == "Merge" and other ~= other.block.lanes[3] then
+				add(other, other.block.lanes[3])
+			end
+		end
+		feedersVersion = topology
+	end
+	return feeders[lane] or {}
+end
+
+-- A machine whose front item at its input won't go in takes the first item queued up behind
+-- it that will, so surplus fuel waits on the belt instead of starving it of ore. The queue
+-- runs back over `lane` (past its front) and every lane backed up into it. Returns whether it
+-- took one.
+local function pullQueued(machine: Machine.State, lane: LaneState): boolean
+	local looked = 0
+	local visit = { lane }
+	local seen = { [lane] = true }
+	local at = 1
+	while at <= #visit and looked < PULL_DEPTH do
+		local current = visit[at]
+		local queued = Lane.queued(current.items, current.length)
+		for index = if current == lane then 2 else 1, queued do
+			looked += 1
+			if looked > PULL_DEPTH then
+				return false
+			end
+			if Machine.insert(machine, current.items[index].itemId, 1) == 1 then
+				randomChoice[current.items[index].id] = nil
+				table.remove(current.items, index)
+				markDirty(current)
+				return true
+			end
+		end
+		-- Lanes upstream only wait on this one when it is backed up all the way to its start.
+		local last = current.items[queued]
+		if queued > 0 and queued == #current.items and last.d < Lane.SPACING + 1e-3 then
+			for _, from in feedersOf(current) do
+				if not seen[from] then
+					seen[from] = true
+					table.insert(visit, from)
+				end
+			end
+		end
+		at += 1
+	end
+	return false
+end
+
 local function stepLanes(dt: number)
 	for lane in laneSet do
 		Lane.advance(lane.items, dt, lane.def.speed, lane.length)
@@ -447,17 +521,22 @@ local function stepLanes(dt: number)
 			continue
 		end
 		if lane.def.feeds then
-			-- A machine's input belt: the item goes in once it reaches the port, or waits there.
+			-- A machine's input belt: the item goes in once it reaches the port, or waits there
+			-- while the machine takes what it can from behind it.
 			local machine = lane.block.machine
 			if machine and Machine.insert(machine, front.itemId, 1) == 1 then
 				table.remove(lane.items, 1)
 				markDirty(lane)
+			elseif machine then
+				pullQueued(machine, lane)
 			end
 		elseif lane.def.exit then
 			local target = laneTarget(lane)
 			if target and deliver(target, front.itemId, front.id) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
+			elseif target and not target.lane and target.block.machine then
+				pullQueued(target.block.machine, lane)
 			elseif not target and lane.exitPort and isOpen(lane.exitPort) then
 				table.remove(lane.items, 1)
 				markDirty(lane)

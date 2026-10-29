@@ -40,6 +40,11 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   items along that belt (a lane `Factory.lanes` adds, as long as its hitbox's `PortDepth*`)
   and takes the front one where the belt meets the port. A face with no belt art takes items
   right at the face.
+- **A machine looks past an item it won't take.** When the item at its port doesn't go in
+  (its 16 spare fuel are full, or it never takes that item), the machine takes the first item
+  queued nose to tail behind it that does, up to 12 back. The queue runs back over conveyors
+  and through a Merger, but stops at other routers, which decide per item. Skipped items stay
+  on the belt, so surplus coal waits there while ore keeps flowing.
 - **Items leave a machine at its port too.** A machine with belt art on its output face puts
   each finished item on that belt (a lane `Factory.lanes` adds, as long as its hitbox's
   `PortDepth*`), and it rides out to the face like any conveyor's: on to a connected entry,

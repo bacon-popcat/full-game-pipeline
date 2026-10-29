@@ -45,6 +45,19 @@ function Lane.waiting(items: { Item }, length: number): Item?
 	return if front and front.d >= length - 1e-3 then front else nil
 end
 
+-- How many items from the front are backed up nose to tail behind a front item waiting at
+-- the end: the ones that can't move on until it does.
+function Lane.queued(items: { Item }, length: number): number
+	local limit = length
+	for index, item in items do
+		if item.d < limit - 1e-3 then
+			return index - 1
+		end
+		limit = item.d - SPACING
+	end
+	return #items
+end
+
 -- Puts an item in at its own `d` if it keeps SPACING from every item already there, keeping
 -- the lane front first. Returns whether it fit.
 function Lane.insert(items: { Item }, item: Item): boolean

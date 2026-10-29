@@ -17,7 +17,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 -- Finished items a machine holds before it stops working.
 local OUTPUT_CAP = 8
 -- Fuel items a machine holds on top of what is burning.
-local FUEL_CAP = 4
+local FUEL_CAP = 16
 -- Units of each fluid a machine holds.
 local FLUID_CAP = 6
 local FEED_CAP = 40
