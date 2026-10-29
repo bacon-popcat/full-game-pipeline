@@ -37,7 +37,7 @@ local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
-local InventoryScreen = require(script.Parent.InventoryScreen)
+local Screens = require(Libraries.Screens)
 
 type Cell = {
 	button: TextButton,
@@ -540,7 +540,7 @@ function MachinePanel.open(target: Model, itemId: string)
 	if model then
 		MachinePanel.close()
 	end
-	InventoryScreen.close()
+	Screens.claim("MachinePanel")
 	model = target
 	blockItemId = itemId
 	local current = GuiService.SelectedObject
@@ -647,6 +647,7 @@ local function showTouchButton(shown: boolean)
 end
 
 function MachinePanel.init(hud: ScreenGui)
+	Screens.register("MachinePanel", MachinePanel.close)
 	if not bind(hud) then
 		return
 	end

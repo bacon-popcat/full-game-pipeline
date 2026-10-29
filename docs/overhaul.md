@@ -162,7 +162,7 @@ Git history keeps all of it.
 
 1. [x] **Foundation.** Cut the content above; plots and ownership; coins, XP and levels; ProfileStore
    saving inventory, coins and plots; offline growth.
-2. **Garden loop.** The crop table, multi-harvest plants, mutations, the Seed Shop with restocks,
+2. [x] **Garden loop.** The crop table, multi-harvest plants, mutations, the Seed Shop with restocks,
    the Sell Stand, weather, and the HUD for coins, level and weather.
 3. **Automation.** The machine roster and Machine Shop, with Planter, Sprinkler, Harvester, the
    processors and the Shipping Bin.
@@ -201,6 +201,52 @@ Git history keeps all of it.
 - Source assets are untouched. PlotService removes only the live Workspace showcases (IslandsMachines, IslandsWorld, IslandsItems). Local
   formatter/linter configuration was added because the referenced repo gate/config files were
   absent. Runtime verification remains the Studio checklist in [plots.md](plots.md).
+
+### Garden loop implementation decisions
+
+- `World.CROPS` owns all twelve crop numbers and fallback art/colours. Items generates seeds,
+  produce and four mutation variants per produce; `item.value` is the final sale price,
+  already multiplied once. Existing seed/produce ids and GardenFoundation_v1 stay compatible.
+  The absence of `regrow` denotes a single crop. Existing art wins; expected tinted fallbacks
+  are silent. Exact placeholder choices and rarity/mutation palettes live in shared content.
+- Four equal growth quarters reach Ripe at the full listed grow duration. With only three
+  transitions before harvestable Ripe, the fourth quarter is final ripening with Mature art;
+  BlockInfo calls it Ripening. Multi regrowth stays Mature for its `regrow` duration. A machine
+  restarts single crops from Sprout. Neither ripe hand harvest nor ripe soil removal returns a seed;
+  unripe digging/removal still does. Each successful hand/machine harvest awards rarity XP once.
+- `plantedAt` is the current cycle start in fractional Unix seconds (old integers still load), reset after each reap; `harvestCount` distinguishes
+  initial growth from multi regrowth. Saved `growthBonus` banks online rain speed, and offline
+  time runs at normal speed. Rejoining starts a new live weather baseline, never retroactively
+  claiming this server's past rain. Optional new crop fields default safely on Phase 1 saves.
+- Mutations are exclusive: one draw partitions the stated probabilities into Rainbow,
+  Golden, Shocked, Wet and plain outcomes, so the percentages remain exact. `mutationRolled` saves plain outcomes as well
+  as variants so ripe fruit cannot reroll on rejoin. Offline ripening uses only always-on
+  chances. The cell chance-provider hook is zero until Phase 3 adds sprinklers.
+- Weather starts clear; events are equally likely and their starts are 8-12 minutes apart.
+  Runtime `ReplicatedStorage.Weather` attributes Event/EndsAt publish the event and its
+  server-time deadline. Client rain uses one bounded camera emitter; named lighting requests
+  compose through a private colour-correction effect. Reduced motion suppresses flashes and
+  Rainbow hue cycling. Crop sparkles are limited to 48 nearby emitters.
+- Restock rolls are independent per seed using its rarity band. `restockAt` stores the next
+  five-minute Unix boundary; current-window missing/invalid stock becomes zero rather than
+  rerolling. The screen buys one seed per press; the server also accepts validated bulk counts.
+  Inventory capacity is checked before spending; buying and selling share a 0.2-second cooldown.
+- Sell Stand uses final item values, and sale XP is floored per transaction with no remainder
+  carry. Provisional product values are BerryDough 60, BerryBread 90, FruitCrate 420 and
+  LargeFruitCrate 1,100; [economy.md](economy.md) explains the processing margins. Processing
+  consumes plain inputs first, accepts mixtures of mutations, outputs plain products and
+  preserves consumed variant ids for unfinished-job refunds. Teleseller payout waits for
+  Phase 3. Exact-id Filter Conveyor routing required no behavior change.
+- Hub stalls sit at world (-24, 0, -15) and (24, 0, -15), with prompts in each Counter.
+  Prompts activate at ten studs; server/client transaction reach is twelve studs. Stalls are
+  soft non-colliding placeholders. Missing authored HUD/templates warn once and disable only
+  that screen. Shop has generic catalogue rendering; Screens arbitrates all four windows.
+  Wallet attributes recover a late initial economy sync, and prompt activation refreshes stock.
+- All HUD shells/templates remain in the place file and are not edited here. The exact
+  contract, code owners and Studio checklist are in [economy.md](economy.md). Static checks
+  and content/remote consistency checks pass; Studio runtime, persistence, device layout and
+  multiplayer verification remain unverified because Studio execution requires approval and
+  this session's approval policy is never.
 
 Placeholder art until phase 5: the current machine models stand in for the new machines (Seed
 Planter = Sapling Automatic Planter, Harvester = Industrial Flower Picker, Shipping Bin =

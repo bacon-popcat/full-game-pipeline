@@ -553,18 +553,22 @@ local function envFor(block: Block): Machine.Env
 	local def = block.def
 	local env: Machine.Env = {}
 	if def.produce then
+		local selected: WorldService.Node? = nil
 		env.source = function()
 			local node = sourcesFor(block)[1]
-			return if node and def.produce then def.produce.sources[node.nodeType] else nil,
-				"Needs a ripe crop nearby on this plot"
-		end
-		env.reap = function(source)
-			for _, node in sourcesFor(block) do
-				if def.produce and def.produce.sources[node.nodeType] == source and WorldService.reap(node) then
-					return true
+			selected = node
+			if node and def.produce then
+				local source = table.clone(def.produce.sources[node.nodeType])
+				if node.mutation then
+					source.item ..= "+" .. node.mutation
 				end
+				return source
 			end
-			return false
+			return nil, "Needs a ripe crop nearby on this plot"
+		end
+		env.reap = function(_: Factory.Source)
+			local node = selected
+			return node ~= nil and Plot.same(block.origin, node.cell) and WorldService.reap(node)
 		end
 	end
 	if def.plants then

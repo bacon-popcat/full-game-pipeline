@@ -69,7 +69,8 @@ That folder is outside git, and its README covers the rules.
 
 ## Adding an item
 
-1. Add it to `src/shared/Inventory/Items.luau`.
+1. Add it to `src/shared/Inventory/Items.luau`. Crops are the exception: `World.CROPS`
+   generates their seeds, produce and mutation variants, including sell values.
 2. Put its art in `Assets.Blocks` (blocks and machines) or `Assets.Tools` (a Tool), named
    exactly the item id. A block also needs its hitbox `PrimaryPart` (above). The footprint
    comes from the hitbox, so no size is entered.
@@ -87,3 +88,9 @@ Tool only after the final save snapshot. The selected slot resets to one on load
 BuildService.place is shared by normal placement and profile restoration. It synchronously
 registers factories, while seeds go directly to WorldService.plant. Saved blocks retain item id,
 plot-relative cell, rotation, Against and factory contents. See [plots.md](plots.md).
+
+The garden HUD contract is in [economy.md](economy.md#authored-hud-contract-place-file-only).
+Shared/ItemArt owns tinted seed/produce fallbacks and mutation icons; Build delegates its
+template lookup there. Shop and Sell share window exclusivity with Backpack/MachinePanel
+through libraries/Screens. Sell All removes matching stacks and syncs once through
+InventoryService.takeWhere; currency pricing stays in GardenService.

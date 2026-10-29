@@ -22,11 +22,8 @@ local ItemIcon = {}
 
 local drawn: { [ViewportFrame]: Drawn } = {}
 
-function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
+function ItemIcon.clear(viewport: ViewportFrame)
 	local current = drawn[viewport]
-	if current and current.itemId == itemId then
-		return
-	end
 	if current then
 		if current.model then
 			current.model:Destroy()
@@ -35,6 +32,15 @@ function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
 			current.camera:Destroy()
 		end
 	end
+	drawn[viewport] = nil
+end
+
+function ItemIcon.show(viewport: ViewportFrame, itemId: string?)
+	local current = drawn[viewport]
+	if current and current.itemId == itemId then
+		return
+	end
+	ItemIcon.clear(viewport)
 	local entry: Drawn = { itemId = itemId }
 	drawn[viewport] = entry
 	if not itemId then

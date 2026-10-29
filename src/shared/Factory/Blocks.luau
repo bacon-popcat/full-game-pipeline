@@ -174,7 +174,7 @@ local function pickerSources(): { [string]: Source }
 	local sources: { [string]: Source } = {}
 	for cropId, crop in World.CROPS do
 		sources[World.cropStage(cropId, #World.STAGES)] =
-			{ item = crop.produce, every = 15, count = crop.reaped, reaps = true }
+			{ item = crop.produce, every = 15, count = crop.yield, reaps = true }
 	end
 	return sources
 end
@@ -182,6 +182,12 @@ end
 local function pastForks(ext: Extents): Vector3
 	return v(-3, 1.5, ext.min.Z - 1.5)
 end
+
+local SEEDS: { string } = {}
+for _, crop in World.CROPS do
+	table.insert(SEEDS, crop.seed)
+end
+table.sort(SEEDS)
 
 local BLOCKS: { [string]: Def } = {
 	ConveyorBelt = conveyor(TIER1),
@@ -225,7 +231,7 @@ local BLOCKS: { [string]: Def } = {
 	SaplingAutomaticPlanter = {
 		kind = "Machine",
 		input = "+Z",
-		plants = { "WheatSeeds", "CarrotSeeds", "PotatoSeeds" },
+		plants = SEEDS,
 		plantEvery = 10,
 		plantCell = pastForks,
 	},

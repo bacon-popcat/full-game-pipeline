@@ -19,6 +19,7 @@ local DropService = require(script.Parent.DropService)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 local PlotService = require(script.Parent.PlotService)
+local GardenService = require(script.Parent.GardenService)
 local WorldService = require(script.Parent.WorldService)
 
 local SNAPSHOT_EVERY = 120
@@ -114,6 +115,10 @@ end
 -- changes never lock a player out of their garden.
 local function sanitize(player: Player, data: any)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
+	assert(
+		typeof(data.seedStock) == "table" and integer(data.restockAt) and typeof(data.discovered) == "table",
+		"Invalid garden state"
+	)
 	assert(typeof(data.inventory) == "table" and #data.inventory == Inventory.SLOT_COUNT, "Invalid inventory")
 	assert(
 		typeof(data.plot) == "table" and typeof(data.plot.blocks) == "table" and typeof(data.plot.crops) == "table",
@@ -161,6 +166,11 @@ local function snapshot(player: Player, session: Session)
 	data.inventory = inventory
 	data.coins = economy.coins
 	data.xp = economy.xp
+	local garden = GardenService.snapshot(player)
+	assert(garden, "DataService: loaded session lost garden state")
+	data.seedStock = garden.seedStock
+	data.restockAt = garden.restockAt
+	data.discovered = garden.discovered
 	data.plot = { blocks = BuildService.snapshot(player, index), crops = WorldService.snapshot(index) }
 end
 
@@ -174,6 +184,7 @@ local function clear(player: Player)
 	DropService.clear(player)
 	InventoryService.release(player)
 	EconomyService.release(player)
+	GardenService.release(player)
 	PlotService.release(player)
 end
 
@@ -246,6 +257,7 @@ local function onPlayer(player: Player)
 		end
 		InventoryService.load(player, profile.Data.inventory)
 		EconomyService.load(player, profile.Data.coins, profile.Data.xp)
+		GardenService.load(player, profile.Data.seedStock, profile.Data.restockAt, profile.Data.discovered)
 	end)
 	if not ok then
 		warn(`DataService: restore failed for {player.UserId}: {message}`)

@@ -10,6 +10,9 @@ local states: { [Player]: State } = {}
 local EconomyService = {}
 
 local function sync(player: Player, state: State)
+	player:SetAttribute("Coins", state.coins)
+	player:SetAttribute("Xp", state.xp)
+	player:SetAttribute("Level", state.level)
 	local stats = player:FindFirstChild("leaderstats")
 	if not stats then
 		stats = Instance.new("Folder")

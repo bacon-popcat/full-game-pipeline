@@ -32,13 +32,16 @@ export type Node = {
 export type Crop = {
 	name: string,
 	seed: string,
-	-- What harvesting it ripe gives, by hand. A machine reaping it gets `reaped` of the
-	-- produce instead and the crop starts again from a sprout, so its seed is kept.
-	harvest: { [string]: number },
 	produce: string,
-	reaped: number,
-	-- Seconds each stage takes to grow into the next.
+	yield: number,
+	rarity: string,
+	price: number,
+	value: number,
+	grow: number,
 	every: number,
+	regrow: number?,
+	art: string,
+	color: Color3,
 }
 
 -- What a placed item turns into: the node it plants as, and whether that needs soil below.
@@ -78,31 +81,56 @@ NODES.CopperRock = {
 
 local STAGES = { "Sprout", "Young", "Mature", "Ripe" }
 
+local function defineCrop(
+	name: string,
+	rarity: string,
+	price: number,
+	value: number,
+	grow: number,
+	yield: number,
+	regrow: number?,
+	art: string,
+	color: Color3
+): Crop
+	return {
+		name = name,
+		seed = name .. "Seeds",
+		produce = name,
+		rarity = rarity,
+		price = price,
+		value = value,
+		grow = grow,
+		every = grow / 4,
+		yield = yield,
+		regrow = regrow,
+		art = art,
+		color = color,
+	}
+end
+
 local CROPS: { [string]: Crop } = {
-	Wheat = {
-		name = "Wheat",
-		seed = "WheatSeeds",
-		harvest = { Wheat = 1, WheatSeeds = 2 },
-		produce = "Wheat",
-		reaped = 1,
-		every = 15,
-	},
-	Carrot = {
-		name = "Carrot",
-		seed = "CarrotSeeds",
-		harvest = { Carrot = 2, CarrotSeeds = 1 },
-		produce = "Carrot",
-		reaped = 2,
-		every = 20,
-	},
-	Potato = {
-		name = "Potato",
-		seed = "PotatoSeeds",
-		harvest = { Potato = 3, PotatoSeeds = 1 },
-		produce = "Potato",
-		reaped = 3,
-		every = 25,
-	},
+	Carrot = defineCrop("Carrot", "Common", 10, 18, 60, 1, nil, "Carrot", Color3.fromRGB(240, 151, 80)),
+	Wheat = defineCrop("Wheat", "Common", 15, 12, 75, 2, nil, "Wheat", Color3.fromRGB(234, 204, 112)),
+	Strawberry = defineCrop("Strawberry", "Uncommon", 50, 15, 90, 3, 45, "Potato", Color3.fromRGB(232, 117, 133)),
+	Potato = defineCrop("Potato", "Uncommon", 60, 70, 120, 1, nil, "Potato", Color3.fromRGB(202, 174, 128)),
+	Tomato = defineCrop("Tomato", "Rare", 150, 35, 150, 2, 60, "Carrot", Color3.fromRGB(224, 113, 97)),
+	Corn = defineCrop("Corn", "Rare", 250, 160, 240, 1, nil, "Wheat", Color3.fromRGB(244, 218, 113)),
+	Blueberry = defineCrop("Blueberry", "Rare", 400, 30, 180, 4, 50, "Potato", Color3.fromRGB(131, 151, 221)),
+	Pumpkin = defineCrop("Pumpkin", "Epic", 1200, 1100, 480, 1, nil, "Potato", Color3.fromRGB(232, 164, 97)),
+	Apple = defineCrop("Apple", "Epic", 3000, 90, 360, 3, 90, "Carrot", Color3.fromRGB(221, 137, 130)),
+	Watermelon = defineCrop(
+		"Watermelon",
+		"Legendary",
+		6000,
+		3500,
+		600,
+		1,
+		nil,
+		"Potato",
+		Color3.fromRGB(143, 191, 127)
+	),
+	Grape = defineCrop("Grape", "Legendary", 10000, 260, 480, 4, 120, "Wheat", Color3.fromRGB(179, 141, 215)),
+	Starfruit = defineCrop("Starfruit", "Mythic", 30000, 1800, 720, 2, 150, "Carrot", Color3.fromRGB(247, 228, 141)),
 }
 
 NODES.Farmland = {
@@ -122,7 +150,7 @@ for cropId, crop in CROPS do
 			hint = if ripe
 				then "Ripe. Harvest it empty-handed, or let an Industrial Flower Picker reap it."
 				else "Growing. Dig it up empty-handed to get its seed back.",
-			harvest = if ripe then crop.harvest else { [crop.seed] = 1 },
+			harvest = if ripe then { [crop.produce] = crop.yield } else { [crop.seed] = 1 },
 			crop = cropId,
 			stage = stage,
 		}

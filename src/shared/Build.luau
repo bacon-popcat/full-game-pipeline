@@ -20,6 +20,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Plot = require(ReplicatedStorage.Shared.Plot)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 
 type Measure = {
 	footprint: Vector3,
@@ -69,13 +70,7 @@ local characterParams = OverlapParams.new()
 characterParams.FilterType = Enum.RaycastFilterType.Include
 
 function Build.getTemplate(itemId: string): Model?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local blocks = if assets then assets:FindFirstChild("Blocks") else nil
-	local template = if blocks then blocks:FindFirstChild(itemId) else nil
-	if template and template:IsA("Model") then
-		return template
-	end
-	return nil
+	return ItemArt.blockTemplate(itemId)
 end
 
 local function measure(itemId: string): Measure?
@@ -106,19 +101,7 @@ end
 -- A copy of an item's art for display (icons, the hand): its template without the
 -- invisible Hitbox, so only what can be seen is sized and framed. The pivot is kept.
 function Build.copyArt(itemId: string): Model?
-	local template = Build.getTemplate(itemId)
-	if not template then
-		return nil
-	end
-	local copy = template:Clone()
-	local hitbox = copy:FindFirstChild("Hitbox")
-	if hitbox then
-		local pivot = copy:GetPivot()
-		copy.PrimaryPart = nil
-		copy.WorldPivot = pivot
-		hitbox:Destroy()
-	end
-	return copy
+	return ItemArt.blockArt(itemId)
 end
 
 -- For validating an untrusted cell: whole numbers within MAX_CELL of the origin.

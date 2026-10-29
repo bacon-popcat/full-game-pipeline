@@ -40,7 +40,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 - **Industrial Chest** (stores) accepts belt items into twelve stack slots. Its panel takes
   individual item types or all contents; it still does not accept hand loading.
 - **Industrial Merchant Teleseller** (sells) retains its one-item-per-second sale counter.
-  Currency payout and priced selling belong to the garden/automation phases.
+  Currency payout remains Phase 3; the Garden loop Sell Stand pays for priced items now.
 - **Planter and picker** retain their planting cell, radius and timings. Their source queries
   and completed actions stay inside their own plot.
 - **Cut systems are removed.** Tubes, sap, deposits, lumber, animals and walking, petroleum,
@@ -52,7 +52,12 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 Until the automation roster arrives, Food Processor uses two Wheat and one Carrot to make
 BerryDough; Industrial Oven bakes it into BerryBread. Crate Packer accepts twenty Carrot or
 twenty Wheat; its retained tier 2 accepts fifty. Existing product ids/art and timings remain.
-Recipes live in Blocks; these replacements keep machines usable after milk/fruit suppliers go.
+Recipes live in Blocks; these replacements keep machines usable until the Phase 3 roster.
+Garden loop accepts mixtures of plain and mutated inputs, outputs plain products, shares
+input capacity across variants and refunds exact variants when an active job is saved or
+picked up. The picker sources the current mutated item and checks the full yield fits
+before reaping. Its single crops restart; multi plants regrow (see farming.md). Filters
+continue matching the exact item id, including the mutation suffix.
 
 ## Loose items (DropService)
 

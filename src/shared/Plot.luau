@@ -5,7 +5,15 @@
 
 local SIZE = 24
 export type Cell = { number }
-export type SavedCrop = { cropId: string, cell: Cell, plantedAt: number, harvestCount: number, mutation: string? }
+export type SavedCrop = {
+	cropId: string,
+	cell: Cell,
+	plantedAt: number,
+	harvestCount: number,
+	mutation: string?,
+	mutationRolled: boolean?,
+	growthBonus: number?,
+}
 export type Counts = { [string]: number }
 export type Contents = {
 	inputs: Counts,

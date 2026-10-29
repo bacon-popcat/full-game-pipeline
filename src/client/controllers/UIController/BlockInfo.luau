@@ -23,6 +23,7 @@ local World = require(ReplicatedStorage.Shared.World)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Aim = require(Libraries.Aim)
 local BlockText = require(Libraries.BlockText)
+local Hud = require(Libraries.Hud)
 local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 
@@ -104,7 +105,20 @@ local function nodeInfo(model: Model, nodeType: string): Info?
 	local info: Info = { title = node.name, status = nil, working = false, rows = {}, hint = hint }
 	local stage = node.stage
 	if node.crop and stage then
-		info.status = if ripe then "Ripe" else `Growing {stage} / {#World.STAGES}`
+		local crop = World.CROPS[node.crop]
+		local mutation = model:GetAttribute("Mutation")
+		local produce = crop.produce .. (if typeof(mutation) == "string" then "+" .. mutation else "")
+		info.title = Inventory.getItem(produce).name
+		info.status = if ripe
+			then "Ripe"
+			elseif model:GetAttribute("Regrowing") then "Regrowing"
+			elseif model:GetAttribute("Ripening") then "Ripening"
+			else "Growing"
+		table.insert(info.rows, { key = "Stage", value = World.STAGES[stage] })
+		if ripe then
+			local value = Inventory.getItem(produce).value or 0
+			table.insert(info.rows, { key = "Sell value", value = Hud.number(value * crop.yield) .. " coins" })
+		end
 		info.working = ripe
 		local growsAt = model:GetAttribute("GrowsAt")
 		if not ripe and typeof(growsAt) == "number" then
@@ -195,13 +209,22 @@ function BlockInfo.init(hud: ScreenGui)
 		end
 	end
 
-	local machinePanel = hud:FindFirstChild("MachinePanel")
+	local windows = {}
+	for _, name in { "Backpack", "MachinePanel", "Shop", "Sell" } do
+		local window = hud:FindFirstChild(name)
+		if window and window:IsA("GuiObject") then
+			table.insert(windows, window)
+		end
+	end
 	local elapsed = REFRESH_EVERY
 	RunService.RenderStepped:Connect(function(dt)
 		elapsed += dt
 		if elapsed >= REFRESH_EVERY then
 			elapsed = 0
-			local covered = machinePanel ~= nil and machinePanel:IsA("GuiObject") and machinePanel.Visible
+			local covered = false
+			for _, window in windows do
+				covered = covered or window.Visible
+			end
 			local info = if covered then nil else target()
 			panel.Visible = info ~= nil
 			if info then

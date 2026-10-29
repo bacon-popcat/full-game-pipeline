@@ -11,6 +11,10 @@ local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
+local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
+local GardenService = require(script.Parent.GardenService)
+local WeatherService = require(script.Parent.WeatherService)
 local Layout = require(ReplicatedStorage.Shared.World.Layout)
 local Soil = require(ReplicatedStorage.Shared.World.Soil)
 local DropService = require(script.Parent.DropService)
@@ -26,6 +30,9 @@ export type Node = {
 	plantedAt: number?,
 	harvestCount: number,
 	mutation: string?,
+	mutationRolled: boolean,
+	growthBonus: number,
+	weatherClock: number,
 }
 
 -- Seconds between one player's interactions; caps how fast a client can spam remotes.
@@ -65,6 +72,10 @@ local warned: { [string]: boolean } = {}
 local overlapParams = Build.newOverlapParams()
 local random = Random.new()
 
+local function wallTime(): number
+	return DateTime.now().UnixTimestampMillis / 1000
+end
+
 local function cellKey(cell: Vector3): string
 	return `{cell.X},{cell.Y},{cell.Z}`
 end
@@ -95,7 +106,16 @@ end
 
 local function copyArt(name: string, placeholderSize: Vector3): Model
 	local found = template(name)
+	local def = World.NODES[name]
+	local crop = if def and def.crop then World.CROPS[def.crop] else nil
+	local fallback = not found and crop ~= nil
+	if not found and crop and def and def.stage then
+		found = template(crop.art .. World.STAGES[def.stage])
+	end
 	local model = if found then found:Clone() else placeholder(name, placeholderSize)
+	if fallback and crop then
+		ItemArt.tint(model, crop.color)
+	end
 	model.Name = name
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
@@ -132,7 +152,9 @@ local function spawnNode(
 	natural: boolean,
 	plantedAt: number?,
 	harvestCount: number?,
-	mutation: string?
+	mutation: string?,
+	growthBonus: number?,
+	mutationRolled: boolean?
 ): Node
 	World.getNode(nodeType)
 	local model = copyArt(nodeType, Vector3.one * Build.GRID)
@@ -159,6 +181,9 @@ local function spawnNode(
 		plantedAt = plantedAt,
 		harvestCount = harvestCount or 0,
 		mutation = mutation,
+		mutationRolled = mutationRolled or mutation ~= nil,
+		growthBonus = growthBonus or 0,
+		weatherClock = WeatherService.bonusNow(),
 	}
 	eachCell(node, function(each)
 		nodesByCell[cellKey(each)] = node
@@ -212,33 +237,109 @@ local function removeNode(node: Node)
 	end
 end
 
-local function grow(node: Node)
+-- Phase 3 registers cell modifiers here without giving the growth clock a sprinkler dependency.
+local cellModifiers: (Vector3) -> Mutations.Chances = function(_: Vector3): Mutations.Chances
+	return { wet = 0, shocked = 0, golden = 0 }
+end
+
+function WorldService.setChanceModifiers(provider: (Vector3) -> Mutations.Chances)
+	cellModifiers = provider
+end
+
+function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutations.Chances
+	local modifiers = if offline then { wet = 0, shocked = 0, golden = 0 } else cellModifiers(cell)
+	local weather = if offline then "" else WeatherService.current()
+	return {
+		wet = math.clamp(modifiers.wet + (if weather == "Rain" or weather == "Thunderstorm" then 0.25 else 0), 0, 1),
+		shocked = math.clamp(modifiers.shocked + (if weather == "Thunderstorm" then 0.05 else 0), 0, 1),
+		golden = math.clamp(modifiers.golden + (if weather == "Golden Hour" then 0.05 else 0.01), 0, 1),
+	}
+end
+
+local function bankGrowth(node: Node)
+	local clock = WeatherService.bonusNow()
+	if not World.isRipe(World.getNode(node.nodeType)) then
+		node.growthBonus += clock - node.weatherClock
+	end
+	node.weatherClock = clock
+end
+
+local function grow(node: Node, offline: boolean?)
 	local def = World.getNode(node.nodeType)
 	local crop = if def.crop then World.CROPS[def.crop] else nil
 	if not crop or not def.crop then
 		return
 	end
-	local plantedAt = node.plantedAt or os.time()
+	bankGrowth(node)
+	local plantedAt = node.plantedAt or wallTime()
 	node.plantedAt = plantedAt
-	local stage = math.clamp(math.floor(math.max(0, os.time() - plantedAt) / crop.every) + 1, 1, #World.STAGES)
+	local regrowing = crop.regrow ~= nil and node.harvestCount > 0
+	local duration = if regrowing then crop.regrow or crop.grow else crop.grow
+	local elapsed = math.max(0, wallTime() - plantedAt) + node.growthBonus
+	-- Four equal growth quarters; the last is fruit ripening, using Mature art until harvestable.
+	local phase = math.clamp(math.floor(elapsed / crop.every) + 1, 1, 4)
+	local stage = if elapsed >= duration then 4 elseif regrowing then 3 else math.min(phase, 3)
+	if stage == 4 and not node.mutationRolled then
+		node.mutation = Mutations.roll(random, WorldService.chanceModifiers(node.cell, offline))
+		node.mutationRolled = true
+	end
 	if stage ~= def.stage then
 		removeNode(node)
-		grow(spawnNode(World.cropStage(def.crop, stage), node.cell, false, plantedAt, node.harvestCount, node.mutation))
+		grow(
+			spawnNode(
+				World.cropStage(def.crop, stage),
+				node.cell,
+				false,
+				plantedAt,
+				node.harvestCount,
+				node.mutation,
+				node.growthBonus,
+				node.mutationRolled
+			),
+			offline
+		)
 		return
 	end
 	node.model:SetAttribute("PlantedAt", plantedAt)
-	if stage == #World.STAGES then
+	node.model:SetAttribute("HarvestCount", node.harvestCount)
+	node.model:SetAttribute("Regrowing", regrowing and stage ~= 4)
+	node.model:SetAttribute("Ripening", not regrowing and phase == 4 and stage ~= 4)
+	node.model:SetAttribute("Mutation", node.mutation)
+	if stage == 4 then
+		node.model:SetAttribute("GrowsAt", nil)
 		return
 	end
-	local remaining = math.max(0, plantedAt + stage * crop.every - os.time())
-	node.model:SetAttribute("GrowsAt", workspace:GetServerTimeNow() + remaining)
-	task.delay(math.max(0.1, remaining), function()
-		if nodesByModel[node.model] == node then
-			grow(node)
-		end
-	end)
+	local nextAt = if regrowing then duration else math.min(phase * crop.every, duration)
+	local remaining = math.max(0, nextAt - elapsed) / WeatherService.speed()
+	local deadline = workspace:GetServerTimeNow() + remaining
+	local previous = node.model:GetAttribute("GrowsAt")
+	-- Clock sampling must not turn an unchanged deadline into a stream of attribute updates.
+	if typeof(previous) ~= "number" or math.abs(previous - deadline) > 0.1 then
+		node.model:SetAttribute("GrowsAt", deadline)
+	end
 end
 
+local function harvestItems(node: Node): { [string]: number }
+	local def = World.getNode(node.nodeType)
+	if def.crop and World.isRipe(def) then
+		local crop = World.CROPS[def.crop]
+		local id = crop.produce .. (if node.mutation then "+" .. node.mutation else "")
+		return { [id] = crop.yield }
+	end
+	return def.harvest or {}
+end
+
+local function awardHarvest(node: Node)
+	local def = World.getNode(node.nodeType)
+	local index = Plot.at(node.cell)
+	local plots = workspace:FindFirstChild("Plots")
+	local plot = if plots and index then plots:FindFirstChild(tostring(index)) else nil
+	local owner = if plot then plot:GetAttribute("Owner") else nil
+	local player = if typeof(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
+	if player and def.crop then
+		GardenService.harvest(player, def.crop, node.mutation)
+	end
+end
 -- The node covering `cell`, if any.
 function WorldService.nodeAt(cell: Vector3): Node?
 	return nodesByCell[cellKey(cell)]
@@ -273,8 +374,7 @@ function WorldService.plant(cell: Vector3, itemId: string): boolean
 	return true
 end
 
--- Reaps a ripe crop for a machine: it starts again from a sprout in the same cell, so the
--- machine gets the produce without spending the seed. Returns whether it did.
+-- A multi harvest keeps the plant; a machine also keeps a single crop by restarting it.
 function WorldService.reap(node: Node): boolean
 	local def = World.getNode(node.nodeType)
 	local crop = def.crop
@@ -282,7 +382,9 @@ function WorldService.reap(node: Node): boolean
 		return false
 	end
 	removeNode(node)
-	grow(spawnNode(World.cropStage(crop, 1), node.cell, node.natural, os.time(), node.harvestCount + 1))
+	awardHarvest(node)
+	local stage = if World.CROPS[crop].regrow then 3 else 1
+	grow(spawnNode(World.cropStage(crop, stage), node.cell, node.natural, wallTime(), node.harvestCount + 1))
 	return true
 end
 
@@ -339,11 +441,25 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		removeNode(node)
 		giveAll(player, drops)
 	elseif action == "Take" and def.harvest then
-		if held or not InventoryService.canGiveAll(player, def.harvest) then
+		local harvest = harvestItems(node)
+		if held then
 			return
 		end
-		removeNode(node)
-		giveAll(player, def.harvest)
+		if not InventoryService.canGiveAll(player, harvest) then
+			Remotes.Notify:FireClient(player, "Your inventory is full.")
+			return
+		end
+		if def.crop and World.isRipe(def) then
+			if World.CROPS[def.crop].regrow then
+				WorldService.reap(node)
+			else
+				awardHarvest(node)
+				removeNode(node)
+			end
+		else
+			removeNode(node)
+		end
+		giveAll(player, harvest)
 	end
 end
 
@@ -365,7 +481,7 @@ local function onUnplaced(model: Instance)
 	end
 	local at = node.model:GetPivot().Position + Vector3.yAxis
 	removeNode(node)
-	for dropId, count in def.harvest or {} do
+	for dropId, count in harvestItems(node) do
 		local toss = Vector3.new(random:NextNumber(-1, 1), 1.5, random:NextNumber(-1, 1)).Unit * UPROOT_SPEED
 		DropService.spawn(dropId, CFrame.new(at), toss, count)
 	end
@@ -383,12 +499,15 @@ function WorldService.snapshot(index: number): { Plot.SavedCrop }
 	for _, node in nodesByModel do
 		local def = World.getNode(node.nodeType)
 		if def.crop and Plot.at(node.cell) == index then
+			bankGrowth(node)
 			table.insert(crops, {
 				cropId = def.crop,
 				cell = Plot.pack(Plot.toRelative(index, node.cell)),
-				plantedAt = node.plantedAt or os.time(),
+				plantedAt = node.plantedAt or wallTime(),
 				harvestCount = node.harvestCount,
 				mutation = node.mutation,
+				mutationRolled = node.mutationRolled,
+				growthBonus = node.growthBonus,
 			})
 		end
 	end
@@ -413,21 +532,37 @@ function WorldService.restore(index: number, saved: Plot.SavedCrop): boolean
 	if not WorldService.canPlant(cell, crop.seed) then
 		return false
 	end
-	if
-		typeof(saved.plantedAt) ~= "number"
-		or saved.plantedAt % 1 ~= 0
-		or saved.plantedAt < 0
-		or saved.plantedAt > os.time()
-	then
+	if typeof(saved.plantedAt) ~= "number" or not (saved.plantedAt >= 0 and saved.plantedAt <= wallTime()) then
 		return false
 	end
 	if typeof(saved.harvestCount) ~= "number" or saved.harvestCount < 0 or saved.harvestCount % 1 ~= 0 then
 		return false
 	end
-	if saved.mutation ~= nil and typeof(saved.mutation) ~= "string" then
+	if saved.mutation ~= nil and (typeof(saved.mutation) ~= "string" or not Mutations.ALL[saved.mutation]) then
 		return false
 	end
-	grow(spawnNode(World.cropStage(saved.cropId, 1), cell, false, saved.plantedAt, saved.harvestCount, saved.mutation))
+	if
+		saved.growthBonus ~= nil
+		and (typeof(saved.growthBonus) ~= "number" or not (saved.growthBonus >= 0 and saved.growthBonus < math.huge))
+	then
+		return false
+	end
+	if saved.mutationRolled ~= nil and typeof(saved.mutationRolled) ~= "boolean" then
+		return false
+	end
+	grow(
+		spawnNode(
+			World.cropStage(saved.cropId, 1),
+			cell,
+			false,
+			saved.plantedAt,
+			saved.harvestCount,
+			saved.mutation,
+			saved.growthBonus,
+			saved.mutationRolled
+		),
+		true
+	)
 	return true
 end
 
@@ -444,6 +579,20 @@ function WorldService.clearPlot(index: number)
 end
 
 function WorldService.init()
+	task.spawn(function()
+		while true do
+			task.wait(0.5)
+			local growing = {}
+			for _, node in nodesByModel do
+				if World.getNode(node.nodeType).crop and not World.isRipe(World.getNode(node.nodeType)) then
+					table.insert(growing, node)
+				end
+			end
+			for _, node in growing do
+				grow(node)
+			end
+		end
+	end)
 	for _, spot in Layout.nodes do
 		spawnNode(spot.node, spot.cell, true)
 	end

@@ -4,6 +4,10 @@
 -- in Shared/Factory/Blocks. Blocks and machines are placed on the build grid, tools are
 -- held and swung, resources are what the world and the machines produce.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local World = require(ReplicatedStorage.Shared.World)
+local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
+
 export type Kind = "Tool" | "Block" | "Machine" | "Resource"
 
 export type Item = {
@@ -13,6 +17,9 @@ export type Item = {
 	-- Most of this item one slot can hold.
 	stack: number,
 	description: string?,
+	value: number?,
+	base: string?,
+	mutation: string?,
 	-- Tools only: swinging it at one of your placed blocks picks the block back up.
 	picksUp: boolean?,
 	-- Blocks only: the tool that breaks a placed one back into your inventory.
@@ -63,9 +70,6 @@ local ITEMS: { Item } = {
 	block("WoodPlanks", "Wood Planks", "Wooden boards for floors and walls.", "Pickaxe"),
 	block("Bricks", "Bricks", "Fired clay, stacked tight.", "Pickaxe"),
 	block("Glass", "Glass", "See-through and surprisingly sturdy.", "Pickaxe"),
-	seed("WheatSeeds", "Wheat Seeds", "Plant on grass, dirt or farmland. Grows into a sheaf of wheat."),
-	seed("CarrotSeeds", "Carrot Seeds", "Plant on grass, dirt or farmland. Grows into a big carrot."),
-	seed("PotatoSeeds", "Potato Seeds", "Plant on grass, dirt or farmland. Grows into a hill of potatoes."),
 
 	machine("ConveyorBelt", "Conveyor Belt", "Carries items forward.", CONVEYOR_STACK),
 	machine("ConveyorBeltLeft", "Conveyor Belt Left", "Turns items to the left.", CONVEYOR_STACK),
@@ -119,15 +123,42 @@ local ITEMS: { Item } = {
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
 	resource("IronBar", "Iron Bar", "Smelted iron for future crafting."),
 	resource("CopperBar", "Copper Bar", "Smelted copper for future crafting."),
-	resource("Apple", "Apple", "Fruit for processing and packing."),
-	resource("Blueberry", "Blueberry", "Berries for processing and packing."),
-	resource("Wheat", "Wheat", "A braided sheaf of grain."),
-	resource("Carrot", "Carrot", "Pulled from the ground."),
-	resource("Potato", "Potato", "Dug from a potato hill."),
 	resource("BerryDough", "Berry Dough", "Bake it into berry bread."),
 	resource("BerryBread", "Berry Bread", "Warm from the oven."),
 	resource("FruitCrate", "Fruit Crate", "Twenty crops, packed."),
 	resource("LargeFruitCrate", "Large Fruit Crate", "Fifty crops, packed."),
 }
+
+local cropIds: { string } = {}
+for cropId in World.CROPS do
+	table.insert(cropIds, cropId)
+end
+table.sort(cropIds)
+local mutationNames: { string } = {}
+for name in Mutations.ALL do
+	table.insert(mutationNames, name)
+end
+table.sort(mutationNames)
+for _, cropId in cropIds do
+	local crop = World.CROPS[cropId]
+	table.insert(ITEMS, seed(crop.seed, crop.name .. " Seeds", "Plant on grass, dirt or farmland."))
+	local produce = resource(crop.produce, crop.name, "Harvested from your garden.")
+	produce.value = crop.value
+	table.insert(ITEMS, produce)
+	for _, name in mutationNames do
+		local mutation = Mutations.ALL[name]
+		local variant = resource(crop.produce .. "+" .. name, name .. " " .. crop.name, "A mutated garden harvest.")
+		variant.base = crop.produce
+		variant.mutation = name
+		variant.value = crop.value * mutation.multiplier
+		table.insert(ITEMS, variant)
+	end
+end
+local PRODUCT_VALUES = { BerryDough = 60, BerryBread = 90, FruitCrate = 420, LargeFruitCrate = 1100 }
+for _, item in ITEMS do
+	if PRODUCT_VALUES[item.id] then
+		item.value = PRODUCT_VALUES[item.id]
+	end
+end
 
 return ITEMS

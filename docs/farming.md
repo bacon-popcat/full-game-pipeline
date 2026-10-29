@@ -1,69 +1,110 @@
 # Farming
 
-Crops are WorldService nodes. Seeds plant on soil in the owner's plot, grow through stages,
-and are harvested by hand or machine. Each module's header owns its rules;
-[plots.md](plots.md) covers assignment, ownership and persistence.
+Crops are WorldService nodes in their owner's plot. [plots.md](plots.md) covers ownership
+and saving; [economy.md](economy.md) covers stock, sales, XP and the authored HUD.
 
-## Flow
+## Content ownership
+
+`Shared/World.CROPS` is the only crop balance table: name, seed, produce, rarity, seed
+price, sell value, total grow time, quarter duration, yield, optional regrow time, fallback
+art and colour. The twelve crops and their target numbers are in [overhaul.md](overhaul.md#crops).
+`regrow == nil` means single harvest; a number means a permanent multi-harvest plant.
+
+The table generates node stages, `World.PLANTS`, seed/produce catalogue entries and picker
+sources. `Inventory/Items` also generates every produce x mutation combination; `item.value`
+already contains the multiplier. Seeds have no sell value. Planter seeds derive from the
+same table. WheatSeeds, CarrotSeeds, PotatoSeeds and their produce ids remain compatible.
+
+## Growth and harvesting
 
 ```text
-seed -> PlaceBlock -> BuildService (held item, ownership, reach, overlap, Soil)
-                         -> WorldService.plant -> Workspace.World
-                              | wall-clock plantedAt -> elapsed stage
-                              | GrowsAt -> BlockInfo "Next stage"
-                              + Interact Take -> owned crop's seed or ripe harvest
-                              + FactoryService -> reap -> new Sprout, new plantedAt
-
-DataService load -> restore blocks/soil -> WorldService.restore -> elapsed stage
-DataService snapshot <- relative cells, crop ids, plantedAt, harvest state
+PlaceBlock -> BuildService (held seed, soil, reach, ownership, overlap)
+              -> WorldService.plant -> crop node in Workspace.World
+                 -> grow -> stage art + replicated attributes
+Interact Take -> capacity check -> yield -> harvest XP/discovery
+FactoryService -> source (current variant) -> output room check -> reap -> yield
+DataService -> snapshot/restore crop cycle and rain credit
 ```
 
-Seeds no longer briefly become placed blocks. BuildService calls WorldService directly,
-so saving cannot catch a seed between its block and crop representations.
+- Unripe hand digging returns one seed. Ripe single crops give only their yield and are
+  removed. A machine restarts a single crop at Sprout without spending a seed.
+- Ripe multi crops give their fruit and return to Mature. Each subsequent fruit cycle
+  takes `regrow` seconds; harvesting never removes the plant. Hand digging while unripe
+  removes it and returns its seed. Removing its soil still uproots it into owned drops.
+- A full inventory leaves the entire hand harvest intact, with a toast. Picker output
+  capacity is checked for the entire yield before changing the plant.
+- Harvest XP is awarded once per harvest to the plot owner, including machine harvests;
+  unripe digging and soil removal give no XP. Discovery is saved on the first harvest.
 
-## Crops
+The initial grow time is four equal quarters. Sprout, Young and Mature use the first three;
+the fourth is final ripening, still showing Mature art until the full listed duration is
+reached. Ripe is immediately harvestable at that endpoint. This resolves the design's four
+quarters versus only three transitions to a harvestable Ripe model. The hover panel calls
+the fourth quarter Ripening. Multi regrowth stays Mature until its regrow deadline.
 
-Shared/World.CROPS owns seeds, harvests, machine yields and stage durations. It generates
-the stage definitions and PLANTS mapping. Foundation retains the existing three crops and
-balance; the twelve-crop table, multi-harvest behavior and mutations arrive in Garden loop.
+Growth uses `wallTime() - plantedAt + growthBonus`; wallTime is fractional Unix seconds
+from DateTime. Phase 1 integer timestamps remain valid. `plantedAt` is the current cycle's Unix
+start (reset by reaping), and `harvestCount` distinguishes initial growth from multi regrowth.
+WorldService samples at 0.5 seconds and publishes deadlines only when they change; weather supplies an integrated clock of extra rain
+seconds. Each growing crop banks only changes since its last sample, including a final
+sample when saving. Completed fruit never accumulates credit for a future cycle.
 
-| Crop | Seed | Seconds per transition | Ripe, by hand | Reaped by machine |
-|---|---|---|---|---|
-| Wheat | Wheat Seeds | 15 | 1 Wheat, 2 Wheat Seeds | 1 Wheat |
-| Carrot | Carrot Seeds | 20 | 2 Carrots, 1 Carrot Seeds | 2 Carrots |
-| Potato | Potato Seeds | 25 | 3 Potatoes, 1 Potato Seeds | 3 Potatoes |
+Offline time advances at normal speed, with previously banked rain credit preserved. It
+never simulates harvests, machines, or historical weather. Restoration starts a new live
+weather-clock baseline, so rejoining cannot add the server's past rain again. Phase 1 crops
+without the new optional fields default to zero bonus and an unrolled mutation.
 
-Unripe crops return their seed. Hand harvesting uproots the crop; machine reaping keeps the
-seed by restarting a Sprout. Saved harvestCount advances on machine reaping; mutation is
-reserved and not rolled in Foundation.
+Replicated crop attributes are `NodeType`, `Cell`, `PlantedAt`, `HarvestCount`, `Mutation`,
+`Regrowing`, `Ripening` and `GrowsAt`. `GrowsAt` is the next quarter/regrow deadline in
+`workspace:GetServerTimeNow()` seconds, adjusted for the current speed. BlockInfo reads
+these for the crop/mutation name, stage, status, countdown and whole-harvest sale value.
 
-## Rules worth knowing
+## Mutations
 
-- **Soil is required.** World.SOIL_BLOCKS names placed soil blocks; nodes marked soil also
-  qualify. World/Soil queries the world. PlotService creates Farmland through WorldService;
-  there is no public farm in World/Layout.
-- **Seed placements and harvests require ownership.** Build's shared check turns the ghost
-  red outside the plot. The server independently checks it. Quarry mining stays shared.
-- **Growth uses wall-clock time.** plantedAt is os.time(); WorldService derives the stage
-  from elapsed time. Offline crops jump directly to their reached stage. Foundation retains
-  three transitions to Ripe. GrowsAt remains a GetServerTimeNow deadline for BlockInfo.
-- **Removing soil uproots its crop into owned drops.** Plot cleanup removes crops before
-  blocks, preventing duplicate cleanup harvests. Deferred removal checks current soil again.
-- **Farm machines need no fuel.** Sapling Automatic Planter tries loaded seeds in its cell
-  past the forks. Industrial Flower Picker reaps ripe crops in its current radius. Targets
-  must be inside the machine's own plot at selection and completion. New patch sizes and
-  radii belong to Automation.
-- **Only crops grow offline.** Machine jobs do not simulate elapsed offline time.
+`Shared/World/Mutations` owns multipliers, colours and the exclusive roll. On reaching Ripe,
+make one random draw with disjoint Rainbow, Golden, Shocked and Wet intervals, followed
+by the plain interval. This keeps the stated probabilities exact without stacking mutations.
+Golden Hour boosts Golden; storms also count as rain.
+A crop has at most one mutation. `mutationRolled` saves a completed plain roll as well as a
+variant, preventing rerolls on rejoin. Each harvest resets the next cycle's roll.
 
-## Place-file art and adding crops
+A crop that ripened offline rolls only the always-on chances when restored. A ripe saved
+mutation or completed plain roll is preserved. `WorldService.setChanceModifiers(provider)`
+registers the Phase 3 cell hook; `chanceModifiers(cell, offline)` combines additive Wet,
+Shocked and Golden chances with weather and clamps each to 0..1. Its default cell provider
+returns zero, so no sprinkler chance is implemented yet.
 
-Assets.World holds Farmland and each crop's Sprout, Young, Mature and Ripe models;
-Assets.Blocks holds seed ghosts and Assets.Items produce. Crop art is authored non-colliding
-but queryable. Missing world art uses a one-cell placeholder. Foundation edits no art assets.
+Harvests use `<Produce>+<Mutation>`. Factory processing accepts mixtures of any input's
+plain and mutated variants and emits the existing plain recipe product. Plain inputs are
+used first; the job records exact consumed variant ids for save/pickup refunds. Per-input
+capacity is shared across variants. Filter Conveyor checks the exact incoming item id,
+so its existing filters already distinguish mutations.
 
-Add a seed and produce to Inventory/Items, data to World.CROPS, and stage/seed/item art in
-Studio. Add the seed to the planter's plants list in Factory/Blocks; the picker derives its
-sources from the crop catalogue. Saves store crop ids, not stage-art ids.
+## Weather
 
-There is no hoe, water, fertilizer, weather or mutation roll yet. Harvest/sale XP awards and
-new progression values arrive with the later garden loop; Foundation provides the economy API.
+`WeatherService` chooses equally among Rain, Thunderstorm and Golden Hour, with 8-12 minutes
+between event starts. It begins clear and waits before the first event. Event lengths and
+effects follow [overhaul.md](overhaul.md#weather). Rain and storms add 0.5 growth seconds per
+real second, including regrowth. The bonus clock clips at the event end even if the scheduler
+wakes late. No weather event harms crops.
+
+`ReplicatedStorage.Weather` is a runtime Folder. `Event` is an event name or an empty string;
+`EndsAt` is its end in server-time seconds (zero when clear). No weather remote is needed.
+`WeatherController` reads those attributes for camera-local rain and eased lighting requests.
+`libraries/Lighting` composes named weather/lightning requests into its own colour-correction
+effect, preserving authored Lighting. Rain stops under cover. Lightning is infrequent and
+subtle, and is disabled for reduced motion. Rain rate also decreases with reduced motion.
+
+## Art and client effects
+
+`Shared/ItemArt` owns block/seed/produce lookup; Build delegates to it. An authored template
+wins. Otherwise the crop table's `art` names Wheat, Carrot or Potato: clone that seed/produce
+and tint non-Hitbox parts with the crop colour. WorldService's node-art lookup does the same
+for stages. Expected fallbacks do not warn; a missing fallback base still uses the existing
+placeholder warning. Mutated item icons, hands, drops and belt items use base produce art
+with the mutation colour. No source assets are modified.
+
+`CropMutationController` watches ripe nodes' Mutation attributes, tints their non-Hitbox
+parts and adds soft particles. It restores captured colours on removal/change. Nearby
+Rainbow crops cycle hue at 6 Hz; reduced motion keeps a static colour. Only crops within
+100 studs emit, capped at 48 emitters. Art, rows and all screen shells remain place-file work.

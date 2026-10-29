@@ -38,6 +38,7 @@ local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
+local Screens = require(Libraries.Screens)
 
 type Cell = {
 	button: TextButton,
@@ -501,6 +502,7 @@ function InventoryScreen.open()
 	if not ui or view.open then
 		return
 	end
+	Screens.claim("Backpack")
 	view.open = true
 	local current = GuiService.SelectedObject
 	priorSelection = if current and not current:IsDescendantOf(ui.window) then current else nil
@@ -554,6 +556,7 @@ function InventoryScreen.close()
 end
 
 function InventoryScreen.init(hud: ScreenGui)
+	Screens.register("Backpack", InventoryScreen.close)
 	if not bind(hud) then
 		return
 	end

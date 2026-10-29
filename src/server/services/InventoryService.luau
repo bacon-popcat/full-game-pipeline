@@ -116,6 +116,39 @@ function InventoryService.take(player: Player, itemId: string, max: number): num
 	return taken
 end
 
+-- Removes whole matching stacks in one transaction and publishes one final inventory.
+-- Sell Stand supplies the predicate; pricing and currency stay outside inventory ownership.
+function InventoryService.takeWhere(
+	player: Player,
+	heldOnly: boolean,
+	accepts: (string) -> boolean
+): { [string]: number }
+	local state = states[player]
+	local counts: { [string]: number } = {}
+	if not state or player:GetAttribute("DataReady") ~= true then
+		return counts
+	end
+	local first = if heldOnly then state.selected else 1
+	local last = if heldOnly then state.selected else Inventory.SLOT_COUNT
+	for index = first, last do
+		local stack = Inventory.stackAt(state.slots, index)
+		if stack and accepts(stack.itemId) then
+			counts[stack.itemId] = (counts[stack.itemId] or 0) + stack.count
+			state.slots[index] = false
+		end
+	end
+	sync(player, state)
+	refreshHeld(player, state)
+	return counts
+end
+
+function InventoryService.resync(player: Player)
+	local state = states[player]
+	if state then
+		sync(player, state)
+	end
+end
+
 function InventoryService.canGive(player: Player, itemId: string, count: number): boolean
 	local state = states[player]
 	return player:GetAttribute("DataReady") == true and state ~= nil and Inventory.canAdd(state.slots, itemId, count)

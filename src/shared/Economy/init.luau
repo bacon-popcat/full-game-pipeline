@@ -1,5 +1,5 @@
 --!strict
--- Economy: level math shared by the server and future HUD. XP is lifetime XP; level one
+-- Economy: level math shared by the server and wallet HUD. XP is lifetime XP; level one
 -- starts at zero, and advancing from level n costs round(100 * n^1.5) additional XP.
 
 local Economy = {}

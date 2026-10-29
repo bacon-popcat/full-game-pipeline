@@ -15,6 +15,15 @@ local function get(name: string): RemoteEvent
 end
 
 return {
+	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
+	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.
+	ShopSync = get("ShopSync"),
+	-- client -> server: (seedId: string, count: number), positive integer within own stock.
+	ShopBuy = get("ShopBuy"),
+	-- client -> server: (mode: "Held" | "All"), checked against server inventory and stall reach.
+	Sell = get("Sell"),
+	-- server -> client: (message: string), a short transaction or rare-harvest toast.
+	Notify = get("Notify"),
 	-- server -> client: (snapshot: { coins: number, xp: number, level: number }); XP is
 	-- lifetime XP (Shared/Economy derives progress). Sent on profile load and balance changes.
 	EconomySync = get("EconomySync"),

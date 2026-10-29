@@ -25,6 +25,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -323,11 +324,10 @@ local function onRotate(_: string, state: Enum.UserInputState): Enum.ContextActi
 end
 
 local function makeGhost(itemId: string): Model?
-	local template = Build.getTemplate(itemId)
-	if not template then
+	local model = ItemArt.copyBlock(itemId)
+	if not model then
 		return nil
 	end
-	local model = template:Clone()
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			part.Anchored = true

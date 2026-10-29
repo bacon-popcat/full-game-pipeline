@@ -13,12 +13,12 @@ PlotService.assign -> first free plot, Owner attribute, display-name sign
                  v
 BuildService.restore -> FactoryService.register/restore -> lanes and machines
 WorldService.restore -> crops, elapsed wall-clock growth
-InventoryService.load + EconomyService.load -> sync + leaderstats
+InventoryService.load + EconomyService.load + GardenService.load -> sync + leaderstats
                  v
              DataReady = true
 
 ProfileStore OnSave / two-minute snapshot / leave
-    <- inventory slots + economy + relative blocks, factory contents, crops
+    <- inventory slots + economy + garden stock/discoveries + relative blocks, factory contents, crops
 leave -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
       -> release plot -> ProfileStore.EndSession
 ```
@@ -55,13 +55,14 @@ non-integer and non-finite amounts. Overspending fails without changing the bala
 
 `Shared/Economy` owns level math: XP is lifetime XP, starting at level one. Advancing
 from level n costs the design's rounded formula. `progress` returns level, progress
-into that level and its cost. Level is derived, not independently saved. HUD, pricing,
-harvest/sales XP and Teleseller payouts are later-phase consumers of this API.
+into that level and its cost. Level is derived, not independently saved. GardenService
+awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClient.
+See [economy.md](economy.md). Teleseller currency payout remains Phase 3.
 
 DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, ten Carrot
-Seeds and five Wheat Seeds. The old full test kit is gone. Until shops arrive, automation
-playtests can grant machines through the server's InventoryService.give API. Selected
-hotbar slot resets to one on load.
+Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub;
+until the Machine Shop arrives, automation playtests can grant machines through the
+server's InventoryService.give API. Selected hotbar slot resets to one on load.
 
 ## Profile contents
 
@@ -74,8 +75,10 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | inventory | Dense slots, including `false` for empty slots |
 | plot.blocks | Item id, relative cell, rotation, Against, factory contents |
 | factory contents | Separate input/output counts, counts per lane, remaining coal burn time, Sold, filter, manual Split switch |
-| plot.crops | Crop id, relative cell, wall-clock plantedAt, harvestCount, optional mutation |
-| seedStock, restockAt, discovered | Reserved for Garden loop |
+| plot.crops | Crop id, relative cell, current cycle wall-clock plantedAt, harvestCount, optional mutation, mutationRolled and growthBonus |
+| seedStock | Remaining seed counts for this player in the current shop window |
+| restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
+| discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 
 Vectors serialize as three-number arrays. Rotation and Against keep world axes because
 all plots have the same orientation. Blocks restore before crops so placed soil exists
@@ -88,7 +91,9 @@ Active recipe ingredients are refunded into saved input counts and processing re
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,
 outputs, router settings and lane counts persist; lane ordering/positions are reconstructed
 at legal spacing. Loose drops are not saved and are cleared on departure. Only crops grow
-offline; their existing stage timings remain until Garden loop.
+offline. Current timing, multi regrowth and weather credit are in [farming.md](farming.md).
+Old crops default missing growthBonus to zero and mutationRolled to false (or true when
+a mutation is already stored); the profile store stays unchanged.
 
 ProfileStore's autosave period is configured to two minutes. DataService also refreshes
 the snapshot every two minutes, before leave, and from OnSave (including ProfileStore's
@@ -111,7 +116,8 @@ the same server but do not survive Studio Stop.
 5. Test planter/picker near boundaries, smelter coal, fuel-free processors, all conveyor
    and router variants, chest Take all and the Teleseller's Sold counter.
 6. Exercise EconomyService on the server: overspend, add coins, add XP across a level
-   boundary, then rejoin and verify balances. There is no new HUD yet.
+   boundary, then rejoin and verify balances and the wallet. Continue with the Garden loop
+   checklist in [economy.md](economy.md#studio-verification-still-required).
 7. With API access enabled in a test place, verify persistence across Stop/new server,
    shutdown during processing, and session locking from a second server. A deliberately
    invalid saved item should fail loading without replacing the original layout.

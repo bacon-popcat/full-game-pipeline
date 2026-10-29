@@ -198,7 +198,7 @@ function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 		return true
 	end
 	for _, recipe in def.recipes or NO_RECIPES do
-		if recipe.inputs[itemId] then
+		if recipe.inputs[Inventory.getItem(itemId).base or itemId] then
 			return true
 		end
 	end

@@ -87,7 +87,7 @@ local function capacity(def: Factory.Def, itemId: string): number
 	end
 	local most = 0
 	for _, recipe in def.recipes or NO_RECIPES do
-		local need = recipe.inputs[itemId]
+		local need = recipe.inputs[Inventory.getItem(itemId).base or itemId]
 		if need then
 			most = math.max(most, need * 2, 4)
 		end
@@ -118,7 +118,14 @@ function Machine.room(state: State, itemId: string): number
 		local item = Inventory.getItem(itemId)
 		return if item.kind == "Resource" then SELL_CAP - total(state.inputs) else 0
 	end
-	return math.max(0, capacity(def, itemId) - (state.inputs[itemId] or 0))
+	local base = Inventory.getItem(itemId).base or itemId
+	local held = 0
+	for id, count in state.inputs do
+		if (Inventory.getItem(id).base or id) == base then
+			held += count
+		end
+	end
+	return math.max(0, capacity(def, itemId) - held)
 end
 
 -- Puts up to `count` of `itemId` in. Returns how many went in.
@@ -247,7 +254,13 @@ end
 -- Whether the machine holds everything a recipe consumes.
 local function hasInputs(state: State, recipe: Factory.Recipe): boolean
 	for itemId, need in recipe.inputs do
-		if (state.inputs[itemId] or 0) < need then
+		local held = 0
+		for id, count in state.inputs do
+			if (Inventory.getItem(id).base or id) == itemId then
+				held += count
+			end
+		end
+		if held < need then
 			return false
 		end
 	end
@@ -267,10 +280,29 @@ local function stepRecipes(state: State, dt: number)
 			local ready = hasInputs(state, recipe)
 			blocked = blocked or (ready and not hasRoom(state, recipe))
 			if ready and hasRoom(state, recipe) then
+				local consumed: { [string]: number } = {}
 				for itemId, need in recipe.inputs do
-					take(state, itemId, need)
+					-- Preserve exact variants in the job so saving/pickup refunds the original inputs.
+					local ids = { itemId }
+					for id in state.inputs do
+						if Inventory.getItem(id).base == itemId then
+							table.insert(ids, id)
+						end
+					end
+					for _, id in ids do
+						local count = math.min(need, state.inputs[id] or 0)
+						if count > 0 then
+							consumed[id] = count
+							take(state, id, count)
+							need -= count
+						end
+					end
 				end
-				job = { recipe = recipe, time = recipe.time, elapsed = 0 }
+				job = {
+					recipe = { inputs = consumed, outputs = recipe.outputs, time = recipe.time },
+					time = recipe.time,
+					elapsed = 0,
+				}
 				state.job = job
 				break
 			end
@@ -333,6 +365,10 @@ local function stepProducer(state: State, dt: number, env: Env)
 		return
 	end
 	local reap = env.reap
+	if #state.outputs + (source.count or 1) > OUTPUT_CAP then
+		state.status = "Output full"
+		return
+	end
 	if source.reaps and not (reap and reap(source)) then
 		state.status = "Idle"
 		return
