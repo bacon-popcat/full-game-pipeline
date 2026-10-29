@@ -175,9 +175,8 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline. *In progress:* the nine new crops, the five farm machines,
-   the six processors and the conveyors are done (below); routers, stalls, plots and props are
-   next.
+   `IslandsMachines/build` pipeline. *In progress:* every crop, machine, processor, conveyor and
+   router has art of its own (below); the hub stalls, plots and props are next.
 
 ### Art progress
 
@@ -215,7 +214,12 @@ Git history keeps all of it.
   end rollers, soft pill arrows on a warm taupe belt, round ramp legs, no bolts or glass walls,
   and a sensor of cream posts with a mint curtain. The farm machines and processors use the
   same belt. Playtested: a carrot riding belt -> tier 2 belt -> sensor (lit) -> Shipping Bin.
-  The routers (Split, Merger, Filter, Randomizer) are still Islands art.
+- **Routers (done).** Split, Merger, Filter and Randomizer keep islandskit.junction's geometry (a
+  3.8-stud hub with a belt arm to each connected cell face) and so their 3 x 2 x 3 footprints, but
+  are drawn in the garden style: a soft cream hub with a sage band and a rounded cap, the new belt
+  and an arch on each arm, and a pastel icon on the cap (a sage fork, a blue V, a terracotta
+  funnel, a die). In `garden_machines.py` as the GardenRouters set. Playtested: a carrot through
+  a Split, straight on into a Shipping Bin.
 - - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.

@@ -45,8 +45,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Blocks, so a tier differs only in its numbers.
 - **Own art.** The conveyors (belts, turns, ramps, sensor), the Seed Planter, Sprinkler,
   Harvester, Shipping Bin and Storage Chest (one cell wide, two deep) and the processors (one
-  wide, three deep) have templates of their own, and their tier 2s draw them too. The routers
-  still use Islands art.
+  wide, three deep) and the routers have templates of their own, and their tier 2s draw them
+  too. No placeable block uses Islands art any more.
 - **Borrowed art.** A machine with no template of its own names one in its item's `art`
   (Shared/Inventory/Items): the Harvester draws the Industrial Flower Picker, the Shipping Bin
   the Teleseller, and so on. `ItemArt.blockTemplate` is the one place that resolves it, so
