@@ -2,81 +2,77 @@
 name: factory-automation
 description: >
   Automation systems: conveyors, routers (split, merge, filter, randomizer, sensor), machines
-  with recipes, input and output belts, storage chests, sellers and fluid networks, all run
-  from data. Use when adding a machine, recipe, belt type or router, changing how items flow,
-  or fixing belts that stop, items that vanish or duplicate, machines that starve, ramps that
-  don't connect, or laggy belt items.
+  with recipes, input and output belts, storage, sellers and fluid networks, all driven by
+  data. Use when adding a machine, recipe, belt or router, changing how items flow, or fixing
+  belts that stop, items that vanish or duplicate, starving machines, ramps that won't
+  connect, or laggy items on belts.
 ---
 
 # Factory automation
 
-Islands-style automation: placed blocks carry items and machines turn them into other items.
-Read [docs/factory.md](../../../docs/factory.md) and the headers of `Shared/Factory`,
-`Shared/Factory/Lane`, `Shared/Factory/Blocks`, `server/libraries/Machine` and
-`FactoryService` before changing anything. On `garden-overhaul` the roster is being replaced
-(docs/overhaul.md, Machines), but the engine stays the same.
+Placed blocks carry items, and machines turn them into other items. This works with
+`grid-building` (placement and hitboxes) and `server-authority` (sync).
 
-## The design rules
+## Design rules
 
-1. **Blocks are data.** [Shared/Factory/Blocks](../../../src/shared/Factory/Blocks.luau)
-   gives each block its lanes, route, ports, recipes (`recipe(inputs, outputs, time)`), fuel
-   and world needs. FactoryService runs any entry, so a new machine is a data entry plus art.
-2. **Connect by geometry, with no wiring.** Two blocks connect when one's exit and the other's
-   entry share a point and face each other. Ports sit on hitbox faces at belt height on the
-   conveyor axis, so any conveyor placed against a port connects. Ends face **level**: when
-   lane ends faced along their sloped belt, ramps never met flat conveyors.
-3. **Items move only on the server, and clients run the same rule.** `Lane.advance` moves items
-   front first at the lane speed, keeping `SPACING` between them, and a blocked front item backs
-   up the whole lane. The server sends a lane only when an item joins or leaves it; the client
-   slides items in between and keeps one model per item `id` across lanes.
-4. **Machines never lose items.** A job starts only when its output fits, and capacities are
-   small and per item, so a full machine stops and its belt backs up. Nothing disappears into
-   a machine.
-5. **Look past a blocker.** If the item at a machine's port won't go in (spare fuel full, or not
-   accepted), the machine takes the first item queued nose to tail behind it that does, up to
-   12 back, over conveyors and through mergers. Without this, surplus coal starved the ore
-   behind it.
-6. **Items enter and leave at ports.** A face with belt art gets its own lane up to the port
-   (`PortDepthBack/Front` on the hitbox). Output rides out on the output belt. An open end
-   throws the item off as a physics drop if the cell in front is clear, or waits if it isn't.
-7. **Players work machines through the panel only** (`Load`, `Collect`, `TakeBack`). A click
-   in the world never feeds or empties a machine. The hand takes items off belts, switches
-   splits and toggles filters.
-8. **Publish status as attributes** (`Status`, `Fuel`, `Contents`, `Output`, `Progress`,
-   `Sold`, `Slots`, `Powered`, `Filter`). `client/libraries/BlockText` turns them into words,
-   for both the hover panel and the machine panel.
-9. **Producers check the world when a job starts and again when it ends**, so a node removed
-   mid-job, such as a tree chopped or a crop already harvested, stops production cleanly.
-10. **Fluids are networks, not items.** Tubes join into networks that start empty and fill once
-    fluid has moved, and they stay full while a source still feeds them. Tick each source once
-    per frame, even when several networks touch it (sap was doubled when it wasn't). Forget
-    timers for sources no network reaches.
+1. **Blocks are data.** One content module gives each block its lanes, route, ports, recipes
+   (`recipe(inputs, outputs, seconds)`), fuel and world needs, built with a few constructors
+   (`conveyor`, `router`, `processor`, `producer`, `storage`). The simulation runs any
+   entry, so a new machine is a data entry plus art.
+2. **Connect blocks by geometry, with no wiring.** Two blocks connect when one's exit and the
+   other's entry share a point and face each other. Put ports on hitbox faces, at belt
+   height, on the conveyor's axis, so any conveyor placed against a port connects. Make every
+   end face **level**: if a ramp's ends face along its slope, it will never meet a flat belt.
+3. **Move items only on the server, and run the same rule on clients.** A lane keeps its
+   items front first. Each moves at the lane's speed until it reaches the end or closes to
+   `SPACING` behind the item ahead, so a blocked front item backs up the whole lane. Send a
+   lane's item list only when an item joins or leaves it, stamped with server time. Clients
+   slide the items in between and keep one model per item id across lanes, so items never
+   jump.
+4. **Machines never lose items.** Start a job only when its output fits, and keep capacities
+   small and per item. A full machine stops and its belt backs up; nothing vanishes into it.
+5. **Look past a blocker.** When the item at a port won't go in (its fuel is full, or the
+   machine never takes that item), take the first item queued nose to tail behind it that
+   does, up to a limit. Without this, spare fuel on a belt starves the machine of ore.
+6. **Items enter and leave at ports.** A face with belt art gets a short lane of its own up to
+   the port. Output rides out on an output belt. At an open end, throw the item off as a
+   loose drop if the space in front is clear; otherwise it waits, like at any blocked end.
+7. **Pick one way to work machines.** For example, the panel only (load, collect, take back),
+   with world clicks doing nothing to machines. Mixing panel and world clicks leads to items
+   being loaded by accident.
+8. **Publish status on the block** (status, fuel, contents, output, progress), and word it
+   through one formatter, so the hover text and the panel always agree. Say *why* a machine
+   is idle ("Waiting for coal", "Output full").
+9. **Producers check the world when a job starts and again when it ends,** so a node that
+   disappears mid-job (a tree chopped, a crop harvested by hand) stops production cleanly.
+10. **Fluids are networks, not items.** Pipes join into networks. A network starts empty,
+    fills once fluid has moved, and stays full while a source still feeds it. Tick each
+    source once per frame even when several networks touch it, and drop any timers for
+    sources no network reaches.
 
 ## Adding things
 
-- **A recipe:** a `recipe(...)` line in the machine's `Blocks` entry. New ingredients and
-  products are `Resource` items with art in `Assets.Items`.
-- **A machine:** art with conveyor ends on hitbox faces (output belt on every machine that
-  makes items), a hitbox from `studio_blocks.luau`, an item, and a `Blocks` entry. Use the
-  existing constructors (`processor(...)` and so on) rather than writing a new shape.
-- **A storage or seller block:** see the Industrial Chest (`stores = 12`, slots sized by item
-  stack, panel with TakeOut / Take all) and the Teleseller (`Sold`). On `garden-overhaul` the
-  seller pays the owner through EconomyService.
-- **A router:** decide per item at a hub. Mergers pass the look-past queue through; other
-  routers stop it.
+- **A recipe:** one line in the machine's entry. New ingredients and products are items with
+  art.
+- **A machine:** art whose conveyor ends sit on hitbox faces (with an output belt on every
+  machine that makes items), a hitbox, an item, and a data entry using an existing
+  constructor.
+- **Storage:** N slots, each holding up to that item's stack size. It backs up its belt when
+  full, and its panel has take-one and take-all.
+- **A seller:** pays the block's **owner**, never whoever fed it.
+- **A router:** it decides per item at a hub. Mergers pass the look-past queue through;
+  routers that decide stop it.
 
 ## Leaks and bugs to check for
 
-- Removing a block clears its pending lane updates, sensor pulses and fluid state.
-- Picking up a machine returns inputs, outputs and lane items (`FactoryService.drain`).
-- Saved machines (`garden-overhaul`) refund active recipe inputs and restart the job. Lane
-  order is rebuilt at legal spacing, and partial progress is not saved.
-- Machines, lanes and sensor pulses stay inside their own plot.
+- Removing a block clears its pending lane updates, its timers and its fluid state.
+- Picking up a machine returns its inputs, outputs and lane items to the owner.
+- Saving a machine: refund the inputs of any job in progress and restart the job. Save lanes
+  as item counts and rebuild their spacing on load.
+- Machines and lanes never reach into another player's area.
 
-## Test in a playtest
+## Playtest
 
-Run belts in a straight line, round corners, up and down ramps, and through split, merge, filter
-and randomizer. Back a machine up until it is full, overfeed fuel, drop items onto belts, leave
-open ends throwing items off, and walk over a belt to pick up items. To get real items onto a
-belt from MCP, use the client remotes (mine a rock, move it to slot 1, `DropItem` onto a
-belt); see `studio-playtest`.
+Test straight runs, corners, ramps up and down, and every router. Back a machine up, overfeed
+it fuel, drop items onto belts, leave open ends throwing items off, walk over a belt to pick
+items up, and run a long line for a while to watch the server's frame time.

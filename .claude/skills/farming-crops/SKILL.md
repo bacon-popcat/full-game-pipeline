@@ -1,72 +1,72 @@
 ---
 name: farming-crops
 description: >
-  Growing systems: seeds, soil, growth stages, single and regrowing (multi-harvest) crops,
-  offline growth, mutations, weather, watering, sprinklers, and machines that plant and
-  harvest. Use when adding a crop or plant, changing grow times or yields, adding mutations
-  or weather events, building planters, harvesters or sprinklers, or fixing crops that don't
-  grow, grow while offline wrongly, or duplicate on harvest.
+  Growing systems: seeds, soil, growth stages, crops harvested once or regrowing, offline
+  growth, mutations and rarities, weather events, watering, sprinklers, and machines that
+  plant and harvest. Use when adding crops or plants, changing grow times or yields, adding
+  mutations or weather, building planters, harvesters or sprinklers, or fixing crops that
+  won't grow, grow wrongly while players are offline, or duplicate when harvested.
 ---
 
 # Farming and crops
 
-This is a Grow a Garden-style garden loop inside a calm farming game. Read `docs/farming.md`
-on the `farming` and `garden-overhaul` branches, and the Crops, Mutations and Weather
-sections of `docs/overhaul.md`. Crops do not exist on master.
+This is a Grow a Garden-style loop: plant, wait, harvest, sell, with automation layered on
+top. It builds on `world-resources-and-drops` (nodes), `grid-building` (planting is placing)
+and `economy-progression`.
 
 ## Model
 
-- **A crop is a world node, not a placed block.** Planting a seed calls
-  `WorldService.plant` directly from BuildService. A seed never becomes a block for a moment,
-  so a save can't catch a half-planted seed.
-- **One catalogue drives everything.** `Shared/World.CROPS` gives each crop its seed,
-  harvest, machine yield and stage times, and builds the stage definitions and the plant
-  mapping from them. The picker machine reads its sources from the same catalogue.
-- **Soil is queried, not tracked.** `Shared/World/Soil` asks the world whether a placed soil
-  block (`World.SOIL_BLOCKS`) or a node marked `soil` (Farmland) is under the cell, the same
-  way `Build` tests overlap. The ghost, the placement check and planting all ask it.
-- **Growth runs on the wall clock.** Save `plantedAt = os.time()` and work the stage out from
-  elapsed time, so crops keep growing offline and a loaded crop jumps straight to the stage it
-  has reached. For countdowns in the UI, publish a `GrowsAt` deadline in `GetServerTimeNow`
-  time.
-- **Stages** are `Sprout`, `Young`, `Mature`, `Ripe`, with separate art for each in
-  `Assets.World`. Crop art doesn't collide but can be queried.
-- **Single and multi crops.** A single crop is uprooted when harvested and must be replanted.
-  A multi crop stays in the ground: a harvest takes the fruit, and the fruit grows back after
-  `regrow`. Machine reaping restarts the crop as a Sprout and advances `harvestCount`.
-- **A mutation is its own item id** (`<Crop>+<Mutation>`), rolled when the crop ripens (and
-  again on each regrow for multi crops). It stacks, rides belts and can be filtered.
-  Processing machines take any mutation of their input and output the plain product. Its
-  value is the crop's value times the mutation's multiplier.
-- **Weather is a server-wide event** rolled on a timer and shown as a banner for everyone. It
-  changes growth speed and mutation chances while it lasts. Keep it pleasant (rain, golden
-  hour), never a punishment; this is a calm game.
+- **A crop is a world node, not a placed block.** Planting should create the crop directly.
+  Don't make the seed a block first and convert it later, or a save could catch a seed
+  half planted.
+- **One crop table drives everything:** each crop's seed, harvest, yield, rarity, grow time
+  and kind. Build the stage definitions, the seed-to-crop mapping and the harvesters' source
+  lists from that table, so a new crop is one entry.
+- **Ask the world about soil; don't keep a soil map.** "Can I plant here?" asks whether a
+  soil block or a soil node is under the cell. The ghost, the placement check and machines
+  all ask the same function.
+- **Grow on the wall clock.** Save `plantedAt` (Unix time) and work the stage out from the
+  elapsed time, so crops grow while the player is offline and a loaded crop jumps straight to
+  the stage it has reached. For countdowns in the UI, publish a deadline in the server's
+  synced clock (`workspace:GetServerTimeNow()` on Roblox).
+- **Stages:** for example Sprout, Young, Mature, Ripe, each with its own art. Crop art
+  usually doesn't collide but can be queried, so it can be aimed at.
+- **Two kinds of crop.** A *single* crop is uprooted when harvested and has to be replanted.
+  A *multi* crop stays planted: a harvest takes its fruit, which grows back after `regrow`
+  seconds. A harvesting machine can replant a single crop from a seed it keeps.
+- **A mutation is its own item id** (`<Crop>+<Mutation>`). Roll it when the crop ripens (and
+  again on each regrow), so it stacks, rides belts and can be filtered. Processing machines
+  accept any mutation of their input and output the plain product. Its price is the base
+  value times the mutation's multiplier.
+- **Weather is a server-wide event.** Roll it on a timer and show it to everyone. It changes
+  growth speed and mutation chances while it lasts. Decide on purpose whether weather can
+  hurt crops; in a relaxed game it should only help.
 
 ## Rules that prevent bugs
 
-- Ownership: planting and harvesting are owner-only, checked by the shared rule (red ghost)
-  and again on the server. Shared areas (the quarry) stay open to everyone.
-- Removing soil uproots its crop into owned drops. When a plot is cleaned up, remove crops
-  **before** blocks, or the cleanup harvests twice. A deferred removal checks the soil again.
-- Only crops grow offline. Machine jobs don't simulate the time away.
-- A machine target (a soil cell, a ripe crop) must be inside the machine's own plot both when
-  the job is chosen and when it finishes.
-- Unripe crops dug up by hand return their seed. Ripe ones give the harvest and seeds.
+- Planting and harvesting are owner-only. Check on the client (red ghost) and again on the
+  server. Shared areas say clearly that they are shared.
+- Removing soil uproots the crop on it into drops owned by the crop's owner. When cleaning
+  up a player's area, remove crops **before** the blocks under them, or they get harvested
+  twice.
+- Only time-based growth runs offline. Machine jobs don't simulate the time away unless you
+  design for it.
+- A machine's target must be inside the machine's own area both when the job is chosen and
+  when it finishes.
+- Digging up an unripe crop returns its seed. A ripe crop gives its harvest (and seeds, if
+  the design says so).
 
 ## Adding a crop
 
-1. Add the seed and produce items to `Inventory/Items`.
-2. Add a `World.CROPS` entry with the rarity, seed price, value, grow time, kind (single or
-   multi) and yield.
-3. Add art: a seed ghost in `Assets.Blocks`, the four stages in `Assets.World` and the produce
-   in `Assets.Items`. Until the art phase, borrow another crop's stages tinted the new colour.
-   Follow the art direction: soft, rounded, light warm colours, and a shape of its own, not an
-   Islands copy.
-4. Add the seed to the planter's plant list in `Factory/Blocks`.
-5. Saves store crop ids, not stage art ids, so renaming art needs no migration.
+1. Add a seed item and a produce item.
+2. Add a crop table entry with its rarity, seed price, value, grow time, kind and yield.
+3. Add art: a seed ghost, each stage and the produce. A tinted copy of another crop's art is
+   fine as a placeholder.
+4. Add the seed to any planter machine's list, if that list isn't built from the table.
+5. Save crop ids, not stage art ids, so renaming art needs no save migration.
 
 ## Balance check
 
-For each crop at the level it unlocks: seed cost, value times yield, grow time, coins per
-minute per cell, and payback. Rarer crops should be worth more per cell, but never make the
-common crops pointless to plant. Use the overhaul's tables as the baseline.
+For each crop, at its unlock level, work out: seed cost, value × yield, grow time, coins per
+minute per cell, and payback time. Rarer crops should earn more per cell, without making the
+common ones pointless.

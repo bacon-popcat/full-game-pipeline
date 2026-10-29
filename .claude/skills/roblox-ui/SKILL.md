@@ -25,29 +25,27 @@ for feedback and flow; this skill owns Roblox Instances and APIs.
 belong in `client/libraries/Controls` (and `roblox-skills:roblox-input`); server trust belongs
 to `server-authority`.
 
-## This project
+## Project conventions first
 
-Read `conventions.md` (UI) and the "What lives only in the place file" tables in
-`docs/inventory.md` and `docs/factory.md` first. They override the generic structure below.
+Before applying the generic guidance below, read the project's own rules (agent instructions,
+a conventions doc, the UI section of any domain docs) and its existing screens. The project
+wins where they differ.
 
-- **The look is Sol's RNG and the screens are Islands.** Use near-black gradient panels, thin
-  light strokes, white L-shaped corner brackets and the Sarpanch font (Bold for titles). Lay
-  screens out for Islands-style play (hotbar plus backpack, a machine panel that takes the
-  backpack's place). Ask before borrowing one of Sol's layouts. Sarpanch Bold draws a colon
-  as one dot, and the glyphs ◂ ▸ ✕ don't render, so use an image or a plain letter.
-- **The HUD is authored in the place file** (`StarterGui.HUD`) and isn't in git or
-  `default.project.json`. Bind to what's authored and clone row and cell templates from
-  `ReplicatedStorage.Assets.UI.<Consumer>`; don't `Instance.new` a hierarchy. Look children
-  up with `FindFirstChild` and warn instead of throwing. Read starting sizes and scales from
-  the instances; never hardcode them.
-- **Code shape**: screens are modules under `client/controllers/UIController/` (`InventoryScreen`,
-  `MachinePanel`, `BlockInfo`), started by `ModuleLoader` with the HUD passed in, not a
-  LocalScript inside the ScreenGui. Buttons go through `libraries/UI.bindButton`, and hint
-  text through `libraries/Controls` (one string per `PreferredInput`).
-- Status words come from one formatter (`libraries/BlockText`), so hover and panel text agree.
-- `conventions.md` also describes a `Tooltip` library and a `Lighting.set/clear` arbiter for
-  blur and FOV. Neither exists in this repo yet, so when a screen needs one, build it to that
-  contract instead of hand-rolling a one-off.
+- **Separate the look from the layout.** A project can borrow a visual style from one game and
+  screen layouts from another. Find out which is which, and ask before copying a reference
+  game's layout. Test the fonts it uses: some display fonts drop or merge glyphs (a bold colon
+  drawn as one dot, missing arrows or a missing ✕), so use an image or a plain letter there.
+- **UI authored in Studio:** if the HUD lives only in the place file (not synced from the
+  repo), bind to what's authored and clone row and cell templates from a templates folder. Don't
+  `Instance.new` a hierarchy. Look children up with `FindFirstChild` and warn instead of
+  throwing, and read starting sizes and scales from the instances instead of hardcoding them.
+- **Code shape:** prefer one module per screen, started by the client's controller loader,
+  over a LocalScript inside each ScreenGui. Use one shared button layer for hover, press and
+  focus; one controls module for bindings and the hint text for each input type; and one
+  formatter for status words.
+- **Values with one setting and several writers** (blur, FOV, camera effects) are arbitrated.
+  Each feature requests a value under its own source id and clears that request later, and
+  the result is derived from the live requests. Never assign these directly.
 
 ## Workflow
 
@@ -267,7 +265,7 @@ Animate a panel or state boundary once. Do not independently bounce every descen
 ## Related skills
 
 - `game-feel` — feedback, status wording, onboarding, and the polish checklist.
-- `inventory-hotbar` — the hotbar/backpack data model the inventory screen renders.
+- `inventory-hotbar` — the data model behind a hotbar or backpack screen.
 - `server-authority` — server-checked requests started by the UI, and prediction.
 - `studio-playtest` — getting UI code into Studio and checking it at several viewports.
 - `roblox-skills:roblox-input` — gameplay action mapping and device switching.

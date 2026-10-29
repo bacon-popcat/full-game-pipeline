@@ -1,21 +1,22 @@
 ---
 name: sound-effects
-description: Generate a small, coherent sound palette for game moments (UI presses, harvests, sales, machines finishing, rare mutations, ambience) through interchangeable provider adapters, starting with ElevenLabs Sound Effects, then wire it into Roblox and check in a playtest that the cues clarify rather than distract. Use when the game needs interaction sounds, feedback cues, machine or farm sounds, ambience, or audio polish. Triggers on sound effects, SFX, UI sounds, harvest sound, click sound, machine sound, ambience, ElevenLabs sound effects, audio feedback.
+description: Generate a small, coherent sound palette for game moments (UI presses, pickups, rewards, jobs finishing, rare drops, ambience) through interchangeable provider adapters, starting with ElevenLabs Sound Effects, then wire it into Roblox and check in a playtest that the cues clarify rather than distract. Use when the game needs interaction sounds, feedback cues, gameplay sounds, ambience, or audio polish. Triggers on sound effects, SFX, UI sounds, harvest sound, click sound, machine sound, ambience, ElevenLabs sound effects, audio feedback.
 ---
 
 # Sound Effects
 
 Sound is feedback, not wallpaper. Generate a short cue only when it confirms a change the
-player needs to feel: a harvest landing in the inventory, a sale, a machine finishing, a rare
-mutation, a panel opening. Never add one just because something moves. This is rung 4 of the
+player needs to feel: an item landing in the inventory, a reward, a job finishing, a rare
+drop, a panel opening. Never add one just because something moves. This is rung 4 of the
 `game-feel` feedback ladder: check that the lower rungs aren't already enough.
 
 ## Before generating
 
 1. Name the moment and the change it confirms. If the screen or the world already makes it
-   obvious (belt items sliding, a crop changing stage), don't add a sound.
-2. Match the game's feel: **calm, soft, warm, satisfying**. Wood, soil, gentle mechanical
-   ticks and soft chimes; never harsh alarms, buzzers or arcade fanfare.
+   obvious (something visibly moving or changing state), don't add a sound.
+2. Match the game's target feel (from its design doc, or ask). Settle on a few material
+   words, such as "wood, soil, soft chimes" for a cozy game or "metal, servo, punchy" for a
+   mech game, and use them in every prompt, so the palette sounds like one game.
 3. Sounds never carry meaning on their own, never autoplay loud, and the game must work with
    them muted.
 
@@ -23,14 +24,16 @@ mutation, a panel opening. Never add one just because something moves. This is r
 
 Start with three to five roles. Keep each one short, and quieter than music.
 
-| Moment | Duration | Prompt shape |
+| Moment | Duration | Prompt shape (cozy example) |
 | --- | --- | --- |
 | UI press / select | 0.50 s | soft dry wooden click, no voice, no melody |
-| Harvest / pick up | 0.50 s | gentle leafy pluck with a soft soil thump, warm |
-| Sale / coins | 0.50–0.70 s | small soft coin chime, rounded, short decay |
-| Machine done | 0.50–0.80 s | muted mechanical clunk and a soft bell tick |
-| Rare mutation | 0.80–1.20 s | sparkling upward shimmer, airy, not a fanfare |
-| Ambience (loop) | 10–20 s | calm countryside with distant soft machinery, no voice |
+| Pick up / collect | 0.50 s | gentle pluck with a soft thump, warm |
+| Currency gained | 0.50–0.70 s | small soft coin chime, rounded, short decay |
+| Job finished | 0.50–0.80 s | muted mechanical clunk and a soft bell tick |
+| Rare reward | 0.80–1.20 s | sparkling upward shimmer, airy |
+| Ambience (loop) | 10–20 s | the world's background, quiet, no voice |
+
+Swap in the game's own material words; keep the durations and the roles.
 
 Always exclude voice and melody, and generate two or three alternatives per role so the user
 can choose by listening side by side.
@@ -56,16 +59,14 @@ prompt and parameters, never the key.
 ## Wire into Roblox
 
 - **Upload**: the user uploads the chosen files as Audio assets (Creator Hub or Studio's
-  Asset Manager). Record each asset id with its role in one module, the `SFX` primitive in
-  `Shared/` that `conventions.md` names. Create it if it's missing, and keep the ids in one
-  table so a swap is one edit.
+  Asset Manager). Record each asset id with its role in one shared module (for example
+  `SFX`), so swapping a sound is a single edit.
 - **Play on the client** for the local player's own actions, after the visual change starts.
   A sound that plays before a change the server then rejects is misleading. For other players'
-  actions, play spatially at the source (a machine finishing on a neighbour's plot) only if
-  it's audible at a distance that makes sense.
+  actions, play the sound spatially at its source, and only within a sensible distance.
 - Route everything through SoundGroups (SFX, Ambience, Music), so there can be a volume and
-  mute setting per group. Use one sound per completed gesture, and rate-limit repeats such as
-  many harvests in a row or a belt of items arriving.
+  mute setting per group. Use one sound per completed gesture, and rate-limit repeats, such as
+  many pickups in a row.
 - For the Audio API, emitters and mixing, see `roblox-skills:roblox-audio`.
 
 ## Check
