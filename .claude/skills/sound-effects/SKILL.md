@@ -1,81 +1,82 @@
 ---
 name: sound-effects
-description: Generate a small, coherent sound palette for interface moments through interchangeable provider adapters, beginning with ElevenLabs Sound Effects, then hand it to a walkthrough to check that the cues clarify rather than distract. Use when a product needs interaction sounds, feedback cues, micro-sound design, or a retro-futuristic audio layer. Triggers on sound effects, UI sounds, interaction audio, micro sounds, click sound, swipe sound, drag sound, ElevenLabs sound effects, audio feedback, retro-futuristic sound.
-accepts:
-  - from: design-tokens
-  - from: semantic-micro-interactions
-handoffs:
-  - to: walkthrough
-    when: generated sound cues have been wired into an operable interface and need checking in context
+description: Generate a small, coherent sound palette for game moments (UI presses, pickups, rewards, jobs finishing, rare drops, ambience) through interchangeable provider adapters, starting with ElevenLabs Sound Effects, then wire it into Roblox and check in a playtest that the cues clarify rather than distract. Use when the game needs interaction sounds, feedback cues, gameplay sounds, ambience, or audio polish. Triggers on sound effects, SFX, UI sounds, harvest sound, click sound, machine sound, ambience, ElevenLabs sound effects, audio feedback.
 ---
 
 # Sound Effects
 
-**Announce at start:** "I'm using the humane:sound-effects skill to make a small, coherent sound palette for this interface."
-
-Sound is feedback, not wallpaper. Generate a short cue only when it acknowledges
-a change that the interface needs to make felt: a panel catching after a drag,
-a confirmed action, a changed mode, or a boundary reached. It is never added
-merely because something moves.
+Sound is feedback, not wallpaper. Generate a short cue only when it confirms a change the
+player needs to feel: an item landing in the inventory, a reward, a job finishing, a rare
+drop, a panel opening. Never add one just because something moves. This is rung 4 of the
+`game-feel` feedback ladder: check that the lower rungs aren't already enough.
 
 ## Before generating
 
-1. Name the moment and the change it confirms. If the interface already makes it obvious, do not add a sound.
-2. Read the project's token set or `DESIGN.md` when it exists. It supplies the material vocabulary; do not invent a second brand in audio.
-3. Ask whether sound is opt-in, and identify motion-reduction and system sound settings. Effects must never autoplay, convey the only meaning, or prevent a task from being completed silently.
+1. Name the moment and the change it confirms. If the screen or the world already makes it
+   obvious (something visibly moving or changing state), don't add a sound.
+2. Match the game's target feel (from its design doc, or ask). Settle on a few material
+   words, such as "wood, soil, soft chimes" for a cozy game or "metal, servo, punchy" for a
+   mech game, and use them in every prompt, so the palette sounds like one game.
+3. Sounds never carry meaning on their own, never autoplay loud, and the game must work with
+   them muted.
 
 ## Generate a palette, not isolated noises
 
-Start with three to five roles. Keep each effect short and quieter than a notification.
+Start with three to five roles. Keep each one short, and quieter than music.
 
-| Moment | Duration | Prompt shape |
+| Moment | Duration | Prompt shape (cozy example) |
 | --- | --- | --- |
-| Press / select | 0.50 s | dry tactile click, no voice, no melody |
-| Panel drag | 0.50–0.60 s | restrained low-friction mechanical glide, soft analogue texture |
-| Snap / settle | 0.50 s | soft magnetic catch, rounded transient, short decay |
-| Boundary | 0.50 s | muted non-alarming low pulse |
-| Completion | 0.50–0.80 s | small upward confirmation tone, restrained and non-game-like |
+| UI press / select | 0.50 s | soft dry wooden click, no voice, no melody |
+| Pick up / collect | 0.50 s | gentle pluck with a soft thump, warm |
+| Currency gained | 0.50–0.70 s | small soft coin chime, rounded, short decay |
+| Job finished | 0.50–0.80 s | muted mechanical clunk and a soft bell tick |
+| Rare reward | 0.80–1.20 s | sparkling upward shimmer, airy |
+| Ambience (loop) | 10–20 s | the world's background, quiet, no voice |
 
-For Humane, begin with **precise, editorial, retro-futurist, tactile, quiet** and exclude voice, melody, fanfare, harsh alarms, and bright game UI. Generate alternatives, then choose the family by listening side by side.
+Swap in the game's own material words; keep the durations and the roles.
+
+Always exclude voice and melody, and generate two or three alternatives per role so the user
+can choose by listening side by side.
 
 ## Provider adapters
 
-ElevenLabs is the first adapter, not the architecture. The generator takes a
-`--provider` name and loads `scripts/providers/<name>.py`; every adapter shares
-the same prompt, duration, loop, output, and receipt contract. Read
-`references/provider-adapters.md` before adding one. This is where another
-hosted provider or local sound model can be integrated later without changing
-the skill's UI rules, prompt palette, generated files, or review handoff.
+ElevenLabs is the first adapter, not the architecture. The generator takes a `--provider` name
+and loads `scripts/providers/<name>.py`; every adapter shares the same prompt, duration, loop,
+output and receipt contract. Read `references/provider-adapters.md` before adding one.
 
-The ElevenLabs adapter calls `POST /v1/sound-generation` with
-`ELEVENLABS_API_KEY`. The key belongs in the project's approved secret manager
-or local environment, never in `humane.json`, a prompt, source code, or a
-committed `.env` file. Read `setup/references/secrets.md` when setting up or
-changing secret access.
+The ElevenLabs adapter calls `POST /v1/sound-generation` with `ELEVENLABS_API_KEY` from the
+local environment. Never put the key in a prompt, source code, the repo or a committed `.env`.
 
 ```bash
-python3 scripts/generate_sound.py --provider elevenlabs --name panel-snap --text "A soft magnetic mechanical catch; tactile analogue electronics, warm low mid tone, precise and quiet, no voice, no melody, no alarm" --duration 0.5 --out <resolved-sound-directory>/panel-snap.mp3
+python scripts/generate_sound.py --provider elevenlabs --name harvest-pluck --text "A gentle leafy pluck with a soft soil thump; warm, calm, quiet, no voice, no melody" --duration 0.5 --out "<scratchpad>/sounds/harvest-pluck.mp3"
 ```
 
-Resolve `<resolved-sound-directory>` with `artifact_path(palette,
-"sound-effects")`, which produces `.design/sound-<palette>/` under the project;
-never construct that path from the current working directory. ElevenLabs accepts
-explicit durations from 0.5 seconds, so the generation table does not promise a
-shorter value than the adapter can request. Use `--duration` only when
-interaction timing needs it. `--loop` is for ambience only, never a click, drag,
-or completion cue. The script writes audio plus a JSON receipt containing its
-prompt and parameters, never a key.
+Write generated audio to the session scratchpad (or a `sounds/` folder the user names), not
+into `src/`, because Rojo doesn't sync audio files. ElevenLabs accepts durations from 0.5 s.
+Use `--loop` only for ambience. The script writes the audio plus a JSON receipt with the
+prompt and parameters, never the key.
 
-## Wire and check
+## Wire into Roblox
 
-- Preload only selected, compressed effects; never fetch a key or generate in the browser.
-- Trigger after a visual state change begins. A sound that predicts a change that later fails is misleading.
-- Use one sound per completed gesture and rate-limit rapid hover, drag, and click events.
-- Offer a visible mute control when sound recurs, preserving that choice for the current device.
-- Hand the live interaction to `humane:walkthrough`. Check whether the cue clarifies what happened; do not judge it in isolation.
+- **Upload**: the user uploads the chosen files as Audio assets (Creator Hub or Studio's
+  Asset Manager). Record each asset id with its role in one shared module (for example
+  `SFX`), so swapping a sound is a single edit.
+- **Play on the client** for the local player's own actions, after the visual change starts.
+  A sound that plays before a change the server then rejects is misleading. For other players'
+  actions, play the sound spatially at its source, and only within a sensible distance.
+- Route everything through SoundGroups (SFX, Ambience, Music), so there can be a volume and
+  mute setting per group. Use one sound per completed gesture, and rate-limit repeats, such as
+  many pickups in a row.
+- For the Audio API, emitters and mixing, see `roblox-skills:roblox-audio`.
+
+## Check
+
+Playtest it (`studio-playtest`): do the action normally, quickly over and over, and with
+several players near each other. Ask whether each cue makes clear what happened. If one only
+repeats what the screen shows, or gets tiring after a minute, remove it.
 
 ## Boundaries
 
 - Never generate speech here; use a speech tool for narration.
-- Never claim an effect improves accessibility without testing it with people who use sound differently or not at all.
-- Never spend credits or call the API until the user approves the selected prompts and variation count.
+- Never spend credits or call the API until the user approves the chosen prompts and the
+  number of variations.

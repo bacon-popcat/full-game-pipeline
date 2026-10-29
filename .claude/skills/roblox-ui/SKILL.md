@@ -11,8 +11,8 @@ description: >
 # Roblox UI
 
 Implement deliberate, editable Roblox UI that preserves the experience's visual language and
-works across supported devices. Targets Roblox's rolling platform APIs. Pair with `game-ui-ux`
-for engine-neutral information architecture and UX; this skill owns Roblox Instances and APIs.
+works across supported devices. Targets Roblox's rolling platform APIs. Pair with `game-feel`
+for feedback and flow; this skill owns Roblox Instances and APIs.
 
 ## When to use
 
@@ -21,8 +21,31 @@ for engine-neutral information architecture and UX; this skill owns Roblox Insta
 - Use to replace brittle pixel layouts, runtime-created Instance tangles, mouse-only menus, or
   generic generated styling with a maintainable hierarchy.
 
-**When not to use:** general UX flow and accessibility principles belong to `game-ui-ux`; raw
-gameplay action mapping belongs to `input-systems`; server trust belongs to `roblox-networking`.
+**When not to use:** what an action should feel like belongs to `game-feel`; key bindings
+belong in `client/libraries/Controls` (and `roblox-skills:roblox-input`); server trust belongs
+to `server-authority`.
+
+## Project conventions first
+
+Before applying the generic guidance below, read the project's own rules (agent instructions,
+a conventions doc, the UI section of any domain docs) and its existing screens. The project
+wins where they differ.
+
+- **Separate the look from the layout.** A project can borrow a visual style from one game and
+  screen layouts from another. Find out which is which, and ask before copying a reference
+  game's layout. Test the fonts it uses: some display fonts drop or merge glyphs (a bold colon
+  drawn as one dot, missing arrows or a missing ✕), so use an image or a plain letter there.
+- **UI authored in Studio:** if the HUD lives only in the place file (not synced from the
+  repo), bind to what's authored and clone row and cell templates from a templates folder. Don't
+  `Instance.new` a hierarchy. Look children up with `FindFirstChild` and warn instead of
+  throwing, and read starting sizes and scales from the instances instead of hardcoding them.
+- **Code shape:** prefer one module per screen, started by the client's controller loader,
+  over a LocalScript inside each ScreenGui. Use one shared button layer for hover, press and
+  focus; one controls module for bindings and the hint text for each input type; and one
+  formatter for status words.
+- **Values with one setting and several writers** (blur, FOV, camera effects) are arbitrated.
+  Each feature requests a value under its own source id and clears that request later, and
+  the result is derived from the live requests. Never assign these directly.
 
 ## Workflow
 
@@ -241,10 +264,11 @@ Animate a panel or state boundary once. Do not independently bounce every descen
 
 ## Related skills
 
-- `game-ui-ux` — information hierarchy, screen flow, accessibility, and UX validation.
-- `input-systems` — gameplay action mapping and device switching.
-- `roblox-networking` — server-authoritative requests initiated by UI.
-- `roblox-studio-workflow` — Explorer-first editing and Studio verification.
+- `game-feel` — feedback, status wording, onboarding, and the polish checklist.
+- `inventory-hotbar` — the data model behind a hotbar or backpack screen.
+- `server-authority` — server-checked requests started by the UI, and prediction.
+- `studio-playtest` — getting UI code into Studio and checking it at several viewports.
+- `roblox-skills:roblox-input` — gameplay action mapping and device switching.
 
 ## Primary references
 
