@@ -175,8 +175,8 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline. *In progress:* the nine new crops, the five farm machines
-   and the six processors are done (below); conveyors and routers, stalls, plots and props are
+   `IslandsMachines/build` pipeline. *In progress:* the nine new crops, the five farm machines,
+   the six processors and the conveyors are done (below); routers, stalls, plots and props are
    next.
 
 ### Art progress
@@ -206,6 +206,16 @@ Git history keeps all of it.
   Each takes items in at -Z and puts products out at +Z, so each is one cell wide and three
   deep, with a belt and arch at both ends (1.1-stud ports). Mill II draws the Mill.
   Playtested: wheat -> Mill -> Flour riding straight into a Shipping Bin.
+- - **Conveyors (done).** Plain belts, turns, ramps (tier 1 and 2) and the sensor are our own in
+  `IslandsMachines/build/garden_conveyors.py`, imported as the GardenConveyors set under their
+  item ids, so they replace the Islands templates. Only the geometry the game needs is kept:
+  belt top 1.59, belt 2.3 wide, ends on cell faces, the ramps' 6-long 3-high climb, every
+  footprint unchanged. The look is new: a smooth sage body (sky blue for tier 2) with a cream
+  band (terracotta for tier 2), round cream rails (brass for tier 2) instead of lips, cream
+  end rollers, soft pill arrows on a warm taupe belt, round ramp legs, no bolts or glass walls,
+  and a sensor of cream posts with a mint curtain. The farm machines and processors use the
+  same belt. Playtested: a carrot riding belt -> tier 2 belt -> sensor (lit) -> Shipping Bin.
+  The routers (Split, Merger, Filter, Randomizer) are still Islands art.
 - - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.

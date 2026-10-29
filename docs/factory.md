@@ -43,8 +43,10 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Harvester (bigger reach, faster). All are bought in the Machine Shop (economy.md); tier 2
   ones also cost Workbench parts. Tier 2 defs come from the same constructors as tier 1 in
   Blocks, so a tier differs only in its numbers.
-- **Own art.** The Seed Planter, Sprinkler, Harvester, Shipping Bin and Storage Chest have
-  templates of their own (one cell wide, two deep), and their tier 2s draw them too.
+- **Own art.** The conveyors (belts, turns, ramps, sensor), the Seed Planter, Sprinkler,
+  Harvester, Shipping Bin and Storage Chest (one cell wide, two deep) and the processors (one
+  wide, three deep) have templates of their own, and their tier 2s draw them too. The routers
+  still use Islands art.
 - **Borrowed art.** A machine with no template of its own names one in its item's `art`
   (Shared/Inventory/Items): the Harvester draws the Industrial Flower Picker, the Shipping Bin
   the Teleseller, and so on. `ItemArt.blockTemplate` is the one place that resolves it, so
