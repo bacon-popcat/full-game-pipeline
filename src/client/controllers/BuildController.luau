@@ -320,9 +320,6 @@ local function makeGhost(itemId: string): Model?
 			part.CanTouch = false
 			part.CastShadow = false
 			part.Transparency += (1 - part.Transparency) * GHOST_FADE
-		elseif part:IsA("Texture") then
-			-- the art's stud textures fade with it, or they'd hang solid over a see-through ghost
-			part.Transparency += (1 - part.Transparency) * GHOST_FADE
 		end
 	end
 	return model
