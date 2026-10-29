@@ -52,15 +52,28 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   placed and shows its fluid once sap or syrup has moved through its network; a network keeps
   it while a tree or a boiler still feeds it, so a tube added to a running line fills at once.
   The Sap Boiler and Syrup Bottler draw their tube ends at tube height on a cell's centre line,
-  flush with the hitbox face, so a tube placed there lines up. To change level, a line goes
-  Ascend (level in, up out), Verticals, then Descend (down in, level out). The Ascend and Descend
-  each take their level tube at floor height, and all three upright logs share one width.
-  A drop is the same stack fed from the top. A Wood Tube Vertical also joins any level tube
-  beside it whose opening faces it (`sides` in `Blocks`). FactoryService then opens that side
-  and puts a clone of the `WoodTubeInlet` art (a short trough from the face into the log,
-  made in the place file like the other block art) in the vertical's model, as an `Inlet`
-  child. The inlet's fluid shows and hides with the tube, and it goes away when the level
-  tube does. Verticals never join each other sideways.
+  flush with the hitbox face, so a tube placed there lines up.
+- **There is one Wood Tube item, and it shapes itself** (`auto` in `Blocks`). The client sends the
+  axis of the surface it was placed on, and BuildService stores it as the model's `Against`.
+  FactoryService joins the new tube to the block on that side, as long as that block can take it:
+  - an auto tube with fewer than two links;
+  - the merger's opening;
+  - a sap machine;
+  - a maple tree.
+
+  It then also joins any neighbouring tube whose spare end already points at it, until it has two
+  links.
+  - Placed on a lone tube, both tubes become verticals.
+  - Placed on a tube that is already joined beside, the lower one becomes an elbow up.
+  - Placed beside the top of a column, the top becomes an elbow down.
+  - Placed beside a straight end, that end turns into a corner.
+
+  A tube's ends are its links. With one link, the other end is straight across from it; with none,
+  both ends run along the way it was placed facing. The ends pick the art: `WoodTube`,
+  `WoodTubeCorner`, `WoodTubeAscend` (elbow up), `WoodTubeDescend` (elbow down) or
+  `WoodTubeVertical`. FactoryService swaps the art parts in under the placed model's Hitbox,
+  turned to fit, and reshapes the neighbours a tube was linked to when it is picked up. Those four
+  art templates are not items. The Wood Tube Merger stays its own item with fixed openings.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or

@@ -2,7 +2,9 @@
 -- when it lands in Workspace.Placed, connects it to its neighbours by their ports, and
 -- every frame moves items along lanes, through router hubs and into and out of machines.
 -- Wood tubes form networks that carry sap and syrup between maple trees, sap boilers and
--- syrup bottlers. Players work machines only through their panel (load, collect, take
+-- syrup bottlers. A Wood Tube joins the tube it is placed against and shapes itself to what
+-- it joins (straight, corner, vertical or an elbow up or down), redrawn with that shape's art.
+-- Players work machines only through their panel (load, collect, take
 -- back), and take belt items and switch routers by hand, all through Interact.
 --
 -- Two ports connect when one block's exit and another's entry share a point and face each
@@ -93,10 +95,10 @@ export type Block = {
 	-- through it (it shows its fluid only then).
 	openings: { Vector3 },
 	filled: boolean,
-	-- Tubes with `sides` (the vertical): the level directions they open toward right now, and
-	-- the inlet art drawn on each, keyed by direction.
-	sides: { Vector3 },
-	inlets: { [string]: Model },
+	-- Auto tubes (WoodTube): the directions it is joined to (at most two), and the art it is
+	-- drawn with now ("<art>/<quarter turns>").
+	links: { Vector3 },
+	shape: string?,
 	env: Machine.Env?,
 }
 
@@ -106,9 +108,15 @@ local STATUS_EVERY = 0.25
 -- that grew or were chopped).
 local TUBE_EVERY = 0.5
 local TUBE_REBUILD_EVERY = 5
--- The trough drawn on a vertical tube's side where a level tube joins it (Assets.Blocks).
-local INLET = "WoodTubeInlet"
-local LEVEL = { Vector3.xAxis, -Vector3.xAxis, Vector3.zAxis, -Vector3.zAxis }
+-- The shapes an auto tube takes: art in Assets.Blocks and its openings in its authored frame.
+-- A tube is drawn with the first whose openings, turned some quarter turns, are its ends.
+local TUBE_SHAPES = {
+	{ art = "WoodTube", openings = { -Vector3.zAxis, Vector3.zAxis } },
+	{ art = "WoodTubeCorner", openings = { -Vector3.zAxis, Vector3.xAxis } },
+	{ art = "WoodTubeAscend", openings = { -Vector3.zAxis, Vector3.yAxis } },
+	{ art = "WoodTubeDescend", openings = { -Vector3.zAxis, -Vector3.yAxis } },
+	{ art = "WoodTubeVertical", openings = { -Vector3.yAxis, Vector3.yAxis } },
+}
 -- Seconds a sensor powers the split conveyors touching it.
 local PULSE = 1
 -- Seconds a sensor's light curtain shows after an item passes.
@@ -628,66 +636,150 @@ local function opensToward(openings: { Vector3 }, direction: Vector3): boolean
 end
 
 local function hasOpening(block: Block, direction: Vector3): boolean
-	return opensToward(block.openings, direction) or opensToward(block.sides, direction)
+	return opensToward(block.openings, direction)
 end
 
 local function setFluidVisible(block: Block, visible: boolean)
-	local transparency = if visible then 0 else 1
-	local fluid = block.model:FindFirstChild(`Mesh_{block.itemId}_Fluid`)
-	if fluid and fluid:IsA("BasePart") then
-		fluid.Transparency = transparency
-	end
-	for _, inlet in block.inlets do
-		local inletFluid = inlet:FindFirstChild(`Mesh_{INLET}_Fluid`)
-		if inletFluid and inletFluid:IsA("BasePart") then
-			inletFluid.Transparency = transparency
+	for _, part in block.model:GetChildren() do
+		if part:IsA("BasePart") and string.sub(part.Name, -6) == "_Fluid" then
+			part.Transparency = if visible then 0 else 1
 		end
 	end
 end
 
--- The inlet art turned to face `direction` from the tube's cell, inside its model.
-local function addInlet(block: Block, direction: Vector3): Model?
-	local template = Build.getTemplate(INLET)
-	local authored = if template then Factory.originFrame(template) else nil
-	local inlet = Build.copyArt(INLET)
-	if not template or not authored or not inlet then
-		return nil
+local function isAuto(block: Block?): boolean
+	return block ~= nil and block.def.auto == true
+end
+
+local function axis(vector: Vector3): Vector3
+	return Vector3.new(math.round(vector.X), math.round(vector.Y), math.round(vector.Z))
+end
+
+-- An auto tube's two ends: its links, and for a missing one the end straight across from
+-- the other (with no links, both ends along the way it was placed facing).
+local function tubeEnds(block: Block): { Vector3 }
+	local links = block.links
+	if #links >= 2 then
+		return table.clone(links)
+	elseif #links == 1 then
+		return { links[1], -links[1] }
 	end
-	-- The inlet is drawn running in from the authored frame's -Z face, like the tube's own art.
-	local target = CFrame.lookAlong(block.frame.Position, direction)
-	inlet:PivotTo(target * authored:ToObjectSpace(inlet:GetPivot()))
-	for _, part in inlet:GetDescendants() do
+	local along = axis(block.frame.LookVector)
+	return { along, -along }
+end
+
+local function shapeFor(ends: { Vector3 }): (string, number)
+	for _, shape in TUBE_SHAPES do
+		for turns = 0, 3 do
+			local turn = CFrame.Angles(0, turns * math.pi / 2, 0)
+			local matches = true
+			for _, opening in shape.openings do
+				if not opensToward(ends, axis(turn:VectorToWorldSpace(opening))) then
+					matches = false
+					break
+				end
+			end
+			if matches then
+				return shape.art, turns
+			end
+		end
+	end
+	return TUBE_SHAPES[1].art, 0
+end
+
+-- Replaces the tube's art with `art` turned `turns` quarter turns about its cell, keeping
+-- its Hitbox (the model stays the WoodTube block it was placed as).
+local function drawTube(block: Block, art: string, turns: number)
+	local template = Build.getTemplate(art)
+	local authored = if template then Factory.originFrame(template) else nil
+	local copy = Build.copyArt(art)
+	if not authored or not copy then
+		return
+	end
+	for _, child in block.model:GetChildren() do
+		if child:IsA("BasePart") and child ~= block.model.PrimaryPart then
+			child:Destroy()
+		end
+	end
+	local target = CFrame.new(block.frame.Position) * CFrame.Angles(0, turns * math.pi / 2, 0)
+	copy:PivotTo(target * authored:ToObjectSpace(copy:GetPivot()))
+	for _, part in copy:GetChildren() do
 		if part:IsA("BasePart") then
 			part.Anchored = true
+			part.Parent = block.model
 		end
 	end
-	local fluid = inlet:FindFirstChild(`Mesh_{INLET}_Fluid`)
-	if fluid and fluid:IsA("BasePart") then
-		fluid.Transparency = if block.filled then 0 else 1
-	end
-	inlet.Name = "Inlet"
-	inlet.Parent = block.model
-	return inlet
+	copy:Destroy()
+	setFluidVisible(block, block.filled)
 end
 
--- Opens a `sides` tube toward each level tube beside it that opens onto it, and draws an
--- inlet trough on each of those sides (removing the ones no longer joined).
-local function updateSides(block: Block)
-	table.clear(block.sides)
-	local wanted: { [string]: boolean } = {}
-	for _, direction in LEVEL do
-		local other = blockAt(tubeCell(block) + direction)
-		if other and isTube(other) and not other.def.sides and opensToward(other.openings, -direction) then
-			table.insert(block.sides, direction)
-			local key = tostring(direction)
-			wanted[key] = true
-			block.inlets[key] = block.inlets[key] or addInlet(block, direction)
+-- Works out an auto tube's openings from its links and redraws it when its shape changed.
+local function reshape(block: Block)
+	block.openings = tubeEnds(block)
+	local art, turns = shapeFor(block.openings)
+	local shape = `{art}/{turns}`
+	if block.shape ~= shape then
+		block.shape = shape
+		drawTube(block, art, turns)
+	end
+	tubesStale = true
+end
+
+-- Whether `other` takes a tube joining it from `direction` (pointing from it toward the
+-- tube): an auto tube with an end to spare, a fixed tube opening that way, or a sap machine.
+local function accepts(other: Block, direction: Vector3): boolean
+	if isAuto(other) then
+		return #other.links < 2 and not opensToward(other.links, direction)
+	elseif isTube(other) then
+		return opensToward(other.openings, direction)
+	end
+	return other.def.tubes == true
+end
+
+-- A new auto tube joins what it was placed against (`against` points from that block to
+-- it) when that can take it: on top of a tube it goes up from it, beside one it turns
+-- off it. Then it joins any neighbouring tube whose spare end already points at it,
+-- until both its ends are used.
+local function joinTube(block: Block, against: Vector3?)
+	local cell = tubeCell(block)
+	local function join(direction: Vector3)
+		if #block.links >= 2 or opensToward(block.links, direction) then
+			return
+		end
+		local other = blockAt(cell + direction)
+		local node = WorldService.nodeAt(cell + direction)
+		if other and other ~= block and accepts(other, -direction) then
+			table.insert(block.links, direction)
+			if isAuto(other) then
+				table.insert(other.links, -direction)
+				reshape(other)
+			end
+		elseif not other and node and World.getNode(node.nodeType).sap then
+			table.insert(block.links, direction)
 		end
 	end
-	for key, inlet in block.inlets do
-		if not wanted[key] then
-			inlet:Destroy()
-			block.inlets[key] = nil
+	if against then
+		join(-against)
+	end
+	for _, direction in NEIGHBOURS do
+		local other = blockAt(cell + direction)
+		if other and isTube(other) and opensToward(other.openings, -direction) then
+			join(direction)
+		end
+	end
+	reshape(block)
+end
+
+-- A removed auto tube lets go of the auto tubes it was joined to, which reshape.
+local function leaveTube(block: Block)
+	for _, direction in block.links do
+		local other = blockAt(tubeCell(block) + direction)
+		if other and isAuto(other) then
+			local index = table.find(other.links, -direction)
+			if index then
+				table.remove(other.links, index)
+				reshape(other)
+			end
 		end
 	end
 end
@@ -720,15 +812,9 @@ end
 -- Regroups the tubes into networks, with the machines and maple trees each one touches.
 -- Tubes show fluid only once some has run through their network (sendFluid), so a new line
 -- starts empty; a network keeps it while something still feeds it, so a tube added to a
--- running line fills at once and a cut-off piece empties. Vertical tubes first join the level
--- tubes beside them.
+-- running line fills at once and a cut-off piece empties.
 local function rebuildTubes()
 	table.clear(networks)
-	for _, block in blocks do
-		if isTube(block) and block.def.sides then
-			updateSides(block)
-		end
-	end
 	local seen: { [Block]: boolean } = {}
 	for _, start in blocks do
 		if not isTube(start) or seen[start] then
@@ -741,11 +827,7 @@ local function rebuildTubes()
 			local tube = queue[#queue]
 			queue[#queue] = nil
 			table.insert(network.tubes, tube)
-			local directions = table.clone(tube.openings)
-			for _, side in tube.sides do
-				table.insert(directions, side)
-			end
-			for _, direction in directions do
+			for _, direction in tube.openings do
 				local cell = tubeCell(tube) + direction
 				local other = blockAt(cell)
 				local node = WorldService.nodeAt(cell)
@@ -966,8 +1048,8 @@ local function register(model: Instance)
 		pulseUntil = 0,
 		openings = {},
 		filled = false,
-		sides = {},
-		inlets = {},
+		links = {},
+		shape = nil,
 		env = nil,
 	}
 	model:SetAttribute("BlockId", block.id)
@@ -1018,6 +1100,10 @@ local function register(model: Instance)
 			Vector3.new(math.round(direction.X), math.round(direction.Y), math.round(direction.Z))
 		)
 	end
+	if def.auto then
+		local against = model:GetAttribute("Against")
+		joinTube(block, if typeof(against) == "Vector3" then against else nil)
+	end
 	if def.kind == "Tube" then
 		setFluidVisible(block, false)
 	end
@@ -1043,6 +1129,9 @@ local function unregister(model: Instance)
 			cellIndex[cellKey(cell)] = nil
 		end
 	end)
+	if isAuto(block) then
+		leaveTube(block)
+	end
 	for key, list in entries do
 		for index = #list, 1, -1 do
 			if list[index].block == block then

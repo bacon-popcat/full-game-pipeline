@@ -34,7 +34,9 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 local Aim = require(Players.LocalPlayer.PlayerScripts.Libraries.Aim)
 local Controls = require(Players.LocalPlayer.PlayerScripts.Libraries.Controls)
 
-type Placement = { origin: Vector3, valid: boolean }
+-- `against`: the axis the aimed surface faces, so the server knows which block it went
+-- against (a wood tube joins that one).
+type Placement = { origin: Vector3, valid: boolean, against: Vector3 }
 type Action = { kind: "Place" | "PickUp" | "Use" | "Take" | "Drop", model: Model? }
 
 local ROTATE_ACTION = "RotateBlock"
@@ -158,7 +160,13 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	local valid = Build.inReach(from, origin, footprint)
 		and Build.isFree(origin, footprint, overlapParams)
 		and not Build.clipsCharacter(item.id, pivot)
-	placement = { origin = origin, valid = valid }
+	local normal = result.Normal
+	local axis = math.max(math.abs(normal.X), math.abs(normal.Y), math.abs(normal.Z))
+	local against = if math.abs(normal.Y) == axis
+		then Vector3.new(0, math.sign(normal.Y), 0)
+		elseif math.abs(normal.X) == axis then Vector3.new(math.sign(normal.X), 0, 0)
+		else Vector3.new(0, 0, math.sign(normal.Z))
+	placement = { origin = origin, valid = valid, against = against }
 	model:PivotTo(pivot)
 	model.Parent = workspace.CurrentCamera
 	local centre = Build.box(origin, footprint)
@@ -255,7 +263,7 @@ local function perform()
 	if chosen.kind == "Place" then
 		local placing = placement
 		if placing and placing.valid then
-			Remotes.PlaceBlock:FireServer(placing.origin, rotation)
+			Remotes.PlaceBlock:FireServer(placing.origin, rotation, placing.against)
 		end
 	elseif chosen.kind == "PickUp" and target then
 		Remotes.PickUpBlock:FireServer(target)

@@ -4,7 +4,8 @@
 -- overlap are re-checked against the server's world with the shared Build rules.
 --
 -- Placed blocks live in Workspace.Placed with ItemId, Owner (UserId), Origin and
--- Rotation attributes. Only the owner can take a block back: any block with the Hammer, or
+-- Rotation attributes, and Against: the axis of the surface it was placed on, when that
+-- was a unit axis (a wood tube joins the block there). Only the owner can take a block back: any block with the Hammer, or
 -- a cube with the tool its item breaks with. Whatever a factory block held comes back
 -- with it (FactoryService.drain); what doesn't fit in the inventory is lost. Not
 -- persisted: placed blocks outlive their owner's session but not the server's.
@@ -57,10 +58,14 @@ local function ready(player: Player): boolean
 	return true
 end
 
-local function onPlace(player: Player, origin: unknown, rotation: unknown)
+local function onPlace(player: Player, origin: unknown, rotation: unknown, against: unknown)
 	if typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
 		return
 	end
+	-- Only a unit axis counts; anything else just means it went against nothing in particular.
+	local side = if typeof(against) == "Vector3" and Build.isCell(against) and against.Magnitude == 1
+		then against
+		else nil
 	if not Build.isCell(origin) or not Build.isRotation(rotation) or not ready(player) then
 		return
 	end
@@ -96,6 +101,7 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown)
 	model:SetAttribute("Owner", player.UserId)
 	model:SetAttribute("Origin", origin)
 	model:SetAttribute("Rotation", rotation)
+	model:SetAttribute("Against", side)
 	model.Parent = placed
 end
 

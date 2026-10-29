@@ -90,11 +90,12 @@ local ITEMS: { Item } = {
 	),
 	machine("Merger", "Merger", "Merges the conveyors at its back and front into the one at its side."),
 	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
-	machine("WoodTube", "Wood Tube", "Carries maple sap and syrup.", CONVEYOR_STACK),
-	machine("WoodTubeCorner", "Wood Tube Corner", "Turns a wood tube line.", CONVEYOR_STACK),
-	machine("WoodTubeAscend", "Wood Tube Ascend", "Takes a wood tube line up a block.", CONVEYOR_STACK),
-	machine("WoodTubeDescend", "Wood Tube Descend", "Takes a wood tube line down a block.", CONVEYOR_STACK),
-	machine("WoodTubeVertical", "Wood Tube Vertical", "Runs a wood tube line straight up.", CONVEYOR_STACK),
+	machine(
+		"WoodTube",
+		"Wood Tube",
+		"Carries maple sap and syrup. Place it against a tube to join it: beside it to turn, on or under it to go up or down.",
+		CONVEYOR_STACK
+	),
 	machine("WoodTubeMerger", "Wood Tube Merger", "Joins a branch into a wood tube line.", CONVEYOR_STACK),
 
 	machine("Drill", "Drill", "Place it on a copper or gold deposit and fuel it with coal to mine ore."),

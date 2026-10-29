@@ -21,7 +21,8 @@ return {
 	InventoryMove = get("InventoryMove"),
 	-- client -> server: (index: number) hotbar index, 0 for an empty hand
 	InventorySelect = get("InventorySelect"),
-	-- client -> server: (origin: Vector3, rotation: number) a Build cell and 0-3 turns
+	-- client -> server: (origin: Vector3, rotation: number, against: Vector3?) a Build cell, 0-3
+	-- turns, and the axis the aimed surface faces (the block placed against is at origin - against)
 	PlaceBlock = get("PlaceBlock"),
 	-- client -> server: (model: Model) a block in Workspace.Placed, to pick up with the
 	-- Hammer or break with the tool its item names
