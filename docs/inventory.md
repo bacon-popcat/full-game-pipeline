@@ -36,6 +36,7 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 | `StarterGui.HUD` | `Hotbar`, `Backpack` window, `DragGhost`, `ItemName`, `SideButtons.Backpack` |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage` |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): six cubes plus copies of the 53 `Workspace.IslandsMachines` models |
+| Cube studs | Each building cube (Grass, Dirt, Stone, Bricks...) is SmoothPlastic with a `Studs` Texture on all six faces, Grow a Garden style; `IslandsMachines/build/studio_studs.luau` adds them, and nothing else is studded. The placement ghost fades the textures with the art (BuildController) |
 | `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe`, `Axe` Tools |
 
 The RemoteEvents are the exception: they are declared in `default.project.json`.
