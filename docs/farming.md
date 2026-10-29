@@ -58,7 +58,7 @@ the same cell, so the machine keeps the seed.
 
 | Instance | What it is |
 |---|---|
-| `ReplicatedStorage.Assets.World` | `Farmland` (a plain soil cube) and every crop stage (`WheatSprout` ... `PotatoRipe`), each with a one-cell hitbox |
+| `ReplicatedStorage.Assets.World` | `Farmland` (a soil cube with a damp, striped top, never turned so a field's stripes line up) and every crop stage (`WheatSprout` ... `PotatoRipe`), each with a one-cell hitbox |
 | `ReplicatedStorage.Assets.Blocks` | `WheatSeeds`, `CarrotSeeds`, `PotatoSeeds`: copies of each crop's Sprout |
 | `ReplicatedStorage.Assets.Items` | `Wheat`, `Carrot`, `Potato` |
 | `ReplicatedStorage.Assets.Blocks.Dirt` | Restyled to match the farm: SmoothPlastic in the same brown as the crops' soil and the Farmland cube (`#9C6A3C`) |

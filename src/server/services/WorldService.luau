@@ -176,8 +176,11 @@ local function spawnNode(nodeType: string, cell: Vector3, natural: boolean): Nod
 	local footprint = footprintOf(model)
 	local centre = Build.box(cell, footprint)
 	-- A stable quarter turn per cell, so a grove doesn't look stamped; only square
-	-- footprints can turn without changing the cells they cover.
-	local turns = if footprint.X == footprint.Z then (cell.X * 7 + cell.Z * 13) % 4 else 0
+	-- footprints can turn without changing the cells they cover. Soil never turns, so a
+	-- field's rows run straight across it.
+	local turns = if footprint.X == footprint.Z and not World.getNode(nodeType).soil
+		then (cell.X * 7 + cell.Z * 13) % 4
+		else 0
 	local hitbox = model.PrimaryPart
 	assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
 	local pivotOffset = hitbox.CFrame:ToObjectSpace(model:GetPivot())
