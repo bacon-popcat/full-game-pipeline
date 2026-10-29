@@ -1,7 +1,8 @@
 --!strict
--- Products: what the processing machines make, from what, and what each is worth. Items turns
--- these into items and Factory/Blocks into recipes, so a product's numbers live only here. Crop
--- values come from World.CROPS; a recipe takes any mutation of a crop input (Machine).
+-- Products: what the processing machines and the Workbench make, from what, and what each is
+-- worth. Items turns these into items and Factory/Blocks into recipes, so a product's numbers
+-- live only here. Crop values come from World.CROPS; a recipe takes any mutation of a crop input
+-- (Machine). Parts have no value: they are spent in the Machine Shop (Shared/Economy/Shops).
 --
 -- Art: products borrow an existing Assets.Items model (`art`), tinted `color` when given, until
 -- the art phase.
@@ -14,7 +15,7 @@ export type Product = {
 	id: string,
 	name: string,
 	description: string,
-	value: number,
+	value: number?,
 	machine: string,
 	inputs: { [string]: number },
 	-- Seconds per batch.
@@ -32,6 +33,8 @@ local CRATE_SIZE = 10
 -- A crate is worth this many of its crop.
 local CRATE_MULTIPLIER = 12
 local FLOUR_COLOR = Color3.fromRGB(240, 228, 204)
+local STEEL_COLOR = Color3.fromRGB(178, 186, 196)
+local CIRCUIT_COLOR = Color3.fromRGB(128, 186, 140)
 
 local function produceOf(cropId: string): string
 	local crop = World.CROPS[cropId]
@@ -106,5 +109,49 @@ for _, cropId in cropIds do
 		art = "FruitCrate",
 	})
 end
+
+-- Workbench parts, from the quarry's ore smelted into bars.
+local function part(
+	id: string,
+	name: string,
+	description: string,
+	inputs: { [string]: number },
+	time: number,
+	art: string,
+	color: Color3?
+): Product
+	return {
+		id = id,
+		name = name,
+		description = description,
+		machine = "Workbench",
+		inputs = inputs,
+		time = time,
+		art = art,
+		color = color,
+	}
+end
+
+table.insert(
+	PRODUCTS,
+	part("Gear", "Gear", "A cut iron gear for machine upgrades.", { IronBar = 2 }, 4, "SteelPlate", STEEL_COLOR)
+)
+table.insert(PRODUCTS, part("CopperWire", "Copper Wire", "Drawn copper, coiled.", { CopperBar = 1 }, 3, "CopperBar"))
+table.insert(
+	PRODUCTS,
+	part(
+		"Circuit",
+		"Circuit",
+		"Wire and a gear on a board.",
+		{ CopperWire = 2, Gear = 1 },
+		6,
+		"CopperPlate",
+		CIRCUIT_COLOR
+	)
+)
+table.insert(
+	PRODUCTS,
+	part("SteelFrame", "Steel Frame", "A braced frame of iron and stone.", { IronBar = 4, Stone = 1 }, 6, "SteelPlate")
+)
 
 return PRODUCTS

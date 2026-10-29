@@ -129,7 +129,14 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Smelter | 3 | 500 | Ore + Coal -> Bar |
 | Workbench | 3 | 400 | Bars -> parts (below) |
 
-Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus parts.
+Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus parts:
+
+| Machine | Level | Coins | Parts | Does |
+|---|---|---|---|---|
+| Seed Planter II | 8 | 4,000 | 4 Gear, 2 Steel Frame | 5 x 7 patch, a seed a second |
+| Sprinkler II | 9 | 5,000 | 2 Circuit, 2 Copper Wire | Radius 5, 1.5x growth, +20% Wet |
+| Mill II | 10 | 6,000 | 4 Gear, 1 Steel Frame | The Mill's recipes in half the time |
+| Harvester II | 12 | 10,000 | 4 Circuit, 2 Steel Frame | Radius 6, a crop every 1.5 s |
 
 ## Crafting
 
@@ -166,7 +173,7 @@ Git history keeps all of it.
    the Sell Stand, weather, and the HUD for coins, level and weather.
 3. [x] **Automation.** The machine roster and Machine Shop, with Planter, Sprinkler, Harvester, the
    processors and the Shipping Bin.
-4. **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
+4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
    `IslandsMachines/build` pipeline.
 6. **Polish.** Onboarding, sounds, VFX, balance.
@@ -279,6 +286,30 @@ Built by Claude, not Codex: Codex hit its usage limit, and the user chose not to
 - **Playtested** in "farming game": shop locks, refusals and purchases; a planter filling its
   patch on the bed; sprinkler timings exactly 1.25x; harvester -> shipping bin paying coins;
   Mill making Flour; watering taking 20% off a stage, with the cooldown holding.
+
+### Crafting implementation decisions
+
+Built by Claude: Codex was still at its usage limit.
+
+- **Parts live in `Shared/Factory/Products`** beside the processed products, as Workbench
+  recipes with no value, so Items and Blocks read one table. They borrow Assets.Items art:
+  Gear and Steel Frame the steel plate, Copper Wire the copper bar, Circuit the copper plate
+  tinted green. Parts can't be sold.
+- **Smelter** is the Industrial Smelter renamed (old saves are renamed too). It still burns
+  coal: 30 s of running per coal, 10 s per bar. Gold and its bars stay cut.
+- **Tier 2 machines are separate items**, built from the same constructors as tier 1
+  (`planter`, `harvester`, `sprinkler`, `productRecipes(machine, pace)` in Blocks) and drawn
+  with tier 1's art until the art phase. A tier 2 sprinkler beats a tier 1 over the same crop
+  because the best speed counts.
+- **Buying with parts** checks level, the tool rule, room, every part and coins before taking
+  anything, then spends the coins, takes the parts and gives the machine without yielding. A
+  refusal names every part needed ("You need 2 Circuit and 2 Copper Wire."). The shop row shows
+  the parts in its `Stock` label and the button reads "Need parts" until you carry them all.
+- **The planter's patch** is now data (`plantSize`), so the panel shows each tier's real size.
+- **Playtested** in "farming game": the Smelter smelting with coal; the Workbench making Gears,
+  Copper Wire and a Circuit; the "Need parts" row and refusal; and buying Sprinkler II, which
+  took the coins and every part. A smelter whose outlet faces a machine it doesn't line up
+  with keeps its bars waiting on its belt; nothing is lost.
 
 Placeholder art until phase 5: the current machine models stand in for the new machines (Seed
 Planter = Sapling Automatic Planter, Harvester = Industrial Flower Picker, Shipping Bin =

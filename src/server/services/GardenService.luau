@@ -107,17 +107,24 @@ local function refusal(player: Player, stall: string): string?
 	return nil
 end
 
-local function carries(player: Player, itemId: string): boolean
-	local slots = InventoryService.snapshot(player)
-	if not slots then
-		return false
-	end
-	for _, stack in slots do
+local function countOf(player: Player, itemId: string): number
+	local count = 0
+	for _, stack in InventoryService.snapshot(player) or Inventory.emptySlots() do
 		if stack and stack.itemId == itemId then
-			return true
+			count += stack.count
 		end
 	end
-	return false
+	return count
+end
+
+-- "4 Gear and 2 Steel Frame": the parts an offer needs, in words.
+local function partsText(parts: { [string]: number }): string
+	local names = {}
+	for itemId, count in parts do
+		table.insert(names, `{count} {Inventory.getItem(itemId).name}`)
+	end
+	table.sort(names)
+	return if #names > 1 then table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names] else names[1]
 end
 
 -- Why a Gear or Machine Shop purchase can't go ahead, or nil once it is paid for.
@@ -126,12 +133,26 @@ local function buyOffer(player: Player, offer: Shops.Offer, count: number): stri
 	local economy = EconomyService.get(player)
 	if not economy or economy.level < offer.level then
 		return `Reach level {offer.level} to buy this.`
-	elseif item.kind == "Tool" and (count ~= 1 or carries(player, offer.itemId)) then
+	elseif item.kind == "Tool" and (count ~= 1 or countOf(player, offer.itemId) > 0) then
 		return `You already have a {item.name}.`
 	elseif not InventoryService.canGive(player, offer.itemId, count) then
 		return "Your inventory is full."
-	elseif not EconomyService.trySpend(player, offer.price * count) then
+	end
+	local parts = offer.parts or {}
+	local needed: { [string]: number } = {}
+	for itemId, each in parts do
+		needed[itemId] = each * count
+	end
+	for itemId, amount in needed do
+		if countOf(player, itemId) < amount then
+			return `You need {partsText(needed)}.`
+		end
+	end
+	if not EconomyService.trySpend(player, offer.price * count) then
 		return "You need more coins."
+	end
+	for itemId, amount in needed do
+		InventoryService.take(player, itemId, amount)
 	end
 	InventoryService.give(player, offer.itemId, count)
 	return nil

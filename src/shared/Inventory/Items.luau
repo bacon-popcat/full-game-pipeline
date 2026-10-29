@@ -117,7 +117,14 @@ local ITEMS: { Item } = {
 	machine("Merger", "Merger", "Merges the conveyors at its back and front into the one at its side."),
 	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
 
-	machine("IndustrialSmelter", "Industrial Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
+	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal.", nil, "IndustrialSmelter"),
+	machine(
+		"Workbench",
+		"Workbench",
+		"Makes gears, copper wire, circuits and steel frames from bars.",
+		nil,
+		"CopperPress"
+	),
 	machine(
 		"SeedPlanter",
 		"Seed Planter",
@@ -143,6 +150,28 @@ local ITEMS: { Item } = {
 	),
 	machine("Oven", "Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie.", nil, "IndustrialOven"),
 	machine("CratePacker", "Crate Packer", "Packs 10 of any crop into its crate, worth more than the crops alone."),
+	machine(
+		"SeedPlanterTier2",
+		"Seed Planter II",
+		"Plants a seed a second into empty soil, 5 wide and 7 deep, in front of it.",
+		nil,
+		"SaplingAutomaticPlanter"
+	),
+	machine(
+		"SprinklerTier2",
+		"Sprinkler II",
+		"Crops within 5 cells grow half again as fast, and come out Wet more often.",
+		nil,
+		"Sprinkler"
+	),
+	machine(
+		"HarvesterTier2",
+		"Harvester II",
+		"Harvests ripe crops within 6 cells, twice as fast, and replants the ones that need it.",
+		nil,
+		"IndustrialFlowerPicker"
+	),
+	machine("MillTier2", "Mill II", "Grinds wheat into flour twice as fast.", nil, "IndustrialSawmill"),
 	machine(
 		"ShippingBin",
 		"Shipping Bin",

@@ -1,10 +1,18 @@
 --!strict
--- Shops: what the Gear Shop and Machine Shop sell, at what price and from what level. Seed
+-- Shops: what the Gear Shop and Machine Shop sell, at what price, from what level and, for tier 2
+-- machines, for which Workbench parts (Shared/Factory/Products) as well as coins. Seed
 -- prices belong to World.CROPS and seed stock to GardenService. These two shops never run
 -- out; a tool can't be bought while you carry one. Each shop is a hub stall (Hub.STALLS)
 -- of the same name, and its title is what the shop window shows.
 
-export type Offer = { itemId: string, price: number, level: number, category: string }
+export type Offer = {
+	itemId: string,
+	price: number,
+	level: number,
+	category: string,
+	-- Taken from the buyer's inventory along with the coins.
+	parts: { [string]: number }?,
+}
 export type Shop = { title: string, offers: { Offer } }
 
 local CATEGORY_COLORS: { [string]: Color3 } = {
@@ -13,10 +21,17 @@ local CATEGORY_COLORS: { [string]: Color3 } = {
 	Conveyor = Color3.fromRGB(170, 190, 215),
 	Router = Color3.fromRGB(190, 175, 220),
 	Machine = Color3.fromRGB(225, 196, 130),
+	Crafting = Color3.fromRGB(214, 160, 128),
 }
 
-local function offer(itemId: string, price: number, level: number, category: string): Offer
-	return { itemId = itemId, price = price, level = level, category = category }
+local function offer(
+	itemId: string,
+	price: number,
+	level: number,
+	category: string,
+	parts: { [string]: number }?
+): Offer
+	return { itemId = itemId, price = price, level = level, category = category, parts = parts }
 end
 
 local SHOPS: { [string]: Shop } = {
@@ -61,6 +76,12 @@ local SHOPS: { [string]: Shop } = {
 			offer("Juicer", 4000, 8, "Machine"),
 			offer("CratePacker", 6000, 9, "Machine"),
 			offer("Oven", 8000, 10, "Machine"),
+			offer("SeedPlanterTier2", 4000, 8, "Machine", { Gear = 4, SteelFrame = 2 }),
+			offer("SprinklerTier2", 5000, 9, "Machine", { Circuit = 2, CopperWire = 2 }),
+			offer("MillTier2", 6000, 10, "Machine", { Gear = 4, SteelFrame = 1 }),
+			offer("HarvesterTier2", 10000, 12, "Machine", { Circuit = 4, SteelFrame = 2 }),
+			offer("Workbench", 400, 3, "Crafting"),
+			offer("Smelter", 500, 3, "Crafting"),
 		},
 	},
 }

@@ -27,6 +27,8 @@ export type Offer = {
 	order: number,
 	stock: number?,
 	level: number?,
+	-- Workbench parts spent with the coins (tier 2 machines).
+	parts: { [string]: number }?,
 }
 type Row = {
 	offer: Offer,
@@ -46,14 +48,27 @@ local rowTemplate: Frame? = nil
 local buyOffer: (string, number) -> () = function(_: string, _: number) end
 local pending = false
 
-local function carries(itemId: string): boolean
+local function countOf(itemId: string): number
+	local count = 0
 	for index = 1, Inventory.SLOT_COUNT do
 		local stack = InventoryClient.getSlot(index)
 		if stack and stack.itemId == itemId then
-			return true
+			count += stack.count
 		end
 	end
-	return false
+	return count
+end
+
+-- "+ 4 Gear, 2 Steel Frame", and whether this player carries them all.
+local function partsOf(offer: Offer): (string, boolean)
+	local names, enough = {}, true
+	local parts: { [string]: number } = offer.parts or {}
+	for itemId, count in parts do
+		table.insert(names, `{count} {Inventory.getItem(itemId).name}`)
+		enough = enough and countOf(itemId) >= count
+	end
+	table.sort(names)
+	return if #names > 0 then "+ " .. table.concat(names, ", ") else "", enough
 end
 
 local function render()
@@ -62,12 +77,18 @@ local function render()
 		local offer = row.offer
 		local locked = offer.level ~= nil and economy.level < offer.level
 		local soldOut = offer.stock == 0
-		local owned = Inventory.getItem(offer.itemId).kind == "Tool" and carries(offer.itemId)
-		local enabled = not pending and not locked and not soldOut and not owned and economy.coins >= offer.price
+		local owned = Inventory.getItem(offer.itemId).kind == "Tool" and countOf(offer.itemId) > 0
+		local parts, hasParts = partsOf(offer)
+		local enabled = not pending
+			and not locked
+			and not soldOut
+			and not owned
+			and hasParts
+			and economy.coins >= offer.price
 		row.stock.Text = if offer.stock
 			then (if offer.stock > 0 then `x{offer.stock}` else "Sold out")
 			elseif locked then `Lv {offer.level}`
-			else ""
+			else parts
 		row.buy.Active = enabled
 		row.buy.Selectable = enabled
 		row.buy.BackgroundTransparency = if enabled
@@ -82,6 +103,7 @@ local function render()
 			elseif owned then "Owned"
 			elseif soldOut then "Sold out"
 			elseif economy.coins < offer.price then "Need coins"
+			elseif not hasParts then "Need parts"
 			else "Buy"
 	end
 end
@@ -201,7 +223,8 @@ function Shop.init(hud: ScreenGui)
 		table.insert(seedOffers, offer)
 		seedById[crop.seed] = offer
 	end
-	local categories: { [string]: number } = { Tool = 1, Block = 2, Conveyor = 1, Router = 2, Machine = 3 }
+	local categories: { [string]: number } =
+		{ Tool = 1, Block = 2, Conveyor = 1, Router = 2, Machine = 3, Crafting = 4 }
 	local function catalogue(stall: string)
 		local shop = Shops.SHOPS[stall]
 		local offers: { Offer } = if shop then {} else seedOffers
@@ -213,6 +236,7 @@ function Shop.init(hud: ScreenGui)
 				color = Shops.CATEGORY_COLORS[each.category],
 				order = categories[each.category] * 100 + each.level,
 				level = each.level,
+				parts = each.parts,
 			})
 		end
 		restock.Visible = shop == nil

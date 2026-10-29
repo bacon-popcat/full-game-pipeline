@@ -35,11 +35,14 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   interpolate with Lane. A machine starts a job only when its outputs fit.
 - **Queued input can bypass an unwanted item.** A machine checks up to twelve queued items,
   including through a Merger. Other routers decide per item.
-- **Only Industrial Smelter burns fuel.** It consumes coal while working and smelts iron or
+- **Only the Smelter burns fuel.** It consumes coal while working and smelts iron or
   copper ore. Farm machines and processors run without fuel.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
-  the Industrial Smelter until Phase 4. They are bought in the Machine Shop (economy.md).
+  the Smelter and Workbench for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
+  Harvester (bigger reach, faster). All are bought in the Machine Shop (economy.md); tier 2
+  ones also cost Workbench parts. Tier 2 defs come from the same constructors as tier 1 in
+  Blocks, so a tier differs only in its numbers.
 - **Borrowed art.** A machine with no template of its own names one in its item's `art`
   (Shared/Inventory/Items): the Harvester draws the Industrial Flower Picker, the Shipping Bin
   the Teleseller, and so on. `ItemArt.blockTemplate` is the one place that resolves it, so
@@ -72,7 +75,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 `Shared/Factory/Products` owns every processed product: its inputs, machine, batch time,
 value and borrowed art. Items makes the product items from it and Blocks the recipes, so a
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
-Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate.
+Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
+crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
 Processing accepts mixtures of plain and mutated inputs, outputs plain products, shares
 input capacity across variants and refunds exact variants when an active job is saved or
 picked up. The picker sources the current mutated item and checks the full yield fits

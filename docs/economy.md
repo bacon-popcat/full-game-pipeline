@@ -73,8 +73,11 @@ catalogue (`HubWindow.bind` takes a list of stalls and tells the screen which on
 Shop shows stock and the restock countdown; the Gear Shop and Machine Shop
 (`Shared/Economy/Shops`: price, unlock level and category per item) never run out. A row's
 `Rarity` label shows the rarity or category, `Stock` shows stock or "Lv N" while locked, and
-the button reads Buy, Need coins, Locked, Owned (a tool you carry) or Sold out. The server
-rechecks level, ownership, coins, room and reach. Rows sort by rarity or category and level,
+the button reads Buy, Need coins, Locked, Owned (a tool you carry) or Sold out. A tier 2 machine
+also costs Workbench parts: its row lists them in `Stock` ("+ 4 Gear, 2 Steel Frame") and the
+button reads "Need parts" until you carry them all. The server rechecks level, ownership,
+room, every part, coins and reach before changing anything, then takes coins and parts and
+gives the machine in one step. Rows sort by rarity or category and level,
 then price. No price is
 sent back as authority. Sell previews the held-stack and whole-inventory totals.
 

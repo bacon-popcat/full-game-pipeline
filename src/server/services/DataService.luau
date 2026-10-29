@@ -122,6 +122,7 @@ local RENAMED: { [string]: string } = {
 	FoodProcessor = "Juicer",
 	IndustrialOven = "Oven",
 	CratePackerTier2 = "CratePacker",
+	IndustrialSmelter = "Smelter",
 }
 
 local function renameCounts(counts: any)

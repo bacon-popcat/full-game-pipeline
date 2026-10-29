@@ -114,8 +114,8 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		if def.produce and def.produce.radius then
 			add("Reach", `{def.produce.radius} cells around`)
 		end
-		if def.plantArea then
-			add("Plants", "3 wide, 5 deep in front")
+		if def.plantSize then
+			add("Plants", `{def.plantSize.width} wide, {def.plantSize.depth} deep in front`)
 		end
 		local slots = model:GetAttribute("Slots")
 		if def.stores and typeof(slots) == "number" then
