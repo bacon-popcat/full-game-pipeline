@@ -175,7 +175,22 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline.
+   `IslandsMachines/build` pipeline. *In progress:* the nine new crops are done (below); the
+   machines, stalls, plots and props are next.
+
+### Art progress
+
+- **Crops (done).** Strawberry, Tomato, Corn, Blueberry, Pumpkin, Apple, Watermelon, Grape and
+  Starfruit: four stages and a produce item each, 45 models, about 52k triangles in all (the
+  heaviest, ripe grapes, is 5.6k). Built in `IslandsMachines/build/garden.py` with new soft
+  helpers (`blob`, `lathe`, `striped`, `leaf`, `on_dome`) on top of assets.py's. Each crop has
+  its own silhouette: a low strawberry rosette, a staked tomato vine, tall corn, a cloud-like
+  blueberry bush, a sprawling pumpkin, a little apple tree, a striped melon, an arched grape
+  trellis and a slender teal starfruit with pale gold stars. Every stage fits one cell.
+  Imported as the GardenWorld and GardenItems sets, so the Islands sets never re-import. Their
+  Apple and Blueberry items replace the Islands ones.
+- The importer counts the finish script's Hitbox as a part, so a full re-import of an already
+  finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.
 
 ### Foundation implementation decisions

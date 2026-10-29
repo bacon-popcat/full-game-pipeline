@@ -112,8 +112,15 @@ subtle, and is disabled for reduced motion. Rain rate also decreases with reduce
 
 ## Art and client effects
 
+All twelve crops have their own art: Wheat, Carrot and Potato from `assets.py`, and the nine
+the Garden loop added from `IslandsMachines/build/garden.py` (four stages, the produce item and,
+through the finish script, each sprout copied as its seeds' block). They live in their own
+showcase sets, `GardenWorld` and `GardenItems`, imported with `studio_import.luau` (SET) and
+finished with `studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit,
+since it regrows on it; Ripe adds the fruit. Fruit, Vine, Stake and Glow parts don't collide.
+
 `Shared/ItemArt` owns block/seed/produce lookup; Build delegates to it. An authored template
-wins. Otherwise the crop table's `art` names Wheat, Carrot or Potato: clone that seed/produce
+wins, so the tint fallback below now only covers a crop added before its art. Otherwise the crop table's `art` names Wheat, Carrot or Potato: clone that seed/produce
 and tint non-Hitbox parts with the crop colour. WorldService's node-art lookup does the same
 for stages. Expected fallbacks do not warn; a missing fallback base still uses the existing
 placeholder warning. Mutated item icons, hands, drops and belt items use base produce art
