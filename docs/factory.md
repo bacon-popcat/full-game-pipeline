@@ -52,7 +52,15 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   placed and shows its fluid once sap or syrup has moved through its network; a network keeps
   it while a tree or a boiler still feeds it, so a tube added to a running line fills at once.
   The Sap Boiler and Syrup Bottler draw their tube ends at tube height on a cell's centre line,
-  flush with the hitbox face, so a tube placed there lines up.
+  flush with the hitbox face, so a tube placed there lines up. To change level, a line goes
+  Ascend (level in, up out), Verticals, then Descend (down in, level out). The Ascend and Descend
+  each take their level tube at floor height, and all three upright logs share one width.
+  A drop is the same stack fed from the top. A Wood Tube Vertical also joins any level tube
+  beside it whose opening faces it (`sides` in `Blocks`). FactoryService then opens that side
+  and puts a clone of the `WoodTubeInlet` art (a short trough from the face into the log,
+  made in the place file like the other block art) in the vertical's model, as an `Inlet`
+  child. The inlet's fluid shows and hides with the tube, and it goes away when the level
+  tube does. Verticals never join each other sideways.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or

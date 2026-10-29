@@ -93,6 +93,10 @@ export type Block = {
 	-- through it (it shows its fluid only then).
 	openings: { Vector3 },
 	filled: boolean,
+	-- Tubes with `sides` (the vertical): the level directions they open toward right now, and
+	-- the inlet art drawn on each, keyed by direction.
+	sides: { Vector3 },
+	inlets: { [string]: Model },
 	env: Machine.Env?,
 }
 
@@ -102,6 +106,9 @@ local STATUS_EVERY = 0.25
 -- that grew or were chopped).
 local TUBE_EVERY = 0.5
 local TUBE_REBUILD_EVERY = 5
+-- The trough drawn on a vertical tube's side where a level tube joins it (Assets.Blocks).
+local INLET = "WoodTubeInlet"
+local LEVEL = { Vector3.xAxis, -Vector3.xAxis, Vector3.zAxis, -Vector3.zAxis }
 -- Seconds a sensor powers the split conveyors touching it.
 local PULSE = 1
 -- Seconds a sensor's light curtain shows after an item passes.
@@ -611,8 +618,8 @@ local function isTube(block: Block?): boolean
 	return block ~= nil and block.def.kind == "Tube"
 end
 
-local function hasOpening(block: Block, direction: Vector3): boolean
-	for _, opening in block.openings do
+local function opensToward(openings: { Vector3 }, direction: Vector3): boolean
+	for _, opening in openings do
 		if opening:Dot(direction) > 0.9 then
 			return true
 		end
@@ -620,10 +627,68 @@ local function hasOpening(block: Block, direction: Vector3): boolean
 	return false
 end
 
+local function hasOpening(block: Block, direction: Vector3): boolean
+	return opensToward(block.openings, direction) or opensToward(block.sides, direction)
+end
+
 local function setFluidVisible(block: Block, visible: boolean)
+	local transparency = if visible then 0 else 1
 	local fluid = block.model:FindFirstChild(`Mesh_{block.itemId}_Fluid`)
 	if fluid and fluid:IsA("BasePart") then
-		fluid.Transparency = if visible then 0 else 1
+		fluid.Transparency = transparency
+	end
+	for _, inlet in block.inlets do
+		local inletFluid = inlet:FindFirstChild(`Mesh_{INLET}_Fluid`)
+		if inletFluid and inletFluid:IsA("BasePart") then
+			inletFluid.Transparency = transparency
+		end
+	end
+end
+
+-- The inlet art turned to face `direction` from the tube's cell, inside its model.
+local function addInlet(block: Block, direction: Vector3): Model?
+	local template = Build.getTemplate(INLET)
+	local authored = if template then Factory.originFrame(template) else nil
+	local inlet = Build.copyArt(INLET)
+	if not template or not authored or not inlet then
+		return nil
+	end
+	-- The inlet is drawn running in from the authored frame's -Z face, like the tube's own art.
+	local target = CFrame.lookAlong(block.frame.Position, direction)
+	inlet:PivotTo(target * authored:ToObjectSpace(inlet:GetPivot()))
+	for _, part in inlet:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+		end
+	end
+	local fluid = inlet:FindFirstChild(`Mesh_{INLET}_Fluid`)
+	if fluid and fluid:IsA("BasePart") then
+		fluid.Transparency = if block.filled then 0 else 1
+	end
+	inlet.Name = "Inlet"
+	inlet.Parent = block.model
+	return inlet
+end
+
+-- Opens a `sides` tube toward each level tube beside it that opens onto it, and draws an
+-- inlet trough on each of those sides (removing the ones no longer joined).
+local function updateSides(block: Block)
+	table.clear(block.sides)
+	local wanted: { [string]: boolean } = {}
+	for _, direction in LEVEL do
+		local other = blockAt(tubeCell(block) + direction)
+		if other and isTube(other) and not other.def.sides and opensToward(other.openings, -direction) then
+			table.insert(block.sides, direction)
+			local key = tostring(direction)
+			wanted[key] = true
+			block.inlets[key] = block.inlets[key] or addInlet(block, direction)
+		end
+	end
+	for key, inlet in block.inlets do
+		if not wanted[key] then
+			inlet:Destroy()
+			block.inlets[key] = nil
+		end
 	end
 end
 
@@ -655,9 +720,15 @@ end
 -- Regroups the tubes into networks, with the machines and maple trees each one touches.
 -- Tubes show fluid only once some has run through their network (sendFluid), so a new line
 -- starts empty; a network keeps it while something still feeds it, so a tube added to a
--- running line fills at once and a cut-off piece empties.
+-- running line fills at once and a cut-off piece empties. Vertical tubes first join the level
+-- tubes beside them.
 local function rebuildTubes()
 	table.clear(networks)
+	for _, block in blocks do
+		if isTube(block) and block.def.sides then
+			updateSides(block)
+		end
+	end
 	local seen: { [Block]: boolean } = {}
 	for _, start in blocks do
 		if not isTube(start) or seen[start] then
@@ -670,7 +741,11 @@ local function rebuildTubes()
 			local tube = queue[#queue]
 			queue[#queue] = nil
 			table.insert(network.tubes, tube)
-			for _, direction in tube.openings do
+			local directions = table.clone(tube.openings)
+			for _, side in tube.sides do
+				table.insert(directions, side)
+			end
+			for _, direction in directions do
 				local cell = tubeCell(tube) + direction
 				local other = blockAt(cell)
 				local node = WorldService.nodeAt(cell)
@@ -891,6 +966,8 @@ local function register(model: Instance)
 		pulseUntil = 0,
 		openings = {},
 		filled = false,
+		sides = {},
+		inlets = {},
 		env = nil,
 	}
 	model:SetAttribute("BlockId", block.id)

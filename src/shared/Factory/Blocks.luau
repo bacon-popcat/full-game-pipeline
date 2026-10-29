@@ -94,6 +94,9 @@ export type Def = {
 	tubes: boolean?,
 	-- Tube: the faces it opens onto, as outward normals.
 	openings: { Vector3 }?,
+	-- Tube: also opens toward each level tube beside it that opens onto it, drawing an inlet
+	-- trough (the inlet block's art) on that side.
+	sides: boolean?,
 }
 
 local function v(x: number, y: number, z: number): Vector3
@@ -234,7 +237,7 @@ local BLOCKS: { [string]: Def } = {
 	WoodTubeMerger = tube({ v(-1, 0, 0), v(1, 0, 0), v(0, 0, -1) }),
 	WoodTubeAscend = tube({ v(0, 0, -1), v(0, 1, 0) }),
 	WoodTubeDescend = tube({ v(0, 0, -1), v(0, -1, 0) }),
-	WoodTubeVertical = tube({ v(0, -1, 0), v(0, 1, 0) }),
+	WoodTubeVertical = { kind = "Tube", openings = { v(0, -1, 0), v(0, 1, 0) }, sides = true },
 
 	Drill = {
 		kind = "Machine",
