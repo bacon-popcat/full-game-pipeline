@@ -175,9 +175,9 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline. *In progress:* the nine new crops and the five farm
-   machines are done (below); the processors, routers and conveyors, stalls, plots and props
-   are next.
+   `IslandsMachines/build` pipeline. *In progress:* the nine new crops, the five farm machines
+   and the six processors are done (below); conveyors and routers, stalls, plots and props are
+   next.
 
 ### Art progress
 
@@ -199,7 +199,14 @@ Git history keeps all of it.
   ends at a soft arch the finish script measures as a 1.1-stud port. The planter's patch is
   now centred on its own axis (Blocks `plantPatch`). Playtested: harvester -> shipping bin
   through the new ports, and the planter sowing onto the bed.
-- The importer counts the finish script's Hitbox as a part, so a full re-import of an already
+- **Processors (done).** Mill (a windmill on a mill house), Juicer (a glass jug of juice), Oven
+  (a terracotta dome with a glowing mouth), Crate Packer (a gantry press over a crate), Smelter
+  (a stone kiln with a glowing window and a coal basket) and Workbench (a wooden bench with a
+  vise, gear, hammer and copper bars), in `garden_machines.py` as the GardenProcessors set.
+  Each takes items in at -Z and puts products out at +Z, so each is one cell wide and three
+  deep, with a belt and arch at both ends (1.1-stud ports). Mill II draws the Mill.
+  Playtested: wheat -> Mill -> Flour riding straight into a Shipping Bin.
+- - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.
 

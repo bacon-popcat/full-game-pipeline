@@ -135,7 +135,17 @@ end
 function PlotService.init()
 	build()
 	-- Remove only the live showcases; authored templates and the place file stay untouched.
-	for _, name in { "IslandsMachines", "IslandsWorld", "IslandsItems", "GardenWorld", "GardenItems", "GardenMachines" } do
+	for _, name in
+		{
+			"IslandsMachines",
+			"IslandsWorld",
+			"IslandsItems",
+			"GardenWorld",
+			"GardenItems",
+			"GardenMachines",
+			"GardenProcessors",
+		}
+	do
 		local showcase = workspace:FindFirstChild(name)
 		if showcase then
 			showcase:Destroy()

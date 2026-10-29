@@ -117,14 +117,8 @@ local ITEMS: { Item } = {
 	machine("Merger", "Merger", "Merges the conveyors at its back and front into the one at its side."),
 	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
 
-	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal.", nil, "IndustrialSmelter"),
-	machine(
-		"Workbench",
-		"Workbench",
-		"Makes gears, copper wire, circuits and steel frames from bars.",
-		nil,
-		"CopperPress"
-	),
+	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
+	machine("Workbench", "Workbench", "Makes gears, copper wire, circuits and steel frames from bars."),
 	machine(
 		"SeedPlanter",
 		"Seed Planter",
@@ -136,15 +130,9 @@ local ITEMS: { Item } = {
 		"Harvester",
 		"Harvests ripe crops within 4 cells onto its output belt, and replants the ones that need it."
 	),
-	machine("Mill", "Mill", "Grinds 2 wheat into flour.", nil, "IndustrialSawmill"),
-	machine(
-		"Juicer",
-		"Juicer",
-		"Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice.",
-		nil,
-		"FoodProcessor"
-	),
-	machine("Oven", "Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie.", nil, "IndustrialOven"),
+	machine("Mill", "Mill", "Grinds 2 wheat into flour."),
+	machine("Juicer", "Juicer", "Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice."),
+	machine("Oven", "Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie."),
 	machine("CratePacker", "Crate Packer", "Packs 10 of any crop into its crate, worth more than the crops alone."),
 	machine(
 		"SeedPlanterTier2",
@@ -167,7 +155,7 @@ local ITEMS: { Item } = {
 		nil,
 		"Harvester"
 	),
-	machine("MillTier2", "Mill II", "Grinds wheat into flour twice as fast.", nil, "IndustrialSawmill"),
+	machine("MillTier2", "Mill II", "Grinds wheat into flour twice as fast.", nil, "Mill"),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine(
 		"StorageChest",
