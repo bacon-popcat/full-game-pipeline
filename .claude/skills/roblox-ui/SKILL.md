@@ -11,8 +11,8 @@ description: >
 # Roblox UI
 
 Implement deliberate, editable Roblox UI that preserves the experience's visual language and
-works across supported devices. Targets Roblox's rolling platform APIs. Pair with `game-ui-ux`
-for engine-neutral information architecture and UX; this skill owns Roblox Instances and APIs.
+works across supported devices. Targets Roblox's rolling platform APIs. Pair with `game-feel`
+for feedback and flow; this skill owns Roblox Instances and APIs.
 
 ## When to use
 
@@ -21,8 +21,33 @@ for engine-neutral information architecture and UX; this skill owns Roblox Insta
 - Use to replace brittle pixel layouts, runtime-created Instance tangles, mouse-only menus, or
   generic generated styling with a maintainable hierarchy.
 
-**When not to use:** general UX flow and accessibility principles belong to `game-ui-ux`; raw
-gameplay action mapping belongs to `input-systems`; server trust belongs to `roblox-networking`.
+**When not to use:** what an action should feel like belongs to `game-feel`; key bindings
+belong in `client/libraries/Controls` (and `roblox-skills:roblox-input`); server trust belongs
+to `server-authority`.
+
+## This project
+
+Read `conventions.md` (UI) and the "What lives only in the place file" tables in
+`docs/inventory.md` and `docs/factory.md` first. They override the generic structure below.
+
+- **The look is Sol's RNG and the screens are Islands.** Use near-black gradient panels, thin
+  light strokes, white L-shaped corner brackets and the Sarpanch font (Bold for titles). Lay
+  screens out for Islands-style play (hotbar plus backpack, a machine panel that takes the
+  backpack's place). Ask before borrowing one of Sol's layouts. Sarpanch Bold draws a colon
+  as one dot, and the glyphs ◂ ▸ ✕ don't render, so use an image or a plain letter.
+- **The HUD is authored in the place file** (`StarterGui.HUD`) and isn't in git or
+  `default.project.json`. Bind to what's authored and clone row and cell templates from
+  `ReplicatedStorage.Assets.UI.<Consumer>`; don't `Instance.new` a hierarchy. Look children
+  up with `FindFirstChild` and warn instead of throwing. Read starting sizes and scales from
+  the instances; never hardcode them.
+- **Code shape**: screens are modules under `client/controllers/UIController/` (`InventoryScreen`,
+  `MachinePanel`, `BlockInfo`), started by `ModuleLoader` with the HUD passed in, not a
+  LocalScript inside the ScreenGui. Buttons go through `libraries/UI.bindButton`, and hint
+  text through `libraries/Controls` (one string per `PreferredInput`).
+- Status words come from one formatter (`libraries/BlockText`), so hover and panel text agree.
+- `conventions.md` also describes a `Tooltip` library and a `Lighting.set/clear` arbiter for
+  blur and FOV. Neither exists in this repo yet, so when a screen needs one, build it to that
+  contract instead of hand-rolling a one-off.
 
 ## Workflow
 
@@ -241,10 +266,11 @@ Animate a panel or state boundary once. Do not independently bounce every descen
 
 ## Related skills
 
-- `game-ui-ux` — information hierarchy, screen flow, accessibility, and UX validation.
-- `input-systems` — gameplay action mapping and device switching.
-- `roblox-networking` — server-authoritative requests initiated by UI.
-- `roblox-studio-workflow` — Explorer-first editing and Studio verification.
+- `game-feel` — feedback, status wording, onboarding, and the polish checklist.
+- `inventory-hotbar` — the hotbar/backpack data model the inventory screen renders.
+- `server-authority` — server-checked requests started by the UI, and prediction.
+- `studio-playtest` — getting UI code into Studio and checking it at several viewports.
+- `roblox-skills:roblox-input` — gameplay action mapping and device switching.
 
 ## Primary references
 
