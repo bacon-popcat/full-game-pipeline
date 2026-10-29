@@ -64,6 +64,7 @@ type LaneState = {
 type Network = {
 	machines: { [Block]: boolean },
 	trees: { [WorldService.Node]: boolean },
+	tubes: { Block },
 }
 
 export type Block = {
@@ -88,8 +89,10 @@ export type Block = {
 	filter: { [string]: boolean },
 	powered: boolean,
 	pulseUntil: number,
-	-- Tubes: outward world directions of the openings.
+	-- Tubes: outward world directions of the openings, and whether sap or syrup has run
+	-- through it (it shows its fluid only then).
 	openings: { Vector3 },
+	filled: boolean,
 	env: Machine.Env?,
 }
 
@@ -624,8 +627,35 @@ local function setFluidVisible(block: Block, visible: boolean)
 	end
 end
 
--- Regroups the tubes into networks, with the machines and maple trees each one touches,
--- and shows a tube's sap only when every opening of it is connected.
+-- Whether anything on the network puts fluid into it: a tapped maple tree, or a machine
+-- that makes a fluid.
+local function hasSource(network: Network): boolean
+	if next(network.trees) then
+		return true
+	end
+	for block in network.machines do
+		for _, recipe in block.def.recipes or {} do
+			if recipe.fluidOut then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+local function setFilled(network: Network, filled: boolean)
+	for _, tube in network.tubes do
+		if tube.filled ~= filled then
+			tube.filled = filled
+			setFluidVisible(tube, filled)
+		end
+	end
+end
+
+-- Regroups the tubes into networks, with the machines and maple trees each one touches.
+-- Tubes show fluid only once some has run through their network (sendFluid), so a new line
+-- starts empty; a network keeps it while something still feeds it, so a tube added to a
+-- running line fills at once and a cut-off piece empties.
 local function rebuildTubes()
 	table.clear(networks)
 	local seen: { [Block]: boolean } = {}
@@ -633,33 +663,36 @@ local function rebuildTubes()
 		if not isTube(start) or seen[start] then
 			continue
 		end
-		local network: Network = { machines = {}, trees = {} }
+		local network: Network = { machines = {}, trees = {}, tubes = {} }
 		local queue = { start }
 		seen[start] = true
 		while #queue > 0 do
 			local tube = queue[#queue]
 			queue[#queue] = nil
-			local connected = 0
+			table.insert(network.tubes, tube)
 			for _, direction in tube.openings do
 				local cell = tubeCell(tube) + direction
 				local other = blockAt(cell)
 				local node = WorldService.nodeAt(cell)
 				if other and isTube(other) and hasOpening(other, -direction) then
-					connected += 1
 					if not seen[other] then
 						seen[other] = true
 						table.insert(queue, other)
 					end
 				elseif other and other.def.tubes then
-					connected += 1
 					network.machines[other] = true
 				elseif node and World.getNode(node.nodeType).sap then
-					connected += 1
 					network.trees[node] = true
 				end
 			end
-			setFluidVisible(tube, connected == #tube.openings)
 		end
+		local filled = false
+		if hasSource(network) then
+			for _, tube in network.tubes do
+				filled = filled or tube.filled
+			end
+		end
+		setFilled(network, filled)
 		table.insert(networks, network)
 	end
 	-- Forget trees no tube touches any more, so chopped trees don't pile up here.
@@ -683,6 +716,7 @@ local function sendFluid(network: Network, fluid: string): boolean
 		local machine = block.machine
 		if machine and Machine.acceptsFluid(machine, fluid) then
 			Machine.addFluid(machine, fluid)
+			setFilled(network, true)
 			return true
 		end
 	end
@@ -856,6 +890,7 @@ local function register(model: Instance)
 		powered = false,
 		pulseUntil = 0,
 		openings = {},
+		filled = false,
 		env = nil,
 	}
 	model:SetAttribute("BlockId", block.id)
@@ -905,6 +940,9 @@ local function register(model: Instance)
 			block.openings,
 			Vector3.new(math.round(direction.X), math.round(direction.Y), math.round(direction.Z))
 		)
+	end
+	if def.kind == "Tube" then
+		setFluidVisible(block, false)
 	end
 	if def.sensor then
 		flash(block)

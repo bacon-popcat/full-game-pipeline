@@ -47,6 +47,12 @@ FactoryService (server)  -- every block in Workspace.Placed with a Shared/Factor
   that makes items has that belt; one whose belt runs clear through its art (berry basket,
   truffle barrel) gives its depth as `belt` in `Blocks`. Only the Drill, whose port collars sit
   at its faces, puts output straight off its face.
+- **Wood tubes join into networks.** A tube connects to a tube whose opening faces it, to any
+  face of a sap machine (`tubes` in `Blocks`), and to a maple tree. Each tube is empty when
+  placed and shows its fluid once sap or syrup has moved through its network; a network keeps
+  it while a tree or a boiler still feeds it, so a tube added to a running line fills at once.
+  The Sap Boiler and Syrup Bottler draw their tube ends at tube height on a cell's centre line,
+  flush with the hitbox face, so a tube placed there lines up.
 - **Fuel burns only while working.** Coal and petrified petroleum (or petroleum for planters,
   pickers and shakers) arrive by belt or by hand.
 - **Producers check the world when a job starts and again when it ends**, so a chopped tree or
