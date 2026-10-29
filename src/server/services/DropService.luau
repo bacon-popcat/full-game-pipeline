@@ -5,6 +5,8 @@
 -- a drop, and where a drop aimed at a block appears, are FactoryService's rules; it
 -- registers them through `setBelts`, so the two services never require each other. A drop
 -- nobody takes despawns after LIFETIME.
+-- Drops retain their owner even outside a plot; pickup and absorption cannot transfer
+-- them to another player's plot. DataService clears these transient items on departure.
 --
 -- A drop's root collides, so CanQuery can't hide it from spatial queries; placement, the
 -- aim and open belt ends skip Workspace.Drops by hand (Build.isLoose).
@@ -15,6 +17,7 @@ local RunService = game:GetService("RunService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
+local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local InventoryService = require(script.Parent.InventoryService)
 
@@ -27,6 +30,7 @@ type Drop = {
 	born: number,
 	-- The player who dropped it, if one did.
 	dropper: Player?,
+	owner: number,
 }
 
 -- Seconds an untouched drop lasts.
@@ -91,12 +95,29 @@ local function onTouched(drop: Drop, hit: BasePart)
 	if not player or not humanoid or humanoid.Health <= 0 then
 		return
 	end
+	if drop.owner ~= 0 and drop.owner ~= player.UserId then
+		return
+	end
+	local cell =
+		Vector3.new(math.floor(drop.root.Position.X / Build.GRID), 0, math.floor(drop.root.Position.Z / Build.GRID))
+	if Plot.at(cell) and not Build.canEdit(player, cell, Vector3.one) then
+		return
+	end
 	local left = InventoryService.give(player, drop.itemId, drop.count)
 	use(drop, drop.count - left)
 end
 
 -- A physical item in the world at `cframe`, moving at `velocity`, and who dropped it.
 function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, count: number?, dropper: Player?)
+	local position = cframe.Position / Build.GRID
+	local index = Plot.at(Vector3.new(math.floor(position.X), 0, math.floor(position.Z)))
+	local plots = workspace:FindFirstChild("Plots")
+	local plot = if index and plots then plots:FindFirstChild(tostring(index)) else nil
+	local owner = if dropper then dropper.UserId else if plot then plot:GetAttribute("Owner") else 0
+	if typeof(owner) ~= "number" then
+		owner = 0
+	end
+	dropper = dropper or Players:GetPlayerByUserId(owner)
 	local model = ItemArt.copy(itemId) or Instance.new("Model")
 	model.Name = itemId
 	local box, size = model:GetBoundingBox()
@@ -129,8 +150,15 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 	model:PivotTo(cframe)
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("Count", count or 1)
-	local drop: Drop =
-		{ itemId = itemId, count = count or 1, model = model, root = root, born = os.clock(), dropper = dropper }
+	local drop: Drop = {
+		itemId = itemId,
+		count = count or 1,
+		model = model,
+		root = root,
+		born = os.clock(),
+		dropper = dropper,
+		owner = owner,
+	}
 	drops[model] = drop
 	model.Parent = folder
 	root:SetNetworkOwner(nil)
@@ -205,6 +233,12 @@ local function onDrop(player: Player, onto: unknown)
 		return
 	end
 	lastAction[player] = now
+	if typeof(onto) == "Instance" and onto:IsA("Model") then
+		local origin = onto:GetAttribute("Origin")
+		if typeof(origin) ~= "Vector3" or not Build.canEdit(player, origin, Vector3.one) then
+			return
+		end
+	end
 	local above = aboveBelt(root, onto)
 	if InventoryService.takeHeld(player, held, 1) < 1 then
 		return
@@ -214,6 +248,14 @@ local function onDrop(player: Player, onto: unknown)
 	else
 		local facing = root.CFrame.Rotation
 		DropService.spawn(held, root.CFrame * CFrame.new(0, 0, -DROP_DISTANCE), facing * TOSS, 1, player)
+	end
+end
+
+function DropService.clear(player: Player)
+	for _, drop in drops do
+		if drop.owner == player.UserId then
+			remove(drop)
+		end
 	end
 end
 

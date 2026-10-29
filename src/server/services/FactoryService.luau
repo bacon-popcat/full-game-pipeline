@@ -1,9 +1,9 @@
 -- FactoryService: runs every placed factory block (Shared/Factory). It registers a block
 -- when it lands in Workspace.Placed, connects it to its neighbours by their ports, and
 -- every frame moves items along lanes, through router hubs and into and out of machines.
--- Wood tubes form networks that carry sap and syrup between maple trees, sap boilers and
--- syrup bottlers. A Wood Tube joins the tube it is placed against and shapes itself to what
--- it joins (straight, corner, vertical or an elbow up or down), redrawn with that shape's art.
+-- Interactions require the owning loaded plot; sources, ports, sensors and caught drops
+-- stay within that plot. Snapshot/restore preserves counts and settings without duplicating
+-- runtime identities. Registration is idempotent and can run before init during profile load.
 -- Players work machines only through their panel (load, collect, take
 -- back), and take belt items and switch routers by hand, all through Interact.
 --
@@ -37,7 +37,7 @@ local Factory = require(ReplicatedStorage.Shared.Factory)
 local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
-local World = require(ReplicatedStorage.Shared.World)
+local Plot = require(ReplicatedStorage.Shared.Plot)
 local Machine = require(ServerScriptService.Libraries.Machine)
 local DropService = require(script.Parent.DropService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -64,12 +64,6 @@ type LaneState = {
 	version: number,
 }
 
-type Network = {
-	machines: { [Block]: boolean },
-	trees: { [WorldService.Node]: boolean },
-	tubes: { Block },
-}
-
 export type Block = {
 	id: number,
 	model: Model,
@@ -92,32 +86,11 @@ export type Block = {
 	filter: { [string]: boolean },
 	powered: boolean,
 	pulseUntil: number,
-	-- Tubes: outward world directions of the openings, and whether sap or syrup has run
-	-- through it (it shows its fluid only then).
-	openings: { Vector3 },
-	filled: boolean,
-	-- Auto tubes (WoodTube): the directions it is joined to (at most two), and the art it is
-	-- drawn with now ("<art>/<quarter turns>").
-	links: { Vector3 },
-	shape: string?,
 	env: Machine.Env?,
 }
 
 -- Seconds between machine status refreshes.
 local STATUS_EVERY = 0.25
--- Seconds between wood tube rounds, and between full network rebuilds (which catch trees
--- that grew or were chopped).
-local TUBE_EVERY = 0.5
-local TUBE_REBUILD_EVERY = 5
--- The shapes an auto tube takes: art in Assets.Blocks and its openings in its authored frame.
--- A tube is drawn with the first whose openings, turned some quarter turns, are its ends.
-local TUBE_SHAPES = {
-	{ art = "WoodTube", openings = { -Vector3.zAxis, Vector3.zAxis } },
-	{ art = "WoodTubeCorner", openings = { -Vector3.zAxis, Vector3.xAxis } },
-	{ art = "WoodTubeAscend", openings = { -Vector3.zAxis, Vector3.yAxis } },
-	{ art = "WoodTubeDescend", openings = { -Vector3.zAxis, -Vector3.yAxis } },
-	{ art = "WoodTubeVertical", openings = { -Vector3.yAxis, Vector3.yAxis } },
-}
 -- Seconds a sensor powers the split conveyors touching it.
 local PULSE = 1
 -- Seconds a sensor's light curtain shows after an item passes.
@@ -181,8 +154,6 @@ local dirty: { [LaneState]: boolean } = {}
 local cleared: { [string]: boolean } = {}
 -- Random routers decide once per item, so a blocked item doesn't flip-flop.
 local randomChoice: { [number]: number } = {}
-local networks: { Network } = {}
-local sapTimers: { [WorldService.Node]: number } = {}
 local lastAction: { [Player]: number } = {}
 -- Whether the cell past an unconnected port is empty, and when (os.clock()) that was seen.
 local openCache: { [Factory.Port]: { open: boolean, checked: number } } = setmetatable({}, { __mode = "k" }) :: any
@@ -192,12 +163,9 @@ local graces: { [number]: { dropper: Player, expires: number } } = {}
 local pickupTimer = 0
 local topology = 0
 local overlapParams = Build.newOverlapParams()
-local tubesStale = true
 local nextBlockId = 0
 local nextItemId = 0
 local statusTimer = 0
-local tubeTimer = 0
-local rebuildTimer = 0
 
 local function cellKey(cell: Vector3): string
 	return `{cell.X},{cell.Y},{cell.Z}`
@@ -242,13 +210,13 @@ local function addEntry(port: Factory.Port, entry: Entry)
 end
 
 -- The entry facing `port` at the same point, if a block offers one.
-local function connect(port: Factory.Port): Entry?
+local function connect(port: Factory.Port, origin: Vector3): Entry?
 	local list = entries[Factory.portKey(port.position)]
 	if not list then
 		return nil
 	end
 	for _, entry in list do
-		if entry.normal:Dot(port.normal) < -0.9 then
+		if entry.normal:Dot(port.normal) < -0.9 and Plot.same(origin, entry.block.origin) then
 			return entry
 		end
 	end
@@ -261,7 +229,7 @@ local function laneTarget(lane: LaneState): Entry?
 		return nil
 	end
 	if lane.version ~= topology then
-		lane.target = connect(port)
+		lane.target = connect(port, lane.block.origin)
 		lane.version = topology
 	end
 	return lane.target
@@ -273,7 +241,7 @@ local function outputTarget(block: Block): Entry?
 		return nil
 	end
 	if block.outputVersion ~= topology then
-		block.outputTarget = connect(port)
+		block.outputTarget = connect(port, block.origin)
 		block.outputVersion = topology
 	end
 	return block.outputTarget
@@ -300,7 +268,7 @@ local function pulse(sensor: Block)
 	eachCell(sensor.origin, sensor.footprint, function(cell)
 		for _, offset in NEIGHBOURS do
 			local other = cellIndex[cellKey(cell + offset)]
-			if other and other ~= sensor and other.def.route == "Split" then
+			if other and other ~= sensor and other.def.route == "Split" and Plot.same(sensor.origin, other.origin) then
 				other.pulseUntil = poweredUntil
 			end
 		end
@@ -366,9 +334,11 @@ local function isOpen(port: Factory.Port): boolean
 end
 
 -- Sends an item flying off `port` at `speed` studs per second.
-local function throwOff(port: Factory.Port, speed: number, itemId: string)
+local function throwOff(block: Block, port: Factory.Port, speed: number, itemId: string)
 	local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
-	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT)
+	local userId = block.model:GetAttribute("Owner")
+	local owner = if typeof(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
+	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT, 1, owner)
 end
 
 -- The stretch of belt just inside a machine's input face, from the face inwards.
@@ -397,7 +367,7 @@ end
 local function catch(itemId: string, position: Vector3, dropper: Player?): boolean
 	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
 		local block = cellIndex[cellKey(cell)]
-		if not block then
+		if not block or not dropper or not Build.canEdit(dropper, block.origin, block.footprint) then
 			continue
 		end
 		for _, lane in block.lanes do
@@ -540,7 +510,7 @@ local function stepLanes(dt: number)
 			elseif not target and lane.exitPort and isOpen(lane.exitPort) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
-				throwOff(lane.exitPort, lane.def.speed, front.itemId)
+				throwOff(lane.block, lane.exitPort, lane.def.speed, front.itemId)
 			end
 		else
 			local out = routeOut(lane.block, front)
@@ -555,102 +525,42 @@ local function stepLanes(dt: number)
 	end
 end
 
-local function sourceNames(sources: { [string]: Factory.Source }, lookup: (string) -> string): string
-	local names = {}
-	for sourceType in sources do
-		table.insert(names, lookup(sourceType))
-	end
-	table.sort(names)
-	return table.concat(names, " or ")
-end
-
-local function withArticle(text: string): string
-	return if string.find(text, "^[AEIOU]") then `an {text}` else `a {text}`
-end
-
-local function nodeName(nodeType: string): string
-	return World.getNode(nodeType).name
-end
-
-local function animalName(animalType: string): string
-	return World.getAnimal(animalType).name
-end
-
-local function treeCellOf(block: Block): Vector3?
-	local treeCell = block.def.treeCell
-	return if treeCell then cellOf(block.frame:PointToWorldSpace(treeCell(block.ext))) else nil
-end
-
-local function treeNode(block: Block): WorldService.Node?
+-- Every source lookup and completed harvest stays inside the machine's plot.
+local function sourcesFor(block: Block): { WorldService.Node }
 	local produce = block.def.produce
-	local cell = treeCellOf(block)
-	local node = if cell then WorldService.nodeAt(cell) else nil
-	return if node and produce and produce.sources[node.nodeType] then node else nil
-end
-
--- What the world offers a producer right now, or nil and why not.
-local function findSource(block: Block): (Factory.Source?, string?)
-	local produce = block.def.produce
+	local found = {}
 	if not produce then
-		return nil, nil
+		return found
 	end
-	local sources = produce.sources
-	local radius = (produce.radius or 6) * Build.GRID
-	if produce.where == "Below" then
-		local below = block.origin - Vector3.yAxis
-		for x = 0, block.footprint.X - 1 do
-			for z = 0, block.footprint.Z - 1 do
-				local node = WorldService.nodeAt(below + Vector3.new(x, 0, z))
-				if node and sources[node.nodeType] then
-					return sources[node.nodeType], nil
-				end
-			end
-		end
-		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} below`
-	elseif produce.where == "Near" then
-		local node = WorldService.nodesNear(centreOf(block), radius, sources)[1]
-		if node then
-			return sources[node.nodeType], nil
-		end
-		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} nearby`
-	elseif produce.where == "Tree" then
-		local node = treeNode(block)
-		if node then
-			return sources[node.nodeType], nil
-		end
-		return nil, `Needs {withArticle(sourceNames(sources, nodeName))} in front`
-	end
-	for _, animal in WorldService.animalsNear(centreOf(block), radius, sources) do
-		if WorldService.isFed(animal) then
-			return sources[animal.animalType], nil
+	for _, node in WorldService.nodesNear(centreOf(block), (produce.radius or 6) * Build.GRID, produce.sources) do
+		if Plot.same(block.origin, node.cell) then
+			table.insert(found, node)
 		end
 	end
-	return nil, `Needs a fed {sourceNames(sources, animalName)} nearby`
+	return found
+end
+
+local function plantCellOf(block: Block): Vector3?
+	local rule = block.def.plantCell
+	local cell = if rule then cellOf(block.frame:PointToWorldSpace(rule(block.ext))) else nil
+	return if cell and Plot.same(block.origin, cell) then cell else nil
 end
 
 local function envFor(block: Block): Machine.Env
-	local existing = block.env
-	if existing then
-		return existing
+	if block.env then
+		return block.env
 	end
 	local def = block.def
 	local env: Machine.Env = {}
 	if def.produce then
 		env.source = function()
-			return findSource(block)
-		end
-		env.chop = function()
-			local node = treeNode(block)
-			return if node then WorldService.chop(node) else nil
+			local node = sourcesFor(block)[1]
+			return if node and def.produce then def.produce.sources[node.nodeType] else nil,
+				"Needs a ripe crop nearby on this plot"
 		end
 		env.reap = function(source)
-			local produce = def.produce
-			if not produce then
-				return false
-			end
-			local radius = (produce.radius or 6) * Build.GRID
-			for _, node in WorldService.nodesNear(centreOf(block), radius, produce.sources) do
-				if produce.sources[node.nodeType] == source and WorldService.reap(node) then
+			for _, node in sourcesFor(block) do
+				if def.produce and def.produce.sources[node.nodeType] == source and WorldService.reap(node) then
 					return true
 				end
 			end
@@ -659,17 +569,12 @@ local function envFor(block: Block): Machine.Env
 	end
 	if def.plants then
 		env.canPlant = function(itemId)
-			local cell = treeCellOf(block)
+			local cell = plantCellOf(block)
 			return cell ~= nil and WorldService.canPlant(cell, itemId)
 		end
 		env.plant = function(itemId)
-			local cell = treeCellOf(block)
+			local cell = plantCellOf(block)
 			return cell ~= nil and WorldService.plant(cell, itemId)
-		end
-	end
-	if def.feeds then
-		env.feed = function(food)
-			return WorldService.feedNear(centreOf(block), (def.feedRadius or 6) * Build.GRID, food)
 		end
 	end
 	block.env = env
@@ -700,311 +605,7 @@ local function stepMachines(dt: number)
 			Machine.popOutput(machine)
 		elseif itemId and port and not target and isOpen(port) then
 			Machine.popOutput(machine)
-			throwOff(port, MACHINE_THROW, itemId)
-		end
-	end
-end
-
-local function blockAt(cell: Vector3): Block?
-	return cellIndex[cellKey(cell)]
-end
-
-local function tubeCell(block: Block): Vector3
-	return block.origin
-end
-
-local function isTube(block: Block?): boolean
-	return block ~= nil and block.def.kind == "Tube"
-end
-
-local function opensToward(openings: { Vector3 }, direction: Vector3): boolean
-	for _, opening in openings do
-		if opening:Dot(direction) > 0.9 then
-			return true
-		end
-	end
-	return false
-end
-
-local function hasOpening(block: Block, direction: Vector3): boolean
-	return opensToward(block.openings, direction)
-end
-
-local function setFluidVisible(block: Block, visible: boolean)
-	for _, part in block.model:GetChildren() do
-		if part:IsA("BasePart") and string.sub(part.Name, -6) == "_Fluid" then
-			part.Transparency = if visible then 0 else 1
-		end
-	end
-end
-
-local function isAuto(block: Block?): boolean
-	return block ~= nil and block.def.auto == true
-end
-
-local function axis(vector: Vector3): Vector3
-	return Vector3.new(math.round(vector.X), math.round(vector.Y), math.round(vector.Z))
-end
-
--- An auto tube's two ends: its links, and for a missing one the end straight across from
--- the other (with no links, both ends along the way it was placed facing).
-local function tubeEnds(block: Block): { Vector3 }
-	local links = block.links
-	if #links >= 2 then
-		return table.clone(links)
-	elseif #links == 1 then
-		return { links[1], -links[1] }
-	end
-	local along = axis(block.frame.LookVector)
-	return { along, -along }
-end
-
-local function shapeFor(ends: { Vector3 }): (string, number)
-	for _, shape in TUBE_SHAPES do
-		for turns = 0, 3 do
-			local turn = CFrame.Angles(0, turns * math.pi / 2, 0)
-			local matches = true
-			for _, opening in shape.openings do
-				if not opensToward(ends, axis(turn:VectorToWorldSpace(opening))) then
-					matches = false
-					break
-				end
-			end
-			if matches then
-				return shape.art, turns
-			end
-		end
-	end
-	return TUBE_SHAPES[1].art, 0
-end
-
--- Replaces the tube's art with `art` turned `turns` quarter turns about its cell, keeping
--- its Hitbox (the model stays the WoodTube block it was placed as).
-local function drawTube(block: Block, art: string, turns: number)
-	local template = Build.getTemplate(art)
-	local authored = if template then Factory.originFrame(template) else nil
-	local copy = Build.copyArt(art)
-	if not authored or not copy then
-		return
-	end
-	for _, child in block.model:GetChildren() do
-		if child:IsA("BasePart") and child ~= block.model.PrimaryPart then
-			child:Destroy()
-		end
-	end
-	local target = CFrame.new(block.frame.Position) * CFrame.Angles(0, turns * math.pi / 2, 0)
-	copy:PivotTo(target * authored:ToObjectSpace(copy:GetPivot()))
-	for _, part in copy:GetChildren() do
-		if part:IsA("BasePart") then
-			part.Anchored = true
-			part.Parent = block.model
-		end
-	end
-	copy:Destroy()
-	setFluidVisible(block, block.filled)
-end
-
--- Works out an auto tube's openings from its links and redraws it when its shape changed.
-local function reshape(block: Block)
-	block.openings = tubeEnds(block)
-	local art, turns = shapeFor(block.openings)
-	local shape = `{art}/{turns}`
-	if block.shape ~= shape then
-		block.shape = shape
-		drawTube(block, art, turns)
-	end
-	tubesStale = true
-end
-
--- Whether `other` takes a tube joining it from `direction` (pointing from it toward the
--- tube): an auto tube with an end to spare, a fixed tube opening that way, or a sap machine.
-local function accepts(other: Block, direction: Vector3): boolean
-	if isAuto(other) then
-		return #other.links < 2 and not opensToward(other.links, direction)
-	elseif isTube(other) then
-		return opensToward(other.openings, direction)
-	end
-	return other.def.tubes == true
-end
-
--- A new auto tube joins what it was placed against (`against` points from that block to
--- it) when that can take it: on top of a tube it goes up from it, beside one it turns
--- off it. Then it joins any neighbouring tube whose spare end already points at it,
--- until both its ends are used.
-local function joinTube(block: Block, against: Vector3?)
-	local cell = tubeCell(block)
-	local function join(direction: Vector3)
-		if #block.links >= 2 or opensToward(block.links, direction) then
-			return
-		end
-		local other = blockAt(cell + direction)
-		local node = WorldService.nodeAt(cell + direction)
-		if other and other ~= block and accepts(other, -direction) then
-			table.insert(block.links, direction)
-			if isAuto(other) then
-				table.insert(other.links, -direction)
-				reshape(other)
-			end
-		elseif not other and node and World.getNode(node.nodeType).sap then
-			table.insert(block.links, direction)
-		end
-	end
-	if against then
-		join(-against)
-	end
-	for _, direction in NEIGHBOURS do
-		local other = blockAt(cell + direction)
-		if other and isTube(other) and opensToward(other.openings, -direction) then
-			join(direction)
-		end
-	end
-	reshape(block)
-end
-
--- A removed auto tube lets go of the auto tubes it was joined to, which reshape.
-local function leaveTube(block: Block)
-	for _, direction in block.links do
-		local other = blockAt(tubeCell(block) + direction)
-		if other and isAuto(other) then
-			local index = table.find(other.links, -direction)
-			if index then
-				table.remove(other.links, index)
-				reshape(other)
-			end
-		end
-	end
-end
-
--- Whether anything on the network puts fluid into it: a tapped maple tree, or a machine
--- that makes a fluid.
-local function hasSource(network: Network): boolean
-	if next(network.trees) then
-		return true
-	end
-	for block in network.machines do
-		for _, recipe in block.def.recipes or {} do
-			if recipe.fluidOut then
-				return true
-			end
-		end
-	end
-	return false
-end
-
-local function setFilled(network: Network, filled: boolean)
-	for _, tube in network.tubes do
-		if tube.filled ~= filled then
-			tube.filled = filled
-			setFluidVisible(tube, filled)
-		end
-	end
-end
-
--- Regroups the tubes into networks, with the machines and maple trees each one touches.
--- Tubes show fluid only once some has run through their network (sendFluid), so a new line
--- starts empty; a network keeps it while something still feeds it, so a tube added to a
--- running line fills at once and a cut-off piece empties.
-local function rebuildTubes()
-	table.clear(networks)
-	local seen: { [Block]: boolean } = {}
-	for _, start in blocks do
-		if not isTube(start) or seen[start] then
-			continue
-		end
-		local network: Network = { machines = {}, trees = {}, tubes = {} }
-		local queue = { start }
-		seen[start] = true
-		while #queue > 0 do
-			local tube = queue[#queue]
-			queue[#queue] = nil
-			table.insert(network.tubes, tube)
-			for _, direction in tube.openings do
-				local cell = tubeCell(tube) + direction
-				local other = blockAt(cell)
-				local node = WorldService.nodeAt(cell)
-				if other and isTube(other) and hasOpening(other, -direction) then
-					if not seen[other] then
-						seen[other] = true
-						table.insert(queue, other)
-					end
-				elseif other and other.def.tubes then
-					network.machines[other] = true
-				elseif node and World.getNode(node.nodeType).sap then
-					network.trees[node] = true
-				end
-			end
-		end
-		local filled = false
-		if hasSource(network) then
-			for _, tube in network.tubes do
-				filled = filled or tube.filled
-			end
-		end
-		setFilled(network, filled)
-		table.insert(networks, network)
-	end
-	-- Forget trees no tube touches any more, so chopped trees don't pile up here.
-	for tree in sapTimers do
-		local tapped = false
-		for _, network in networks do
-			if network.trees[tree] then
-				tapped = true
-				break
-			end
-		end
-		if not tapped then
-			sapTimers[tree] = nil
-		end
-	end
-	tubesStale = false
-end
-
-local function sendFluid(network: Network, fluid: string): boolean
-	for block in network.machines do
-		local machine = block.machine
-		if machine and Machine.acceptsFluid(machine, fluid) then
-			Machine.addFluid(machine, fluid)
-			setFilled(network, true)
-			return true
-		end
-	end
-	return false
-end
-
-local function stepTubes(dt: number)
-	rebuildTimer += dt
-	if tubesStale or rebuildTimer >= TUBE_REBUILD_EVERY then
-		rebuildTimer = 0
-		rebuildTubes()
-	end
-	tubeTimer += dt
-	if tubeTimer < TUBE_EVERY then
-		return
-	end
-	local elapsed = tubeTimer
-	tubeTimer = 0
-	-- A tree touching several networks still fills once per tick; any of them can take it.
-	local advanced: { [WorldService.Node]: boolean } = {}
-	for _, network in networks do
-		for tree in network.trees do
-			local every = World.getNode(tree.nodeType).sap or math.huge
-			local timer = sapTimers[tree] or 0
-			if not advanced[tree] then
-				advanced[tree] = true
-				timer = math.min(timer + elapsed, every)
-			end
-			if timer >= every and sendFluid(network, "Sap") then
-				timer = 0
-			end
-			sapTimers[tree] = timer
-		end
-		-- A boiler's syrup goes on to whichever machine on the same tubes takes it.
-		for block in network.machines do
-			local machine = block.machine
-			local fluid = if machine then next(machine.fluidOut) else nil
-			if machine and fluid and sendFluid(network, fluid) then
-				Machine.takeFluid(machine)
-			end
+			throwOff(block, port, MACHINE_THROW, itemId)
 		end
 	end
 end
@@ -1040,11 +641,6 @@ local function refreshStatus(block: Block)
 		setAttribute(model, "Fuel", math.ceil(machine.fuel))
 		setAttribute(model, "Contents", encode(machine.inputs))
 		setAttribute(model, "Output", encode(countList(machine.outputs)))
-		local fluids = table.clone(machine.fluidIn)
-		for fluid, count in machine.fluidOut do
-			fluids[fluid] = (fluids[fluid] or 0) + count
-		end
-		setAttribute(model, "Fluid", encode(fluids))
 		setAttribute(model, "Progress", math.floor(Machine.progress(machine) * 10) / 10)
 		if block.def.sells then
 			setAttribute(model, "Sold", machine.sold)
@@ -1091,7 +687,6 @@ end
 local function step(dt: number)
 	stepLanes(dt)
 	stepMachines(dt)
-	stepTubes(dt)
 	statusTimer += dt
 	if statusTimer >= STATUS_EVERY then
 		statusTimer = 0
@@ -1140,10 +735,6 @@ local function register(model: Instance)
 		filter = {},
 		powered = false,
 		pulseUntil = 0,
-		openings = {},
-		filled = false,
-		links = {},
-		shape = nil,
 		env = nil,
 	}
 	model:SetAttribute("BlockId", block.id)
@@ -1187,26 +778,11 @@ local function register(model: Instance)
 	if def.output then
 		block.outputPort = Factory.facePort(frame, ext, def.output)
 	end
-	for _, opening in def.openings or {} do
-		local direction = frame:VectorToWorldSpace(opening)
-		table.insert(
-			block.openings,
-			Vector3.new(math.round(direction.X), math.round(direction.Y), math.round(direction.Z))
-		)
-	end
-	if def.auto then
-		local against = model:GetAttribute("Against")
-		joinTube(block, if typeof(against) == "Vector3" then against else nil)
-	end
-	if def.kind == "Tube" then
-		setFluidVisible(block, false)
-	end
 	if def.sensor then
 		flash(block)
 	end
 	blocks[model] = block
 	topology += 1
-	tubesStale = true
 end
 
 local function unregister(model: Instance)
@@ -1223,9 +799,6 @@ local function unregister(model: Instance)
 			cellIndex[cellKey(cell)] = nil
 		end
 	end)
-	if isAuto(block) then
-		leaveTube(block)
-	end
 	for key, list in entries do
 		for index = #list, 1, -1 do
 			if list[index].block == block then
@@ -1242,7 +815,83 @@ local function unregister(model: Instance)
 		cleared[lane.key] = true
 	end
 	topology += 1
-	tubesStale = true
+end
+
+function FactoryService.register(model: Model): boolean
+	register(model)
+	return blocks[model] ~= nil
+end
+
+function FactoryService.unregister(model: Model)
+	unregister(model)
+end
+
+-- Counts preserve the input/output boundary; active recipe inputs are refunded for restart.
+-- Belt counts restore to their original lane at legal spacing, with fresh runtime item ids.
+function FactoryService.snapshot(model: Model): Plot.Contents?
+	local block = blocks[model]
+	if not block then
+		return nil
+	end
+	local saved: Plot.Contents =
+		{ inputs = {}, outputs = {}, lanes = {}, fuel = 0, sold = 0, filter = {}, powered = block.powered }
+	for itemId in block.filter do
+		table.insert(saved.filter, itemId)
+	end
+	for _, lane in block.lanes do
+		local counts: Plot.Counts = {}
+		for _, item in lane.items do
+			counts[item.itemId] = (counts[item.itemId] or 0) + 1
+		end
+		table.insert(saved.lanes, counts)
+	end
+	local machine = block.machine
+	if machine then
+		saved.inputs = Machine.inputCounts(machine)
+		saved.outputs = countList(machine.outputs)
+		saved.fuel = machine.fuel
+		saved.sold = machine.sold
+	end
+	return saved
+end
+
+function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
+	register(model)
+	local block = blocks[model]
+	if not block then
+		return false
+	end
+	block.powered = saved.powered
+	for _, itemId in saved.filter do
+		block.filter[itemId] = true
+	end
+	for index, counts in saved.lanes do
+		local lane = block.lanes[index]
+		if not lane then
+			return false
+		end
+		local distance = lane.length
+		for itemId, count in counts do
+			for _ = 1, count do
+				table.insert(lane.items, { id = newItemId(), itemId = itemId, d = math.max(0, distance) })
+				distance -= Lane.SPACING
+			end
+		end
+		markDirty(lane)
+	end
+	local machine = block.machine
+	if machine then
+		machine.inputs = table.clone(saved.inputs)
+		for itemId, count in saved.outputs do
+			for _ = 1, count do
+				table.insert(machine.outputs, itemId)
+			end
+		end
+		machine.fuel = saved.fuel
+		machine.sold = saved.sold
+	end
+	refreshStatus(block)
+	return true
 end
 
 -- Everything a placed block holds -- items on its lanes, a machine's inputs and output --
@@ -1283,6 +932,9 @@ end
 -- it has room. An item counts when it is within PICKUP_RADIUS across the belt and the feet
 -- are on the belt or just above it, not on the floor beside it.
 local function pickUpFrom(player: Player, block: Block, feet: Vector3)
+	if not Build.canEdit(player, block.origin, block.footprint) then
+		return
+	end
 	for _, lane in block.lanes do
 		for index = #lane.items, 1, -1 do
 			local item = lane.items[index]
@@ -1440,7 +1092,13 @@ local function onInteract(player: Player, target: unknown, action: unknown, item
 	local block = blocks[target]
 	local root = rootOf(player)
 	local known = action == "Use" or action == "Take" or (typeof(action) == "string" and PANEL_ACTIONS[action])
-	if not block or not root or not known or not ready(player) then
+	if
+		not block
+		or not root
+		or not known
+		or not ready(player)
+		or not Build.canEdit(player, block.origin, block.footprint)
+	then
 		return
 	end
 	if not Build.inReach(root.Position, block.origin, block.footprint) then

@@ -107,7 +107,11 @@ local function apply(key: string, items: { Lane.Item }, t: number)
 	local view = viewFor(key)
 	if not view then
 		-- An empty lane with no block to show it on has nothing to wait for.
-		pending[key] = if #items > 0 then { items = items, t = t } else nil
+		if #items > 0 then
+			pending[key] = { items = items, t = t }
+		else
+			pending[key] = nil
+		end
 		return
 	end
 	pending[key] = nil

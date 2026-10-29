@@ -20,7 +20,8 @@ BuildService (server)  <--PlaceBlock / PickUpBlock-------------+
 ```
 
 - `Shared/Inventory` holds the slot shape and the move/add/take rules both sides run.
-- `Shared/Build` holds the 3-stud grid, footprints, reach and the overlap test both sides run.
+- `Shared/Build` holds the 3-stud grid, footprints, reach, ownership and overlap checks both sides run.
+- [plots.md](plots.md) maps profile loading, plot assignment, economy and saving.
 - `Shared/Remotes` names every RemoteEvent and documents its payload.
 - `client/libraries/Controls` owns every key binding and the hint text that names them.
 
@@ -35,9 +36,9 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 |---|---|
 | `StarterGui.HUD` | `Hotbar`, `Backpack` window, `DragGhost`, `ItemName`, `SideButtons.Backpack` |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage` |
-| `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): six cubes plus copies of the 53 `Workspace.IslandsMachines` models |
+| `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
 | Cube studs | Each building cube (Grass, Dirt, Stone, Bricks...) is Plastic with `TopSurface = Studs` (Roblox's built-in surface, which only draws on Plastic), Grow a Garden style; `IslandsMachines/build/studio_studs.luau` sets it, and nothing else is studded |
-| `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe`, `Axe` Tools |
+| `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe` Tools; the unused Axe template is harmless |
 
 The RemoteEvents are the exception: they are declared in `default.project.json`.
 
@@ -48,11 +49,11 @@ pivot. The hitbox is a box of whole 3-stud cells: its size is the footprint, and
 block fills the placement's cells with it. A cube is its own hitbox. A machine has an
 invisible, queryable, non-colliding part named `Hitbox` around its art. The art may poke out
 of the hitbox by up to 0.15 studs, which `Build`'s overlap margin allows for. The pivot sits
-on the floor at a convenient cell centre (the conveyor's, or under the drill column for the
-Drill); placement reads it relative to the hitbox, so where it sits never changes placement.
+on the floor at a convenient cell centre (the conveyor's, or under a machine column); placement reads it relative to the hitbox, so where it sits never changes placement.
 Machine parts collide with their exact shape.
 
-A placement is blocked by anything but a character (or a loose drop) inside its cells, and
+A placement must fit entirely inside the loaded player's own plot; the ghost uses the same
+check as the server and is red elsewhere. A placement is blocked by anything but a character (or a loose drop) inside its cells, and
 by a character only where the block's own colliding parts would clip them
 (`Build.clipsCharacter`, which tests a shrunken copy of the art). A player can stand in a
 machine's empty corner, or beside a conveyor's belt, and still place it.
@@ -73,10 +74,16 @@ That folder is outside git, and its README covers the rules.
    exactly the item id. A block also needs its hitbox `PrimaryPart` (above). The footprint
    comes from the hitbox, so no size is entered.
 
-What placed blocks do once they are down -- and what the Pickaxe, Axe and an empty hand do --
+What placed blocks do once they are down -- and what the Pickaxe and an empty hand do --
 is docs/factory.md.
 
-## Not built yet
+## Loading and saving
 
-- Persistence: inventories reset on join (everyone gets a full stack of every tool, block
-  and machine, but no resources) and placed blocks only last as long as the server.
+DataService supplies InventoryService's slots after locking the profile and restoring the plot.
+New profiles receive the starter kit defined in DataService; the old full test kit is gone.
+Inventory mutations wait for DataReady. InventoryService snapshots slots and releases its held
+Tool only after the final save snapshot. The selected slot resets to one on load.
+
+BuildService.place is shared by normal placement and profile restoration. It synchronously
+registers factories, while seeds go directly to WorldService.plant. Saved blocks retain item id,
+plot-relative cell, rotation, Against and factory contents. See [plots.md](plots.md).

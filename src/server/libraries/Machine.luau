@@ -3,8 +3,8 @@
 -- of where it stands. FactoryService feeds it items and asks the world for it through an
 -- Env; this module decides what it takes, when it works and what comes out.
 --
--- A machine holds items waiting to be used (`inputs`: ingredients, fuel, feed, saplings),
--- fluids, a queue of finished items waiting to leave (`outputs`), and at most one job.
+-- A machine holds items waiting to be used (`inputs`: ingredients, coal, seeds),
+-- a queue of finished items waiting to leave (`outputs`), and at most one job.
 -- Fuel burns only while a job runs, and a job only starts when its outputs will fit, so a
 -- backed-up machine stops cleanly instead of losing items. Capacities are per item and
 -- small, so a conveyor feeding a machine backs up rather than vanishing into it.
@@ -18,17 +18,11 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local OUTPUT_CAP = 8
 -- Fuel items a machine holds on top of what is burning.
 local FUEL_CAP = 16
--- Units of each fluid a machine holds.
-local FLUID_CAP = 6
-local FEED_CAP = 40
 local PLANT_CAP = 10
 local SELL_CAP = 10
 -- Seconds between a seller's sales.
 local SELL_EVERY = 1
 local NO_RECIPES: { Factory.Recipe } = {}
-local NO_DROPS: { [string]: number } = {}
--- Seconds between a trough's feeding rounds.
-local FEED_EVERY = 1
 
 export type Job = {
 	recipe: Factory.Recipe?,
@@ -41,8 +35,6 @@ export type State = {
 	def: Factory.Def,
 	inputs: { [string]: number },
 	outputs: { string },
-	fluidIn: { [string]: number },
-	fluidOut: { [string]: number },
 	-- Seconds of running left on the fuel burning now.
 	fuel: number,
 	job: Job?,
@@ -55,15 +47,11 @@ export type State = {
 export type Env = {
 	-- Producers: what the world offers this machine right now, or nil and why not.
 	source: (() -> (Factory.Source?, string?))?,
-	-- Tree cutters: chop the tree and return its drops.
-	chop: (() -> { [string]: number }?)?,
 	-- Pickers: reap a ripe crop near it that `source` comes from; returns whether it did.
 	reap: ((source: Factory.Source) -> boolean)?,
 	-- Planters: whether an item could be planted in the planting cell, and planting it there.
 	canPlant: ((itemId: string) -> boolean)?,
 	plant: ((itemId: string) -> boolean)?,
-	-- Troughs: feed up to `food` hungry animals; returns how many ate.
-	feed: ((food: number) -> number)?,
 }
 
 local Machine = {}
@@ -73,8 +61,6 @@ function Machine.new(def: Factory.Def): State
 		def = def,
 		inputs = {},
 		outputs = {},
-		fluidIn = {},
-		fluidOut = {},
 		fuel = 0,
 		job = nil,
 		timer = 0,
@@ -128,15 +114,9 @@ function Machine.room(state: State, itemId: string): number
 		local topUp = if held % stack > 0 then stack - held % stack else 0
 		return (def.stores - Machine.slotsUsed(state)) * stack + topUp
 	end
-	if def.passThrough then
-		return OUTPUT_CAP - #state.outputs
-	end
 	if def.sells then
 		local item = Inventory.getItem(itemId)
 		return if item.kind == "Resource" then SELL_CAP - total(state.inputs) else 0
-	end
-	if def.feeds then
-		return if def.feeds[itemId] then FEED_CAP - total(state.inputs) else 0
 	end
 	return math.max(0, capacity(def, itemId) - (state.inputs[itemId] or 0))
 end
@@ -147,42 +127,8 @@ function Machine.insert(state: State, itemId: string, count: number): number
 	if taken <= 0 then
 		return 0
 	end
-	if state.def.passThrough then
-		for _ = 1, taken do
-			table.insert(state.outputs, itemId)
-		end
-	else
-		state.inputs[itemId] = (state.inputs[itemId] or 0) + taken
-	end
+	state.inputs[itemId] = (state.inputs[itemId] or 0) + taken
 	return taken
-end
-
-function Machine.acceptsFluid(state: State, fluid: string): boolean
-	for _, recipe in state.def.recipes or NO_RECIPES do
-		if recipe.fluidIn == fluid then
-			return (state.fluidIn[fluid] or 0) < FLUID_CAP
-		end
-	end
-	return false
-end
-
-function Machine.addFluid(state: State, fluid: string)
-	state.fluidIn[fluid] = (state.fluidIn[fluid] or 0) + 1
-end
-
--- Removes one unit of a finished fluid waiting to leave, if there is one.
-function Machine.takeFluid(state: State): string?
-	for fluid, count in state.fluidOut do
-		if count > 0 then
-			if count > 1 then
-				state.fluidOut[fluid] = count - 1
-			else
-				state.fluidOut[fluid] = nil
-			end
-			return fluid
-		end
-	end
-	return nil
 end
 
 -- The next finished item waiting to leave, without removing it.
@@ -208,7 +154,7 @@ function Machine.takeOutputs(state: State): { [string]: number }
 	return counts
 end
 
--- Everything loaded and not used yet (ingredients, unlit fuel, feed, saplings, goods
+-- Everything loaded and not used yet (ingredients, unlit coal, seeds, goods
 -- waiting to sell), removed from the machine. The job in progress and the fuel burning
 -- now stay.
 function Machine.takeInputs(state: State): { [string]: number }
@@ -221,8 +167,12 @@ end
 function Machine.takeInput(state: State, itemId: string, count: number): number
 	local taken = math.min(count, state.inputs[itemId] or 0)
 	if taken > 0 then
-		local left = state.inputs[itemId] - taken
-		state.inputs[itemId] = if left > 0 then left else nil
+		local left = (state.inputs[itemId] or 0) - taken
+		if left > 0 then
+			state.inputs[itemId] = left
+		else
+			state.inputs[itemId] = nil
+		end
 	end
 	return taken
 end
@@ -235,11 +185,22 @@ function Machine.putBack(state: State, itemId: string, count: number)
 	end
 end
 
--- Everything a player gets back when they pick the machine up: inputs and outputs. A job
--- in progress and fluids are lost, as in Islands.
+-- Saving or picking up refunds an unfinished recipe; no partial product is minted.
+function Machine.inputCounts(state: State): { [string]: number }
+	local counts = table.clone(state.inputs)
+	if state.job and state.job.recipe then
+		for itemId, count in state.job.recipe.inputs do
+			addCounts(counts, itemId, count)
+		end
+	end
+	return counts
+end
+
+-- Everything a player gets back when they pick the machine up, removed from it.
 function Machine.drain(state: State): { [string]: number }
-	local counts = Machine.takeOutputs(state)
-	for itemId, count in state.inputs do
+	local counts = Machine.inputCounts(state)
+	state.job = nil
+	for itemId, count in Machine.takeOutputs(state) do
 		addCounts(counts, itemId, count)
 	end
 	table.clear(state.inputs)
@@ -290,14 +251,11 @@ local function hasInputs(state: State, recipe: Factory.Recipe): boolean
 			return false
 		end
 	end
-	return not recipe.fluidIn or (state.fluidIn[recipe.fluidIn] or 0) >= 1
+	return true
 end
 
 -- Whether a batch's products would fit beside what is already waiting to leave.
 local function hasRoom(state: State, recipe: Factory.Recipe): boolean
-	if recipe.fluidOut and (state.fluidOut[recipe.fluidOut] or 0) >= FLUID_CAP then
-		return false
-	end
 	return #state.outputs + outputCount(recipe) <= OUTPUT_CAP
 end
 
@@ -311,15 +269,6 @@ local function stepRecipes(state: State, dt: number)
 			if ready and hasRoom(state, recipe) then
 				for itemId, need in recipe.inputs do
 					take(state, itemId, need)
-				end
-				if recipe.fluidIn then
-					local fluid = recipe.fluidIn
-					local left = (state.fluidIn[fluid] or 0) - 1
-					if left > 0 then
-						state.fluidIn[fluid] = left
-					else
-						state.fluidIn[fluid] = nil
-					end
 				end
 				job = { recipe = recipe, time = recipe.time, elapsed = 0 }
 				state.job = job
@@ -343,9 +292,6 @@ local function stepRecipes(state: State, dt: number)
 			for _ = 1, count do
 				table.insert(state.outputs, itemId)
 			end
-		end
-		if recipe.fluidOut then
-			state.fluidOut[recipe.fluidOut] = (state.fluidOut[recipe.fluidOut] or 0) + 1
 		end
 		state.job = nil
 	end
@@ -380,7 +326,7 @@ local function stepProducer(state: State, dt: number, env: Env)
 		return
 	end
 	state.job = nil
-	-- The source can go while the job runs (a tree chopped, an animal wandered off).
+	-- A player may have harvested the crop while this job ran.
 	local source, why = findSource()
 	if not source then
 		state.status = why or "Idle"
@@ -391,11 +337,7 @@ local function stepProducer(state: State, dt: number, env: Env)
 		state.status = "Idle"
 		return
 	end
-	local chop = env.chop
 	local drops: { [string]: number } = { [source.item] = source.count or 1 }
-	if produce.cuts and chop then
-		drops = chop() or NO_DROPS
-	end
 	for itemId, count in drops do
 		for _ = 1, count do
 			table.insert(state.outputs, itemId)
@@ -421,7 +363,7 @@ local function stepPlanter(state: State, dt: number, env: Env)
 		end
 	end
 	if not chosen then
-		state.status = if held then "Its planting spot is taken or has no soil" else "Needs saplings or seeds"
+		state.status = if held then "Its planting spot is taken or has no soil" else "Needs seeds"
 		state.job = nil
 		return
 	end
@@ -462,30 +404,6 @@ local function stepSeller(state: State, dt: number)
 	end
 end
 
-local function stepFeeder(state: State, dt: number, env: Env)
-	local feed = env.feed
-	local food = total(state.inputs)
-	if not feed or food == 0 then
-		state.status = "Needs food"
-		return
-	end
-	state.status = "Feeding"
-	state.timer += dt
-	if state.timer < FEED_EVERY then
-		return
-	end
-	state.timer = 0
-	local eaten = feed(food)
-	while eaten > 0 do
-		local itemId = next(state.inputs)
-		if not itemId then
-			break
-		end
-		take(state, itemId, 1)
-		eaten -= 1
-	end
-end
-
 function Machine.step(state: State, dt: number, env: Env)
 	local def = state.def
 	if def.sells then
@@ -493,16 +411,12 @@ function Machine.step(state: State, dt: number, env: Env)
 	elseif def.stores then
 		local used = Machine.slotsUsed(state)
 		state.status = if used == 0 then "Empty" elseif used >= def.stores then "Full" else "Storing"
-	elseif def.feeds then
-		stepFeeder(state, dt, env)
 	elseif def.plants then
 		stepPlanter(state, dt, env)
 	elseif def.produce then
 		stepProducer(state, dt, env)
 	elseif def.recipes then
 		stepRecipes(state, dt)
-	elseif def.passThrough then
-		state.status = "Idle"
 	end
 end
 

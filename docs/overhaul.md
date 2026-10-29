@@ -160,7 +160,7 @@ Git history keeps all of it.
 
 ## Phases
 
-1. **Foundation.** Cut the content above; plots and ownership; coins, XP and levels; ProfileStore
+1. [x] **Foundation.** Cut the content above; plots and ownership; coins, XP and levels; ProfileStore
    saving inventory, coins and plots; offline growth.
 2. **Garden loop.** The crop table, multi-harvest plants, mutations, the Seed Shop with restocks,
    the Sell Stand, weather, and the HUD for coins, level and weather.
@@ -170,6 +170,37 @@ Git history keeps all of it.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
    `IslandsMachines/build` pipeline.
 6. **Polish.** Onboarding, sounds, VFX, balance.
+
+### Foundation implementation decisions
+
+- All plots face -Z and use identical relative farmland coordinates, so moving between rows
+  preserves soil under saved crops without rotating blocks or Against. Runtime fences are soft
+  (non-colliding); player spawn is in the hub. Builds occupy y 0..79. A seventh player is rejected
+  when no plot is available. Exact runtime layout and rules are mapped in [plots.md](plots.md).
+- XP is cumulative: level one starts at zero and advancing from level n costs the rounded
+  formula above. Foundation supplies the API, sync and leaderstats; harvest/sales awards, item
+  prices, the HUD and Teleseller currency payout remain with Garden loop / Automation.
+- Existing Wheat, Carrot and Potato yields and three transitions to Ripe are retained until
+  Garden loop; only the clock changes now. Machine reaping still restarts a Sprout. Saves retain
+  harvestCount and optional mutation, without adding multi-harvest behavior or mutation rolls.
+- Milk suppliers are cut, so the retained Food Processor temporarily uses 2 Wheat + 1 Carrot
+  for BerryDough; Oven still makes BerryBread. Crate Packer uses 20 Carrot or Wheat, and its
+  retained tier 2 uses 50. Product ids/art and timings remain. Apple/Blueberry item ids remain
+  for the later crops, but their old world suppliers are gone. These are transitional recipes.
+- Wood Planks now break with Pickaxe. The retained decorative blocks are the six in the Gear
+  Shop target; Smooth Stone and Stone Bricks leave with their processing chains. Gold and its
+  smelting recipe leave with deposits/alloys; CopperRock uses a copper-coloured placeholder.
+  Sawmill and Copper Press gameplay are cut now; their unused art remains for future placeholders.
+- The profile store is GardenFoundation_v1. Selected hotbar slot resets to one. Saves preserve
+  input/output counts separately, lane counts, fuel time, Sold and router settings. Active recipe
+  inputs are refunded for restart; job progress, sensor pulses and loose drops are not saved.
+  Lane order/positions are reconstructed. Only crops advance offline. A saved stack, block, crop
+  or machine's contents that no longer checks out (an item renamed or cut since) is skipped with
+  a warning, so content changes never lock a player out; only bad balances or a full server kick. Studio without API access
+  uses ProfileStore's built-in mock, which lasts only for the current server.
+- Source assets are untouched. PlotService removes only the live Workspace showcases (IslandsMachines, IslandsWorld, IslandsItems). Local
+  formatter/linter configuration was added because the referenced repo gate/config files were
+  absent. Runtime verification remains the Studio checklist in [plots.md](plots.md).
 
 Placeholder art until phase 5: the current machine models stand in for the new machines (Seed
 Planter = Sapling Automatic Planter, Harvester = Industrial Flower Picker, Shipping Bin =

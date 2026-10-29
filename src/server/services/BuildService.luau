@@ -3,21 +3,20 @@
 -- always comes from the player's own held slot (never from the request), and reach and
 -- overlap are re-checked against the server's world with the shared Build rules.
 --
--- Seeds place like blocks but only on soil (Shared/World/Soil); WorldService turns them into crops.
---
--- Placed blocks live in Workspace.Placed with ItemId, Owner (UserId), Origin and
--- Rotation attributes, and Against: the axis of the surface it was placed on, when that
--- was a unit axis (a wood tube joins the block there). Only the owner can take a block back: any block with the Hammer, or
--- a cube with the tool its item breaks with. Whatever a factory block held comes back
--- with it (FactoryService.drain); what doesn't fit in the inventory is lost. Not
--- persisted: placed blocks outlive their owner's session but not the server's.
+-- Whole footprints must belong to the player's plot. Seeds go directly to WorldService;
+-- blocks carry ItemId, Owner, Origin, Rotation and Against attributes. Profile restoration
+-- uses the same placement and synchronous factory registration path without consuming items.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local Factory = require(ReplicatedStorage.Shared.Factory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Plot = require(ReplicatedStorage.Shared.Plot)
+local World = require(ReplicatedStorage.Shared.World)
+local WorldService = require(script.Parent.WorldService)
 local Soil = require(ReplicatedStorage.Shared.World.Soil)
 local FactoryService = require(script.Parent.FactoryService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -61,6 +60,45 @@ local function ready(player: Player): boolean
 	return true
 end
 
+-- Trusted server entry point shared by interactive placement and profile restoration.
+-- The caller validates reach/overlap for an intent; restore validates saved content first.
+function BuildService.place(
+	player: Player,
+	itemId: string,
+	origin: Vector3,
+	rotation: number,
+	against: Vector3?
+): Model?
+	local template = Build.getTemplate(itemId)
+	local footprint = Build.footprint(itemId, rotation)
+	local pivot = Build.pivotFor(itemId, origin, rotation)
+	if not template or not footprint or not pivot or not Build.owns(player, origin, footprint) then
+		return nil
+	end
+	if World.PLANTS[itemId] then
+		WorldService.plant(origin, itemId)
+		return nil
+	end
+	local model = template:Clone()
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+		end
+	end
+	model:PivotTo(pivot)
+	model:SetAttribute("ItemId", itemId)
+	model:SetAttribute("Owner", player.UserId)
+	model:SetAttribute("Origin", origin)
+	model:SetAttribute("Rotation", rotation)
+	model:SetAttribute("Against", against)
+	model.Parent = placed
+	if Factory.get(itemId) and not FactoryService.register(model) then
+		model:Destroy()
+		return nil
+	end
+	return model
+end
+
 local function onPlace(player: Player, origin: unknown, rotation: unknown, against: unknown)
 	if typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
 		return
@@ -85,29 +123,30 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	if not template or not footprint or not pivot or not root then
 		return
 	end
-	if not Build.inReach(root.Position, origin, footprint) or not Build.isFree(origin, footprint, overlapParams) then
+	if
+		not Build.canEdit(player, origin, footprint)
+		or not Build.inReach(root.Position, origin, footprint)
+		or not Build.isFree(origin, footprint, overlapParams)
+	then
 		return
 	end
 	if Build.clipsCharacter(itemId, pivot) or not Soil.canPlant(itemId, origin) then
+		return
+	end
+	if Factory.get(itemId) and (not Factory.originFrame(template) or not Factory.extents(itemId)) then
 		return
 	end
 	if not InventoryService.consumeHeld(player, itemId) then
 		return
 	end
 
-	local model = template:Clone()
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.Anchored = true
+	if World.PLANTS[itemId] then
+		if not WorldService.plant(origin, itemId) then
+			InventoryService.give(player, itemId, 1)
 		end
+	elseif not BuildService.place(player, itemId, origin, rotation, side) then
+		InventoryService.give(player, itemId, 1)
 	end
-	model:PivotTo(pivot)
-	model:SetAttribute("ItemId", itemId)
-	model:SetAttribute("Owner", player.UserId)
-	model:SetAttribute("Origin", origin)
-	model:SetAttribute("Rotation", rotation)
-	model:SetAttribute("Against", side)
-	model.Parent = placed
 end
 
 local function onPickUp(player: Player, model: unknown)
@@ -129,17 +168,80 @@ local function onPickUp(player: Player, model: unknown)
 	end
 	local footprint = Build.footprint(itemId, rotation)
 	local root = rootOf(player)
-	if not footprint or not root or not Build.inReach(root.Position, origin, footprint) then
+	if
+		not footprint
+		or not root
+		or not Build.canEdit(player, origin, footprint)
+		or not Build.inReach(root.Position, origin, footprint)
+	then
 		return
 	end
 	if not InventoryService.canGive(player, itemId, 1) then
 		return
 	end
 	local contents = FactoryService.drain(model)
+	FactoryService.unregister(model)
 	model:Destroy()
 	InventoryService.give(player, itemId, 1)
 	for contentId, count in contents do
 		InventoryService.give(player, contentId, count)
+	end
+end
+
+function BuildService.snapshot(player: Player, index: number): { Plot.SavedBlock }
+	local saved: { Plot.SavedBlock } = {}
+	for _, model in placed:GetChildren() do
+		if not model:IsA("Model") or model:GetAttribute("Owner") ~= player.UserId then
+			continue
+		end
+		local origin = model:GetAttribute("Origin")
+		local itemId = model:GetAttribute("ItemId")
+		local rotation = model:GetAttribute("Rotation")
+		local against = model:GetAttribute("Against")
+		if typeof(origin) == "Vector3" and typeof(itemId) == "string" and typeof(rotation) == "number" then
+			table.insert(saved, {
+				itemId = itemId,
+				cell = Plot.pack(Plot.toRelative(index, origin)),
+				rotation = rotation,
+				against = if typeof(against) == "Vector3" then Plot.pack(against) else nil,
+				contents = FactoryService.snapshot(model),
+			})
+		end
+	end
+	return saved
+end
+
+function BuildService.restore(player: Player, index: number, saved: Plot.SavedBlock): boolean
+	local relative = Plot.unpack(saved.cell)
+	if not relative or not Build.isRotation(saved.rotation) then
+		return false
+	end
+	local origin = Plot.toWorld(index, relative)
+	local footprint = Build.footprint(saved.itemId, saved.rotation)
+	if
+		not footprint
+		or not Build.owns(player, origin, footprint)
+		or not Build.isFree(origin, footprint, overlapParams)
+	then
+		return false
+	end
+	local against = if saved.against then Plot.unpack(saved.against) else nil
+	if against and against.Magnitude ~= 1 then
+		return false
+	end
+	local model = BuildService.place(player, saved.itemId, origin, saved.rotation, against)
+	if not model then
+		return false
+	end
+	return not saved.contents or FactoryService.restore(model, saved.contents)
+end
+
+function BuildService.clear(player: Player)
+	for _, model in placed:GetChildren() do
+		if model:IsA("Model") and model:GetAttribute("Owner") == player.UserId then
+			FactoryService.unregister(model)
+			model:Destroy()
+		end
 	end
 end
 

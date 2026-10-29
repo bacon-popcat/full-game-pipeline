@@ -19,6 +19,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Plot = require(ReplicatedStorage.Shared.Plot)
 
 type Measure = {
 	footprint: Vector3,
@@ -41,6 +42,24 @@ local Build = {}
 Build.GRID = GRID
 -- Studs from the character's root to the nearest point of a target's box.
 Build.REACH = 30
+
+-- Ownership covers the entire footprint, including its last cell. The replicated plot
+-- owner is the authority on both sides; DataReady gates edits while a profile is loading.
+function Build.owns(player: Player, origin: Vector3, footprint: Vector3): boolean
+	local index = Plot.at(origin)
+	local plots = workspace:FindFirstChild("Plots")
+	local model = if index and plots then plots:FindFirstChild(tostring(index)) else nil
+	return index ~= nil
+		and model ~= nil
+		and model:GetAttribute("Owner") == player.UserId
+		and origin.Y >= 0
+		and origin.Y + footprint.Y <= Plot.HEIGHT
+		and Plot.contains(index, origin, footprint)
+end
+
+function Build.canEdit(player: Player, origin: Vector3, footprint: Vector3): boolean
+	return player:GetAttribute("DataReady") == true and Build.owns(player, origin, footprint)
+end
 
 local measures: { [string]: Measure } = {}
 -- A shrunken copy of each template's colliding art, kept out of the world, moved to a

@@ -5,7 +5,7 @@
 -- with it, so both put an item in the same place.
 --
 -- A block's authored frame comes from its hitbox's AuthoredOrigin attribute (set by the
--- Islands pipeline): its conveyor or tube runs down that frame's x = 0. Ports sit on
+-- Islands pipeline): its conveyor runs down that frame's x = 0. Ports sit on
 -- hitbox faces, so two blocks connect exactly when one's exit and the other's entry share
 -- a point and face each other.
 
@@ -13,8 +13,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
-local Blocks = require(script.Blocks)
-local Lane = require(script.Lane)
+local Blocks = require(ReplicatedStorage.Shared.Factory.Blocks)
+local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
 
 export type Def = Blocks.Def
 export type LaneDef = Blocks.LaneDef
@@ -90,17 +90,14 @@ end
 
 -- Studs from a machine's `face` to where its belt runs into the machine's port, from its
 -- template's hitbox (PortDepthBack / PortDepthFront, measured by the Islands pipeline's
--- studio_blocks.luau), or the def's `belt` where the belt runs clear through. Nil when the
+-- studio_blocks.luau). Nil when the
 -- face has no belt worth riding.
-local function portDepth(itemId: string, def: Def, face: Face): number?
+local function portDepth(itemId: string, face: Face): number?
 	local template = Build.getTemplate(itemId)
 	local hitbox = if template then template.PrimaryPart else nil
 	local depth = if hitbox
 		then hitbox:GetAttribute(if face == "+Z" then "PortDepthFront" else "PortDepthBack")
 		else nil
-	if typeof(depth) ~= "number" then
-		depth = def.belt
-	end
 	return if typeof(depth) == "number" and depth >= MIN_BELT then depth else nil
 end
 
@@ -131,11 +128,11 @@ function Factory.lanes(itemId: string): { LaneDef }
 	local ext = Factory.extents(itemId)
 	local result = if def and def.lanes and ext then def.lanes(ext) else {}
 	if def and ext then
-		local inDepth = if def.input then portDepth(itemId, def, def.input) else nil
+		local inDepth = if def.input then portDepth(itemId, def.input) else nil
 		if def.input and inDepth then
 			table.insert(result, machineBelt(ext, def.input, inDepth, true))
 		end
-		local outDepth = if def.output then portDepth(itemId, def, def.output) else nil
+		local outDepth = if def.output then portDepth(itemId, def.output) else nil
 		if def.output and outDepth then
 			table.insert(result, machineBelt(ext, def.output, outDepth, false))
 		end
@@ -182,7 +179,7 @@ end
 
 -- Whether a block would take `itemId` from a player's hand, ignoring how full it is. A
 -- filter takes anything (it sets the filter); a machine takes what a recipe uses, its
--- fuel, its feed, what it plants, and any resource if it sells.
+-- fuel, what it plants, and any resource if it sells.
 function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	local def = Blocks[blockItemId]
 	if not def then
@@ -194,11 +191,7 @@ function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	if def.kind ~= "Machine" then
 		return false
 	end
-	if
-		(def.fuel and def.fuel[itemId])
-		or (def.feeds and def.feeds[itemId])
-		or (def.plants and table.find(def.plants, itemId))
-	then
+	if (def.fuel and def.fuel[itemId]) or (def.plants and table.find(def.plants, itemId)) then
 		return true
 	end
 	if def.sells and Inventory.getItem(itemId).kind == "Resource" then

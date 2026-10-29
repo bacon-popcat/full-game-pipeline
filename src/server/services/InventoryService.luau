@@ -7,11 +7,9 @@
 -- separately, `refreshHeld` re-derives the hand after anything that can change that
 -- slot, swapping the Tool only when the item actually changed.
 --
--- Not persisted: a player starts with one full stack of every tool, block and machine (a
--- test kit) and loses it all on leaving. Resources are never handed out: they come from
--- the world (WorldService) and the machines (FactoryService).
+-- DataService supplies slots after opening the profile and snapshots them before release.
+-- Player-facing mutations and grants wait for DataReady; this service never grants a test kit.
 
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
@@ -68,7 +66,7 @@ end
 -- The item in the player's hand, or nil.
 function InventoryService.getHeldItemId(player: Player): string?
 	local state = states[player]
-	return if state then selectedItemId(state) else nil
+	return if state and player:GetAttribute("DataReady") == true then selectedItemId(state) else nil
 end
 
 -- Uses up one of the held item if the hand still holds `itemId`. Returns whether it did.
@@ -120,7 +118,7 @@ end
 
 function InventoryService.canGive(player: Player, itemId: string, count: number): boolean
 	local state = states[player]
-	return state ~= nil and Inventory.canAdd(state.slots, itemId, count)
+	return player:GetAttribute("DataReady") == true and state ~= nil and Inventory.canAdd(state.slots, itemId, count)
 end
 
 -- Whether all of `counts` fits together, so a multi-item drop is given whole or not at all.
@@ -132,7 +130,7 @@ end
 -- Adds items to the player's inventory. Returns how many did not fit.
 function InventoryService.give(player: Player, itemId: string, count: number): number
 	local state = states[player]
-	if not state then
+	if not state or player:GetAttribute("DataReady") ~= true then
 		return count
 	end
 	local left = Inventory.add(state.slots, itemId, count)
@@ -144,6 +142,9 @@ function InventoryService.give(player: Player, itemId: string, count: number): n
 end
 
 local function onMove(player: Player, from: unknown, to: unknown)
+	if player:GetAttribute("DataReady") ~= true then
+		return
+	end
 	local state = states[player]
 	if not state or typeof(from) ~= "number" or typeof(to) ~= "number" then
 		return
@@ -155,6 +156,9 @@ local function onMove(player: Player, from: unknown, to: unknown)
 end
 
 local function onSelect(player: Player, index: unknown)
+	if player:GetAttribute("DataReady") ~= true then
+		return
+	end
 	local state = states[player]
 	if not state or typeof(index) ~= "number" then
 		return
@@ -166,18 +170,15 @@ local function onSelect(player: Player, index: unknown)
 	sync(player, state)
 end
 
-local function onPlayerAdded(player: Player)
-	local slots = Inventory.emptySlots()
-	for _, item in Inventory.ITEMS do
-		if item.kind ~= "Resource" then
-			Inventory.add(slots, item.id, item.stack)
-		end
-	end
+function InventoryService.load(player: Player, slots: Inventory.Slots)
 	local state: State = { slots = slots, selected = 1, held = nil, heldItemId = nil }
 	states[player] = state
 
 	local function onCharacter(character: Model)
 		character:WaitForChild("Humanoid")
+		if states[player] ~= state then
+			return
+		end
 		refreshHeld(player, state)
 	end
 	player.CharacterAdded:Connect(onCharacter)
@@ -187,7 +188,7 @@ local function onPlayerAdded(player: Player)
 	sync(player, state)
 end
 
-local function onPlayerRemoving(player: Player)
+function InventoryService.release(player: Player)
 	local state = states[player]
 	if state and state.held then
 		state.held:Destroy()
@@ -195,14 +196,22 @@ local function onPlayerRemoving(player: Player)
 	states[player] = nil
 end
 
+function InventoryService.snapshot(player: Player): Inventory.Slots?
+	local state = states[player]
+	if not state then
+		return nil
+	end
+	local slots = Inventory.emptySlots()
+	for index = 1, Inventory.SLOT_COUNT do
+		local stack = Inventory.stackAt(state.slots, index)
+		slots[index] = if stack then table.clone(stack) else false
+	end
+	return slots
+end
+
 function InventoryService.init()
 	Remotes.InventoryMove.OnServerEvent:Connect(onMove)
 	Remotes.InventorySelect.OnServerEvent:Connect(onSelect)
-	Players.PlayerAdded:Connect(onPlayerAdded)
-	Players.PlayerRemoving:Connect(onPlayerRemoving)
-	for _, player in Players:GetPlayers() do
-		task.spawn(onPlayerAdded, player)
-	end
 end
 
 return InventoryService

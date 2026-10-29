@@ -9,7 +9,8 @@
 --
 -- Item art is keyed by id; Shared/ItemArt owns where each kind keeps it.
 
-local Items = require(script.Items)
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Items = require(ReplicatedStorage.Shared.Inventory.Items)
 
 export type Kind = Items.Kind
 export type Item = Items.Item

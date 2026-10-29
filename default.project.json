@@ -13,6 +13,7 @@
       "Remotes": {
         "$className": "Folder",
         "InventorySync": { "$className": "RemoteEvent" },
+        "EconomySync": { "$className": "RemoteEvent" },
         "InventoryMove": { "$className": "RemoteEvent" },
         "InventorySelect": { "$className": "RemoteEvent" },
         "PlaceBlock": { "$className": "RemoteEvent" },

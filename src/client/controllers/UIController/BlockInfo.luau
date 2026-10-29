@@ -70,15 +70,13 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 		if held and held.kind == "Resource" and onInput and not Factory.takesByHand(itemId, held.id) then
 			info.hint = `It doesn't take {held.name}.`
 		end
-	elseif held and def.route == "Filter" then
-		info.hint = `Click to toggle sending {held.name} left.`
+	elseif def.route == "Filter" then
+		info.hint = if held then `Click to toggle sending {held.name} left.` else "Click to clear the filter."
 	elseif held and held.kind == "Resource" and hasLanes then
 		info.hint = `Click to drop a {held.name} onto it.`
 	elseif not held then
 		if def.route == "Split" then
 			info.hint = "Click to switch it."
-		elseif def.route == "Filter" then
-			info.hint = "Click to clear the filter."
 		elseif isConveyor then
 			info.hint = "Click to take the items on it."
 		end
@@ -99,9 +97,7 @@ local function nodeInfo(model: Model, nodeType: string): Info?
 	local hint = node.hint
 	local ripe = World.isRipe(node)
 	if held and node.tool == held.id then
-		hint = `Click to {if held.id == "Axe" then "chop" else "mine"} it.`
-	elseif not held and node.pick then
-		hint = `Click to pick a {itemName(node.pick.item):lower()}.`
+		hint = "Click to mine it."
 	elseif not held and node.harvest then
 		hint = if ripe then "Click to harvest it." else "Click to dig it up for its seed."
 	end

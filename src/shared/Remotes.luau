@@ -15,6 +15,9 @@ local function get(name: string): RemoteEvent
 end
 
 return {
+	-- server -> client: (snapshot: { coins: number, xp: number, level: number }); XP is
+	-- lifetime XP (Shared/Economy derives progress). Sent on profile load and balance changes.
+	EconomySync = get("EconomySync"),
 	-- server -> client: (snapshot: Inventory.Snapshot)
 	InventorySync = get("InventorySync"),
 	-- client -> server: (from: number, to: number) slot indices

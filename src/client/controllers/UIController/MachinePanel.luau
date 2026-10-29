@@ -206,7 +206,7 @@ local function inReach(target: Model): boolean
 		return false
 	end
 	local footprint = Build.footprint(itemId, rotation)
-	return footprint ~= nil and Build.inReach(from, origin, footprint)
+	return footprint ~= nil and Build.canEdit(player, origin, footprint) and Build.inReach(from, origin, footprint)
 end
 
 -- The placed block with controls under the aim and within reach, and its item id.
@@ -471,7 +471,7 @@ local function render()
 
 	local powered = target:GetAttribute("Powered") == true
 	setButton(ui.Collect, isMachine, BlockText.hasOutput(target))
-	setButton(ui.TakeBack, isMachine and not def.passThrough, BlockText.hasContents(target))
+	setButton(ui.TakeBack, isMachine, BlockText.hasContents(target))
 	ui.TakeBack.Text = if def.stores then "Take all" else look.takeBack
 	setButton(ui.Switch, def.route == "Split", true)
 	ui.Switch.Text = if powered then "Send straight on" else "Send to the side"

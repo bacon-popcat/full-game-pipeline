@@ -1,5 +1,5 @@
 --!strict
--- Soil: whether an item may be planted in a cell. A sapling grows anywhere; a seed needs soil
+-- Soil: whether an item may be planted in a cell. A seed needs soil
 -- under it: a placed Grass or Dirt block (World.SOIL_BLOCKS) or a world node marked `soil`
 -- (Farmland). The client's ghost and the server's placing and planting all ask this, and it
 -- reads the world itself, like Build's overlap test, so there is no soil map to fall out of

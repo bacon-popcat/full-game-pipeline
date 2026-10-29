@@ -3,7 +3,7 @@
 -- panel (UIController/BlockInfo) and the machine panel (UIController/MachinePanel) both
 -- show a block through here, so the two always word it the same way. It reads the
 -- attributes FactoryService publishes on the block model: Status, Fuel, Contents, Output,
--- Fluid, Progress, Sold, Slots, Powered and Filter.
+-- Progress, Sold, Slots, Powered and Filter.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -22,11 +22,7 @@ function BlockText.itemName(itemId: string): string
 	return if ok then item.name else itemId
 end
 
-local function fluidName(fluid: string): string
-	return fluid
-end
-
--- "IronOre:2,Coal:1" -> "2 Iron Ore · 1 Coal" (fluids keep their names); nil when empty.
+-- "IronOre:2,Coal:1" -> "2 Iron Ore · 1 Coal"; nil when empty.
 local function describe(encoded: unknown, names: (string) -> string): string?
 	if typeof(encoded) ~= "string" or encoded == "" then
 		return nil
@@ -100,7 +96,6 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 			add("Fuel", if typeof(fuel) == "number" and fuel > 0 then `{fuel}s` else "Empty")
 		end
 		add("Holding", describe(model:GetAttribute("Contents"), BlockText.itemName))
-		add("Fluid", describe(model:GetAttribute("Fluid"), fluidName))
 		add("Output", describe(model:GetAttribute("Output"), BlockText.itemName))
 		local progress = model:GetAttribute("Progress")
 		if withProgress and typeof(progress) == "number" and progress > 0 then

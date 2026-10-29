@@ -6,11 +6,10 @@
 --   * any item aimed at a filter conveyor toggles it in the filter. Machines are only
 --     worked through their panel (UIController/MachinePanel), so a press never feeds or
 --     empties one;
---   * the Hammer picks up the player's own placed block; a Pickaxe or Axe breaks their own
+--   * the Hammer picks up the player's own placed block; a Pickaxe breaks their own
 --     cubes it fits and mines the world nodes it fits;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
---   * an empty hand takes from a conveyor (its belt items) or switches a router, picks
---     a bush, or harvests a crop (a ripe one for its produce, a growing one for its seed);
+--   * an empty hand takes from a conveyor (its belt items) or switches a router, or harvests a crop (a ripe one for its produce, a growing one for its seed);
 --   * a seed's ghost is only green over soil (Shared/World/Soil).
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
 -- The server re-checks everything; nothing here is trusted.
@@ -37,7 +36,7 @@ local Aim = require(Players.LocalPlayer.PlayerScripts.Libraries.Aim)
 local Controls = require(Players.LocalPlayer.PlayerScripts.Libraries.Controls)
 
 -- `against`: the axis the aimed surface faces, so the server knows which block it went
--- against (a wood tube joins that one).
+-- against.
 type Placement = { origin: Vector3, valid: boolean, against: Vector3 }
 type Action = { kind: "Place" | "PickUp" | "Use" | "Take" | "Drop", model: Model? }
 
@@ -147,7 +146,10 @@ local function isMachine(itemId: string?): boolean
 end
 
 local function isOwn(model: Model): boolean
+	local origin = model:GetAttribute("Origin")
 	return model:GetAttribute("Owner") == player.UserId
+		and typeof(origin) == "Vector3"
+		and Build.canEdit(player, origin, Vector3.one)
 end
 
 local function choosePlacement(item: Inventory.Item, model: Model, result: RaycastResult?): Action?
@@ -156,10 +158,11 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	local cell = if result and footprint then Build.cellAt(result.Position, result.Normal) else nil
 	local origin = if result and footprint and cell then Build.originFor(cell, result.Normal, footprint) else nil
 	local pivot = if origin then Build.pivotFor(item.id, origin, rotation) else nil
-	if not footprint or not from or not origin or not pivot then
+	if not result or not footprint or not from or not origin or not pivot then
 		return nil
 	end
 	local valid = Build.inReach(from, origin, footprint)
+		and Build.canEdit(player, origin, footprint)
 		and Build.isFree(origin, footprint, overlapParams)
 		and not Build.clipsCharacter(item.id, pivot)
 		and Soil.canPlant(item.id, origin)
@@ -184,11 +187,18 @@ local function decide(): Action?
 	local node = if result then Aim.modelUnder(result.Instance, "World") else nil
 	local placedId = if placed then placedItemId(placed) else nil
 	local item = heldItem
-	if placed and not inReach(placed) then
+	if placed and (not inReach(placed) or not isOwn(placed)) then
 		placed, placedId = nil, nil
 	end
 	if node and not inReach(node) then
 		node = nil
+	end
+	if node then
+		local def = nodeDef(node)
+		local cell = node:GetAttribute("Cell")
+		if def and def.crop and (typeof(cell) ~= "Vector3" or not Build.canEdit(player, cell, Vector3.one)) then
+			node = nil
+		end
 	end
 
 	if not item then
@@ -196,7 +206,7 @@ local function decide(): Action?
 			return { kind = "Take", model = placed }
 		end
 		local def = if node then nodeDef(node) else nil
-		if node and def and (def.pick or def.harvest) then
+		if node and def and def.harvest then
 			return { kind = "Take", model = node }
 		end
 		return nil
@@ -292,7 +302,13 @@ local function onDrop(_: string, state: Enum.UserInputState): Enum.ContextAction
 		local result = Aim.cast(raycastParams, AIM_DISTANCE)
 		local placed = if result then Aim.modelUnder(result.Instance, "Placed") else nil
 		local placedId = if placed then placedItemId(placed) else nil
-		local onto = if placed and placedId and inReach(placed) and Factory.hasBelt(placedId) then placed else nil
+		local onto = if placed
+				and placedId
+				and isOwn(placed)
+				and inReach(placed)
+				and Factory.hasBelt(placedId)
+			then placed
+			else nil
 		Remotes.DropItem:FireServer(onto)
 	end
 	return Enum.ContextActionResult.Sink
