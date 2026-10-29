@@ -175,8 +175,9 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline. *In progress:* the nine new crops are done (below); the
-   machines, stalls, plots and props are next.
+   `IslandsMachines/build` pipeline. *In progress:* the nine new crops and the five farm
+   machines are done (below); the processors, routers and conveyors, stalls, plots and props
+   are next.
 
 ### Art progress
 
@@ -189,6 +190,15 @@ Git history keeps all of it.
   trellis and a slender teal starfruit with pale gold stars. Every stage fits one cell.
   Imported as the GardenWorld and GardenItems sets, so the Islands sets never re-import. Their
   Apple and Blueberry items replace the Islands ones.
+- **Farm machines (done).** Seed Planter, Sprinkler, Harvester, Shipping Bin and Storage Chest
+  have models of their own in `IslandsMachines/build/garden_machines.py`, imported as the
+  GardenMachines set under their item ids, so they no longer borrow Islands art (tier 2 uses
+  tier 1's model). Cream rounded bodies, sage, warm wood, terracotta and brass. Each is one cell
+  wide and two deep (two tall; the sprinkler is one cell), smaller than the old 3 x 2 x 3
+  Islands bodies. Belts are the kit's conveyor, so they meet every other conveyor, and each
+  ends at a soft arch the finish script measures as a 1.1-stud port. The planter's patch is
+  now centred on its own axis (Blocks `plantPatch`). Playtested: harvester -> shipping bin
+  through the new ports, and the planter sowing onto the bed.
 - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.

@@ -193,8 +193,8 @@ local function pickerSources(every: number): { [string]: Source }
 	return sources
 end
 
--- `width` across and `depth` deep, centred on the forks and starting just past them, filled
--- row by row away from the planter, middle cell first.
+-- `width` across and `depth` deep, centred on the planter's sowing bar (its conveyor axis) and
+-- starting just past its front face, filled row by row away from the planter, middle cell first.
 local function plantPatch(width: number, depth: number): (ext: Extents) -> { Vector3 }
 	return function(ext)
 		local cells = {}
@@ -202,7 +202,7 @@ local function plantPatch(width: number, depth: number): (ext: Extents) -> { Vec
 			for column = 0, width - 1 do
 				-- 0, -1, +1, -2, +2 ... cells from the middle.
 				local side = math.ceil(column / 2) * (if column % 2 == 1 then -1 else 1)
-				table.insert(cells, v(-3 + side * 3, 1.5, ext.min.Z - 1.5 - row * 3))
+				table.insert(cells, v(side * 3, 1.5, ext.min.Z - 1.5 - row * 3))
 			end
 		end
 		return cells

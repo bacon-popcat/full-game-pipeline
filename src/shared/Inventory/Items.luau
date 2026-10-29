@@ -128,17 +128,13 @@ local ITEMS: { Item } = {
 	machine(
 		"SeedPlanter",
 		"Seed Planter",
-		"Plants the seeds in its hopper into empty soil, 3 wide and 5 deep, in front of it.",
-		nil,
-		"SaplingAutomaticPlanter"
+		"Plants the seeds in its hopper into empty soil, 3 wide and 5 deep, in front of it."
 	),
 	machine("Sprinkler", "Sprinkler", "Crops within 3 cells grow a quarter faster, and sometimes come out Wet."),
 	machine(
 		"Harvester",
 		"Harvester",
-		"Harvests ripe crops within 4 cells onto its output belt, and replants the ones that need it.",
-		nil,
-		"IndustrialFlowerPicker"
+		"Harvests ripe crops within 4 cells onto its output belt, and replants the ones that need it."
 	),
 	machine("Mill", "Mill", "Grinds 2 wheat into flour.", nil, "IndustrialSawmill"),
 	machine(
@@ -155,7 +151,7 @@ local ITEMS: { Item } = {
 		"Seed Planter II",
 		"Plants a seed a second into empty soil, 5 wide and 7 deep, in front of it.",
 		nil,
-		"SaplingAutomaticPlanter"
+		"SeedPlanter"
 	),
 	machine(
 		"SprinklerTier2",
@@ -169,22 +165,14 @@ local ITEMS: { Item } = {
 		"Harvester II",
 		"Harvests ripe crops within 6 cells, twice as fast, and replants the ones that need it.",
 		nil,
-		"IndustrialFlowerPicker"
+		"Harvester"
 	),
 	machine("MillTier2", "Mill II", "Grinds wheat into flour twice as fast.", nil, "IndustrialSawmill"),
-	machine(
-		"ShippingBin",
-		"Shipping Bin",
-		"Sells whatever a belt brings it, one a second, and pays you for it.",
-		nil,
-		"IndustrialMerchantTeleseller"
-	),
+	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine(
 		"StorageChest",
 		"Storage Chest",
-		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out.",
-		nil,
-		"IndustrialChest"
+		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out."
 	),
 
 	resource("Coal", "Coal", "Fuel for the Industrial Smelter."),
