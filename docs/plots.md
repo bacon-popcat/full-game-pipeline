@@ -123,3 +123,14 @@ the same server but do not survive Studio Stop.
    invalid saved item should fail loading without replacing the original layout.
 
 Local formatter, lint and type checks do not substitute for these runtime checks.
+
+## Plot and hub props
+
+PlotService fences each plot with one `PlotFence` prop per edge cell, a `PlotFencePost` at each
+corner and either side of the two-cell gate in the middle of the front, and stands the
+`PlotSign` outside the fence beside the gate; the owner's name is a SurfaceGui on the sign's
+`Board` part. HubService stands each stall prop (named for its stall) turned to face the
+spawn, parents its ProximityPrompt to the stall's `Counter` part, and lays a paved plaza with
+`HubLamp` and `HubFlowerBox` props. `server/libraries/Props` places them all as scenery (no
+collisions, queries or touches). The props come from `IslandsMachines/build/garden_props.py`
+into `ReplicatedStorage.Assets.Props`; without them both services build plain parts.

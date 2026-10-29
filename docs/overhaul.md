@@ -175,8 +175,9 @@ Git history keeps all of it.
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
-   `IslandsMachines/build` pipeline. *In progress:* every crop, machine, processor, conveyor and
-   router has art of its own (below); the hub stalls, plots and props are next.
+   `IslandsMachines/build` pipeline. *In progress:* every crop, machine, processor, conveyor,
+   router, stall and plot prop has art of its own (below). What is left is the quarry's copper
+   rock (still a placeholder cube) and any polish.
 
 ### Art progress
 
@@ -220,6 +221,16 @@ Git history keeps all of it.
   and an arch on each arm, and a pastel icon on the cap (a sage fork, a blue V, a terracotta
   funnel, a die). In `garden_machines.py` as the GardenRouters set. Playtested: a carrot through
   a Split, straight on into a Shipping Bin.
+- - **Hub and plots (done).** The four stalls are market stalls with striped awnings in their own
+  colours (sage, butter, sky, lilac), an emblem on a sign (sprout, coin, watering can, gear) and
+  goods on the counter; the plots get a white picket fence with wooden posts and sage caps, a
+  two-cell gate, and a sign beside it with the owner's name on its board; the hub gets a paved
+  plaza, four lamp posts and four flower boxes. Built in `garden_props.py` as the GardenProps set
+  into `ReplicatedStorage.Assets.Props` (no hitbox, pivot at the bottom centre). HubService and
+  PlotService place them through `server/libraries/Props`, which makes every prop scenery only
+  (no collisions, queries or touches), and fall back to plain parts when a prop is missing.
+  The stall prompts sit on each stall's Counter part. Playtested: every plot's 94 fence sections
+  and 8 posts, the owner's name on the sign, and the Seed Shop opening from its new counter.
 - - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.

@@ -2,11 +2,20 @@
 -- first free plot is assigned by DataService after a profile opens; release follows saving
 -- and clearing the old world. All plots face -Z, keeping saved coordinates and farms aligned.
 -- Decorative fences never obstruct placement queries. The hub spawn is shared.
+--
+-- The fence is one PlotFence prop per edge cell, with a PlotFencePost at each corner and either
+-- side of a two-cell gate in the middle of the front; the PlotSign stands outside the fence beside
+-- the gate with the owner's name on its board. A place without those props gets plain parts.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
+local Props = require(ServerScriptService.Libraries.Props)
 local WorldService = require(script.Parent.WorldService)
+
+-- The front edge's cells left open as the gate.
+local GATE = { [11] = true, [12] = true }
 
 local PlotService = {}
 local assigned: { [Player]: number } = {}
@@ -39,6 +48,71 @@ local function part(
 	return block
 end
 
+local function fence(model: Model, origin: Vector3, width: number): boolean
+	if not Props.template("PlotFence") or not Props.template("PlotFencePost") then
+		return false
+	end
+	local grid = Build.GRID
+	local turn = CFrame.Angles(0, math.pi / 2, 0)
+	for i = 0, Plot.SIZE - 1 do
+		local along = (i + 0.5) * grid
+		Props.place("PlotFence", CFrame.new(origin + Vector3.new(0, 0, along)) * turn, model)
+		Props.place("PlotFence", CFrame.new(origin + Vector3.new(width, 0, along)) * turn, model)
+		Props.place("PlotFence", CFrame.new(origin + Vector3.new(along, 0, width)), model)
+		if not GATE[i] then
+			Props.place("PlotFence", CFrame.new(origin + Vector3.new(along, 0, 0)), model)
+		end
+	end
+	for _, corner in { Vector3.zero, Vector3.new(width, 0, 0), Vector3.new(0, 0, width), Vector3.new(width, 0, width) } do
+		Props.place("PlotFencePost", CFrame.new(origin + corner), model)
+	end
+	for i in GATE do
+		for _, side in { i * grid, (i + 1) * grid } do
+			Props.place("PlotFencePost", CFrame.new(origin + Vector3.new(side, 0, 0)), model)
+		end
+	end
+	return true
+end
+
+-- The sign's name label: on the PlotSign's board, or a floating one over a plain part.
+local function sign(model: Model, origin: Vector3, width: number): TextLabel
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(65, 78, 52)
+	label.Font = Enum.Font.GothamMedium
+	label.TextScaled = true
+	label.Text = "Available garden"
+	local prop = Props.place("PlotSign", CFrame.new(origin + Vector3.new(width / 2 + 9, 0, -1.5)), model)
+	local board = if prop then Props.part(prop, "Board") else nil
+	if board then
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		gui.LightInfluence = 0.4
+		gui.MaxDistance = 180
+		local padding = Instance.new("UIPadding")
+		padding.PaddingLeft = UDim.new(0.08, 0)
+		padding.PaddingRight = UDim.new(0.08, 0)
+		padding.PaddingTop = UDim.new(0.18, 0)
+		padding.PaddingBottom = UDim.new(0.18, 0)
+		padding.Parent = gui
+		label.Parent = gui
+		gui.Parent = board
+		return label
+	end
+	local fenceColor = Color3.fromRGB(225, 211, 178)
+	local plain = part(model, "Sign", Vector3.new(9, 3, 0.4), origin + Vector3.new(width / 2, 4, -1), fenceColor, false)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(210, 50)
+	gui.Adornee = plain
+	gui.MaxDistance = 180
+	gui.Parent = plain
+	label.Parent = gui
+	return label
+end
+
 local function build()
 	if built then
 		return
@@ -61,30 +135,38 @@ local function build()
 			Color3.fromRGB(153, 191, 126),
 			true
 		)
-		local fenceColor = Color3.fromRGB(225, 211, 178)
-		for _, x in { 0, width } do
-			part(model, "Fence", Vector3.new(0.5, 2, width), origin + Vector3.new(x, 1, width / 2), fenceColor, false)
+		if not fence(model, origin, width) then
+			local fenceColor = Color3.fromRGB(225, 211, 178)
+			for _, x in { 0, width } do
+				part(
+					model,
+					"Fence",
+					Vector3.new(0.5, 2, width),
+					origin + Vector3.new(x, 1, width / 2),
+					fenceColor,
+					false
+				)
+			end
+			part(
+				model,
+				"Fence",
+				Vector3.new(width, 2, 0.5),
+				origin + Vector3.new(width / 2, 1, width),
+				fenceColor,
+				false
+			)
+			for _, x in { width / 4 - 2, width * 3 / 4 + 2 } do
+				part(
+					model,
+					"Fence",
+					Vector3.new(width / 2 - 4, 2, 0.5),
+					origin + Vector3.new(x, 1, 0),
+					fenceColor,
+					false
+				)
+			end
 		end
-		part(model, "Fence", Vector3.new(width, 2, 0.5), origin + Vector3.new(width / 2, 1, width), fenceColor, false)
-		for _, x in { width / 4 - 2, width * 3 / 4 + 2 } do
-			part(model, "Fence", Vector3.new(width / 2 - 4, 2, 0.5), origin + Vector3.new(x, 1, 0), fenceColor, false)
-		end
-		local sign =
-			part(model, "Sign", Vector3.new(9, 3, 0.4), origin + Vector3.new(width / 2, 4, -1), fenceColor, false)
-		local gui = Instance.new("BillboardGui")
-		gui.Size = UDim2.fromOffset(210, 50)
-		gui.Adornee = sign
-		gui.MaxDistance = 180
-		gui.Parent = sign
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.TextColor3 = Color3.fromRGB(65, 78, 52)
-		label.Font = Enum.Font.GothamMedium
-		label.TextScaled = true
-		label.Text = "Available garden"
-		label.Parent = gui
-		signs[index] = label
+		signs[index] = sign(model, origin, width)
 		for x = 6, 17 do
 			for z = 2, 9 do
 				WorldService.farmland(Plot.toWorld(index, Vector3.new(x, 0, z)))
@@ -144,6 +226,9 @@ function PlotService.init()
 			"GardenItems",
 			"GardenMachines",
 			"GardenProcessors",
+			"GardenConveyors",
+			"GardenRouters",
+			"GardenProps",
 		}
 	do
 		local showcase = workspace:FindFirstChild(name)
