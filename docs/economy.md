@@ -23,7 +23,7 @@ The UI buys one seed per press; the server supports larger validated counts.
 
 `ShopSync` sends `{restockAt, stock}` on load, restock, purchase response and Seed Shop
 prompt activation. Prompt refresh recovers from a load sync that preceded HUD binding.
-`ShopBuy(seedId, count)` is intent only. `Notify(message)` explains purchases, refusals and
+`ShopBuy(shopId, itemId, count)` is intent only; `shopId` names the stall. `Notify(message)` explains purchases, refusals and
 rare harvests. All remote instances/payloads are owned by `default.project.json` and
 `Shared/Remotes`.
 
@@ -36,13 +36,12 @@ one transaction and sends one final snapshot. GardenService prices removed items
 coins and XP without yielding. Rejected sales resync inventory and show a refusal toast.
 
 `Inventory/Items` generates crop values from `World.CROPS`; mutation values already include
-the multiplier. Selling sums `item.value * count` and never multiplies twice. The transitional
-processed product values are provisional: BerryDough 60, BerryBread 90, FruitCrate 420,
-LargeFruitCrate 1,100. Dough consumes 42 coins of plain crops; bread adds oven time. The
-crates exceed either existing plain recipe's input value (240/360 and 600/900 respectively).
-These margins reward processing time; processing a valuable mutation intentionally loses
-its premium. Seeds are not sellable, so buying/selling a seed cannot create currency.
-The Teleseller remains its Phase 1 counter until the Phase 3 Shipping Bin work.
+the multiplier. Selling sums `item.value * count` and never multiplies twice. Processed product
+values live in `Shared/Factory/Products`: Flour 40 (from 24 of wheat), juices 3.5x one fruit
+(from three), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
+more than its plain inputs, which rewards building the line; processing a valuable mutation
+intentionally loses its premium, so a Filter Conveyor that sends mutations to the bin pays. Seeds are not sellable, so buying/selling a seed cannot create currency.
+A Shipping Bin on a plot pays its owner per item (factory.md).
 
 Harvest XP is Common 1, Uncommon 2, Rare 4, Epic 8, Legendary 15 and Mythic 30, once per
 successful hand or machine harvest, independent of yield and mutation. The source is
@@ -69,9 +68,14 @@ stall prompt binding, UIScale pop, Close, gamepad B, selection trapping/restorat
 closing. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
 text feedback as well as a muted appearance. Reduced motion skips spatial pops/XP animation.
 
-Shop rendering is generic: `Shop.configure(title, offers, purchase)` takes item ids, prices,
-rarity and stock with a purchase callback. Phase 2 supplies the seed adapter; Phase 3 can
-reuse the rows for Gear/Machine shops. Rows sort by rarity, price, then item id. No price is
+One `HUD.Shop` window serves three stalls: whichever stall's prompt opened it decides the
+catalogue (`HubWindow.bind` takes a list of stalls and tells the screen which one). The Seed
+Shop shows stock and the restock countdown; the Gear Shop and Machine Shop
+(`Shared/Economy/Shops`: price, unlock level and category per item) never run out. A row's
+`Rarity` label shows the rarity or category, `Stock` shows stock or "Lv N" while locked, and
+the button reads Buy, Need coins, Locked, Owned (a tool you carry) or Sold out. The server
+rechecks level, ownership, coins, room and reach. Rows sort by rarity or category and level,
+then price. No price is
 sent back as authority. Sell previews the held-stack and whole-inventory totals.
 
 ## Authored HUD contract (place file only)

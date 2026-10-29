@@ -37,23 +37,43 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   including through a Merger. Other routers decide per item.
 - **Only Industrial Smelter burns fuel.** It consumes coal while working and smelts iron or
   copper ore. Farm machines and processors run without fuel.
-- **Industrial Chest** (stores) accepts belt items into twelve stack slots. Its panel takes
-  individual item types or all contents; it still does not accept hand loading.
-- **Industrial Merchant Teleseller** (sells) retains its one-item-per-second sale counter.
-  Currency payout remains Phase 3; the Garden loop Sell Stand pays for priced items now.
-- **Planter and picker** retain their planting cell, radius and timings. Their source queries
-  and completed actions stay inside their own plot.
+- **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
+  Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
+  the Industrial Smelter until Phase 4. They are bought in the Machine Shop (economy.md).
+- **Borrowed art.** A machine with no template of its own names one in its item's `art`
+  (Shared/Inventory/Items): the Harvester draws the Industrial Flower Picker, the Shipping Bin
+  the Teleseller, and so on. `ItemArt.blockTemplate` is the one place that resolves it, so
+  placement, the ghost, icons and the factory all agree, and the art phase changes one field.
+  Placed models are named for the item, not the template.
+- **Storage Chest** (stores) accepts belt items into twelve stack slots. Its panel takes
+  individual item types or all contents; it does not accept hand loading.
+- **Shipping Bin** (sells) takes any item with a value from a belt and sells one a second,
+  paying its owner the item's value and Sell Stand XP (1 per 10 coins, remainders carried per
+  player). Its owner sees one "Shipping Bin +N coins" toast every 2 s at most. It publishes
+  `Sold` and `Earned`.
+- **Seed Planter** plants the first loaded seed that fits into the first free cell of a patch
+  3 wide and 5 deep past its forks (`plantArea` in Blocks), every 2 s. Each cell is tried at the
+  planter's level and one cell up, so a planter standing on the grass beside a raised bed plants
+  onto the bed.
+- **Harvester** harvests every ripe crop within 4 cells, one every 3 s, onto its output belt.
+  A single crop restarts from a sprout, so it replants itself; a multi crop regrows its fruit.
+  Each harvest gives the owner harvest XP, as a hand harvest does.
+- **Sprinkler** has no ports. Crops within 3 cells across (and one up or down) on its plot grow
+  1.25x as fast and gain +10% Wet chance. The best sprinkler over a crop counts; several don't
+  stack. FactoryService hands WorldService the speed and chance providers; SprinklerController
+  draws a soft spray.
+- Source queries and completed actions of every machine stay inside its own plot.
 - **Cut systems are removed.** Tubes, sap, deposits, lumber, animals and walking, petroleum,
   polishing/cutting, alloys and presses are gone. PlotService removes the live showcase;
   Studio source assets are untouched.
 
-## Transitional processors
+## Processors
 
-Until the automation roster arrives, Food Processor uses two Wheat and one Carrot to make
-BerryDough; Industrial Oven bakes it into BerryBread. Crate Packer accepts twenty Carrot or
-twenty Wheat; its retained tier 2 accepts fifty. Existing product ids/art and timings remain.
-Recipes live in Blocks; these replacements keep machines usable until the Phase 3 roster.
-Garden loop accepts mixtures of plain and mutated inputs, outputs plain products, shares
+`Shared/Factory/Products` owns every processed product: its inputs, machine, batch time,
+value and borrowed art. Items makes the product items from it and Blocks the recipes, so a
+product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
+Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate.
+Processing accepts mixtures of plain and mutated inputs, outputs plain products, shares
 input capacity across variants and refunds exact variants when an active job is saved or
 picked up. The picker sources the current mutated item and checks the full yield fits
 before reaping. Its single crops restart; multi plants regrow (see farming.md). Filters
@@ -81,7 +101,7 @@ on the server, including item ids from the panel.
 | Target | Controls |
 |---|---|
 | Machine | Load from inventory, Collect output, Take back unused inputs |
-| Industrial Chest | Take one item type, Take all |
+| Storage Chest | Take one item type, Take all |
 | Split | Switch side / straight |
 | Filter | Toggle an inventory item, Clear filter |
 

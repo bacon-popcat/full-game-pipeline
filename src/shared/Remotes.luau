@@ -18,7 +18,9 @@ return {
 	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.
 	ShopSync = get("ShopSync"),
-	-- client -> server: (seedId: string, count: number), positive integer within own stock.
+	-- client -> server: (shopId: string, itemId: string, count: number). shopId is a hub stall
+	-- (SeedShop, GearShop, MachineShop) in reach; count is a positive integer, within your own
+	-- stock for seeds, and the server checks level, coins and room. Answered with Notify.
 	ShopBuy = get("ShopBuy"),
 	-- client -> server: (mode: "Held" | "All"), checked against server inventory and stall reach.
 	Sell = get("Sell"),

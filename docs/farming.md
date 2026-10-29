@@ -59,6 +59,21 @@ Replicated crop attributes are `NodeType`, `Cell`, `PlantedAt`, `HarvestCount`, 
 `workspace:GetServerTimeNow()` seconds, adjusted for the current speed. BlockInfo reads
 these for the crop/mutation name, stage, status, countdown and whole-harvest sale value.
 
+## Farming machines and the watering can
+
+- **Sprinklers speed growth the same save-safe way rain does.** `WorldService.setSpeedModifier`
+  takes FactoryService's provider (the best sprinkler over a cell, or 1). Every grow tick banks
+  the extra growth since the last tick into `growthBonus`: rain's extra time times the cell's
+  speed, plus wall time times (speed - 1). So rain and a sprinkler multiply, a sprinkler placed
+  or picked up takes effect within half a second, and the credit is saved with the crop.
+  `GrowsAt` divides what's left by both speeds.
+- **The Watering Can** (Gear Shop) is used on a growing crop on your own plot: one splash
+  banks a fifth of what's left of the crop's current stage into `growthBonus`, with a 1.5 s
+  cooldown per player and a server-made splash of droplets. Ripe crops are left alone. The hand
+  sends `Interact "Use"` while holding it (BuildController); WorldService checks the crop.
+- **Seed Planter** and **Harvester** are in factory.md: the planter fills a 3 x 5 patch
+  (onto a raised bed beside it as well), the harvester reaps within 4 cells and replants.
+
 ## Mutations
 
 `Shared/World/Mutations` owns multipliers, colours and the exclusive roll. On reaching Ripe,
@@ -70,9 +85,9 @@ variant, preventing rerolls on rejoin. Each harvest resets the next cycle's roll
 
 A crop that ripened offline rolls only the always-on chances when restored. A ripe saved
 mutation or completed plain roll is preserved. `WorldService.setChanceModifiers(provider)`
-registers the Phase 3 cell hook; `chanceModifiers(cell, offline)` combines additive Wet,
-Shocked and Golden chances with weather and clamps each to 0..1. Its default cell provider
-returns zero, so no sprinkler chance is implemented yet.
+is the cell hook FactoryService fills with the best sprinkler's +10% Wet;
+`chanceModifiers(cell, offline)` combines additive Wet, Shocked and Golden chances with
+weather and clamps each to 0..1.
 
 Harvests use `<Produce>+<Mutation>`. Factory processing accepts mixtures of any input's
 plain and mutated variants and emits the existing plain recipe product. Plain inputs are

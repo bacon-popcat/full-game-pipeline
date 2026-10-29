@@ -33,6 +33,8 @@ export type Node = {
 	mutationRolled: boolean,
 	growthBonus: number,
 	weatherClock: number,
+	-- Wall time growth was last banked into growthBonus.
+	bankedAt: number,
 }
 
 -- Seconds between one player's interactions; caps how fast a client can spam remotes.
@@ -49,6 +51,10 @@ local PLACEHOLDER_COLORS: { [string]: Color3 } = {
 }
 -- Studs per second a crop's harvest is tossed out at when its soil is taken away.
 local UPROOT_SPEED = 8
+-- A watering can splash takes this share off what's left of a crop's stage.
+local WATER_SHARE = 0.2
+-- Seconds between one player's splashes.
+local WATER_COOLDOWN = 1.5
 
 local WorldService = {}
 
@@ -68,6 +74,7 @@ local worldFolder = folder(workspace, "World")
 local nodesByCell: { [string]: Node } = {}
 local nodesByModel: { [Model]: Node } = {}
 local lastAction: { [Player]: number } = {}
+local lastWatered: { [Player]: number } = {}
 local warned: { [string]: boolean } = {}
 local overlapParams = Build.newOverlapParams()
 local random = Random.new()
@@ -184,6 +191,7 @@ local function spawnNode(
 		mutationRolled = mutationRolled or mutation ~= nil,
 		growthBonus = growthBonus or 0,
 		weatherClock = WeatherService.bonusNow(),
+		bankedAt = wallTime(),
 	}
 	eachCell(node, function(each)
 		nodesByCell[cellKey(each)] = node
@@ -246,6 +254,15 @@ function WorldService.setChanceModifiers(provider: (Vector3) -> Mutations.Chance
 	cellModifiers = provider
 end
 
+-- How many times as fast a crop in a cell grows (sprinklers); FactoryService registers it.
+local cellSpeed: (Vector3) -> number = function(_: Vector3): number
+	return 1
+end
+
+function WorldService.setSpeedModifier(provider: (Vector3) -> number)
+	cellSpeed = provider
+end
+
 function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutations.Chances
 	local modifiers = if offline then { wet = 0, shocked = 0, golden = 0 } else cellModifiers(cell)
 	local weather = if offline then "" else WeatherService.current()
@@ -256,12 +273,31 @@ function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutatio
 	}
 end
 
+-- Banks the extra growth since the last bank: rain's (WeatherService's clock) and the cell's
+-- sprinkler speed, multiplied together. Called every grow tick, so a sprinkler placed or
+-- removed changes a crop's speed within half a second.
 local function bankGrowth(node: Node)
 	local clock = WeatherService.bonusNow()
+	local now = wallTime()
 	if not World.isRipe(World.getNode(node.nodeType)) then
-		node.growthBonus += clock - node.weatherClock
+		local speed = cellSpeed(node.cell)
+		node.growthBonus += (clock - node.weatherClock) * speed + (now - node.bankedAt) * (speed - 1)
 	end
 	node.weatherClock = clock
+	node.bankedAt = now
+end
+
+type Timing = { regrowing: boolean, duration: number, elapsed: number, phase: number, nextAt: number }
+
+-- Where a crop is in its growth, in growth seconds, as of its last bank.
+local function timing(node: Node, crop: World.Crop): Timing
+	local regrowing = crop.regrow ~= nil and node.harvestCount > 0
+	local duration = if regrowing then crop.regrow or crop.grow else crop.grow
+	local elapsed = math.max(0, wallTime() - (node.plantedAt or wallTime())) + node.growthBonus
+	-- Four equal growth quarters; the last is fruit ripening, using Mature art until harvestable.
+	local phase = math.clamp(math.floor(elapsed / crop.every) + 1, 1, 4)
+	local nextAt = if regrowing then duration else math.min(phase * crop.every, duration)
+	return { regrowing = regrowing, duration = duration, elapsed = elapsed, phase = phase, nextAt = nextAt }
 end
 
 local function grow(node: Node, offline: boolean?)
@@ -273,11 +309,8 @@ local function grow(node: Node, offline: boolean?)
 	bankGrowth(node)
 	local plantedAt = node.plantedAt or wallTime()
 	node.plantedAt = plantedAt
-	local regrowing = crop.regrow ~= nil and node.harvestCount > 0
-	local duration = if regrowing then crop.regrow or crop.grow else crop.grow
-	local elapsed = math.max(0, wallTime() - plantedAt) + node.growthBonus
-	-- Four equal growth quarters; the last is fruit ripening, using Mature art until harvestable.
-	local phase = math.clamp(math.floor(elapsed / crop.every) + 1, 1, 4)
+	local now = timing(node, crop)
+	local regrowing, duration, elapsed, phase = now.regrowing, now.duration, now.elapsed, now.phase
 	local stage = if elapsed >= duration then 4 elseif regrowing then 3 else math.min(phase, 3)
 	if stage == 4 and not node.mutationRolled then
 		node.mutation = Mutations.roll(random, WorldService.chanceModifiers(node.cell, offline))
@@ -309,8 +342,8 @@ local function grow(node: Node, offline: boolean?)
 		node.model:SetAttribute("GrowsAt", nil)
 		return
 	end
-	local nextAt = if regrowing then duration else math.min(phase * crop.every, duration)
-	local remaining = math.max(0, nextAt - elapsed) / WeatherService.speed()
+	local nextAt = now.nextAt
+	local remaining = math.max(0, nextAt - elapsed) / (WeatherService.speed() * cellSpeed(node.cell))
 	local deadline = workspace:GetServerTimeNow() + remaining
 	local previous = node.model:GetAttribute("GrowsAt")
 	-- Clock sampling must not turn an unchanged deadline into a stream of attribute updates.
@@ -388,6 +421,46 @@ function WorldService.reap(node: Node): boolean
 	return true
 end
 
+local function splash(node: Node)
+	local hitbox = node.model.PrimaryPart
+	if not hitbox then
+		return
+	end
+	local attachment = Instance.new("Attachment")
+	attachment.Position = Vector3.new(0, hitbox.Size.Y / 2, 0)
+	local drops = Instance.new("ParticleEmitter")
+	drops.Color = ColorSequence.new(Color3.fromRGB(170, 214, 240))
+	drops.Size = NumberSequence.new(0.18, 0.05)
+	drops.Transparency = NumberSequence.new(0.2, 1)
+	drops.Lifetime = NumberRange.new(0.4, 0.7)
+	drops.Speed = NumberRange.new(4, 7)
+	drops.SpreadAngle = Vector2.new(35, 35)
+	drops.Acceleration = Vector3.new(0, -30, 0)
+	drops.Rate = 0
+	drops.Parent = attachment
+	attachment.Parent = hitbox
+	drops:Emit(16)
+	task.delay(1, function()
+		attachment:Destroy()
+	end)
+end
+
+-- A watering can splash: a fifth off what's left of a growing crop's stage.
+local function water(player: Player, node: Node)
+	local def = World.getNode(node.nodeType)
+	local crop = if def.crop then World.CROPS[def.crop] else nil
+	local now = os.clock()
+	if not crop or World.isRipe(def) or now - (lastWatered[player] or 0) < WATER_COOLDOWN then
+		return
+	end
+	lastWatered[player] = now
+	bankGrowth(node)
+	local at = timing(node, crop)
+	node.growthBonus += math.max(0, at.nextAt - at.elapsed) * WATER_SHARE
+	splash(node)
+	grow(node)
+end
+
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
 	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
@@ -430,7 +503,9 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		return
 	end
 	local held = InventoryService.getHeldItemId(player)
-	if action == "Use" then
+	if action == "Use" and held == "WateringCan" then
+		water(player, node)
+	elseif action == "Use" then
 		if not def.tool or held ~= def.tool then
 			return
 		end
@@ -601,6 +676,7 @@ function WorldService.init()
 	placed.ChildRemoved:Connect(onUnplaced)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
+		lastWatered[player] = nil
 	end)
 end
 

@@ -57,7 +57,7 @@ non-integer and non-finite amounts. Overspending fails without changing the bala
 from level n costs the design's rounded formula. `progress` returns level, progress
 into that level and its cost. Level is derived, not independently saved. GardenService
 awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClient.
-See [economy.md](economy.md). Teleseller currency payout remains Phase 3.
+See [economy.md](economy.md).
 
 DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, ten Carrot
 Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub;

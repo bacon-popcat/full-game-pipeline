@@ -5,6 +5,7 @@
 -- held and swung, resources are what the world and the machines produce.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Products = require(ReplicatedStorage.Shared.Factory.Products)
 local World = require(ReplicatedStorage.Shared.World)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 
@@ -20,6 +21,10 @@ export type Item = {
 	value: number?,
 	base: string?,
 	mutation: string?,
+	-- The template its art borrows (Assets.Blocks for placeables, Assets.Items for resources)
+	-- when it has none of its own, tinted `color` when given. ItemArt resolves it.
+	art: string?,
+	color: Color3?,
 	-- Tools only: swinging it at one of your placed blocks picks the block back up.
 	picksUp: boolean?,
 	-- Blocks only: the tool that breaks a placed one back into your inventory.
@@ -52,8 +57,15 @@ local function seed(id: string, name: string, description: string): Item
 	return { id = id, name = name, kind = "Block", stack = BLOCK_STACK, description = description }
 end
 
-local function machine(id: string, name: string, description: string, stack: number?): Item
-	return { id = id, name = name, kind = "Machine", stack = stack or MACHINE_STACK, description = description }
+local function machine(id: string, name: string, description: string, stack: number?, art: string?): Item
+	return {
+		id = id,
+		name = name,
+		kind = "Machine",
+		stack = stack or MACHINE_STACK,
+		description = description,
+		art = art,
+	}
 end
 
 local function resource(id: string, name: string, description: string): Item
@@ -63,6 +75,11 @@ end
 local ITEMS: { Item } = {
 	tool("Hammer", "Hammer", "Swing at a block you placed to pick it back up, contents and all.", true),
 	tool("Pickaxe", "Pickaxe", "Mines rocks, and breaks stone, glass and earth blocks you placed."),
+	tool(
+		"WateringCan",
+		"Watering Can",
+		"Splash a growing crop on your plot to take a fifth off what's left of its stage."
+	),
 
 	block("Grass", "Grass", "Soft ground with a green top.", "Pickaxe"),
 	block("Dirt", "Dirt", "Plain earth.", "Pickaxe"),
@@ -101,32 +118,51 @@ local ITEMS: { Item } = {
 	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
 
 	machine("IndustrialSmelter", "Industrial Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
-	machine("IndustrialOven", "Industrial Oven", "Bakes berry dough into berry bread."),
-	machine("IndustrialFlowerPicker", "Industrial Flower Picker", "Reaps ripe crops nearby on your plot."),
 	machine(
-		"IndustrialMerchantTeleseller",
-		"Industrial Merchant Teleseller",
-		"Sells the resources fed into it, one a second."
+		"SeedPlanter",
+		"Seed Planter",
+		"Plants the seeds in its hopper into empty soil, 3 wide and 5 deep, in front of it.",
+		nil,
+		"SaplingAutomaticPlanter"
+	),
+	machine("Sprinkler", "Sprinkler", "Crops within 3 cells grow a quarter faster, and sometimes come out Wet."),
+	machine(
+		"Harvester",
+		"Harvester",
+		"Harvests ripe crops within 4 cells onto its output belt, and replants the ones that need it.",
+		nil,
+		"IndustrialFlowerPicker"
+	),
+	machine("Mill", "Mill", "Grinds 2 wheat into flour.", nil, "IndustrialSawmill"),
+	machine(
+		"Juicer",
+		"Juicer",
+		"Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice.",
+		nil,
+		"FoodProcessor"
+	),
+	machine("Oven", "Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie.", nil, "IndustrialOven"),
+	machine("CratePacker", "Crate Packer", "Packs 10 of any crop into its crate, worth more than the crops alone."),
+	machine(
+		"ShippingBin",
+		"Shipping Bin",
+		"Sells whatever a belt brings it, one a second, and pays you for it.",
+		nil,
+		"IndustrialMerchantTeleseller"
 	),
 	machine(
-		"IndustrialChest",
-		"Industrial Chest",
-		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out."
+		"StorageChest",
+		"Storage Chest",
+		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out.",
+		nil,
+		"IndustrialChest"
 	),
-	machine("FoodProcessor", "Food Processor", "Mixes wheat and carrots into berry dough."),
-	machine("CratePacker", "Crate Packer", "Packs 20 carrots or wheat into a crop crate."),
-	machine("CratePackerTier2", "Crate Packer Tier 2", "Packs 50 carrots or wheat into a large crop crate."),
-	machine("SaplingAutomaticPlanter", "Sapling Automatic Planter", "Plants seeds on soil just past its forks."),
 
 	resource("Coal", "Coal", "Fuel for the Industrial Smelter."),
 	resource("IronOre", "Iron Ore", "Smelt it into an iron bar."),
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
 	resource("IronBar", "Iron Bar", "Smelted iron for future crafting."),
 	resource("CopperBar", "Copper Bar", "Smelted copper for future crafting."),
-	resource("BerryDough", "Berry Dough", "Bake it into berry bread."),
-	resource("BerryBread", "Berry Bread", "Warm from the oven."),
-	resource("FruitCrate", "Fruit Crate", "Twenty crops, packed."),
-	resource("LargeFruitCrate", "Large Fruit Crate", "Fifty crops, packed."),
 }
 
 local cropIds: { string } = {}
@@ -154,11 +190,12 @@ for _, cropId in cropIds do
 		table.insert(ITEMS, variant)
 	end
 end
-local PRODUCT_VALUES = { BerryDough = 60, BerryBread = 90, FruitCrate = 420, LargeFruitCrate = 1100 }
-for _, item in ITEMS do
-	if PRODUCT_VALUES[item.id] then
-		item.value = PRODUCT_VALUES[item.id]
-	end
+for _, product in Products do
+	local item = resource(product.id, product.name, product.description)
+	item.value = product.value
+	item.art = product.art
+	item.color = product.color
+	table.insert(ITEMS, item)
 end
 
 return ITEMS

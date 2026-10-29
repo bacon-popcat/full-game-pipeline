@@ -3,7 +3,12 @@
 -- These positions stay west of the quarry and clear of the hub spawn.
 local Hub = {}
 Hub.REACH = 12
-Hub.STALLS = { SeedShop = Vector3.new(-24, 0, -15), SellStand = Vector3.new(24, 0, -15) }
+Hub.STALLS = {
+	SeedShop = Vector3.new(-24, 0, -15),
+	SellStand = Vector3.new(24, 0, -15),
+	GearShop = Vector3.new(-24, 0, 15),
+	MachineShop = Vector3.new(24, 0, 15),
+}
 
 function Hub.inReach(player: Player, name: string): boolean
 	local position = Hub.STALLS[name]

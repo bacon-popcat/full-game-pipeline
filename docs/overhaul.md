@@ -121,7 +121,7 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Storage Chest | 2 | 200 | Holds 12 slots from a belt (the Industrial Chest) |
 | Seed Planter | 4 | 800 | Plants seeds from its hopper into empty soil in a 3 x 5 patch in front |
 | Sprinkler | 5 | 1,000 | Crops within 3 cells grow 1.25x faster and can turn out Wet |
-| Harvester | 6 | 2,000 | Harvests ripe crops within 4 cells onto its output belt; it keeps a seed of each single crop for the planter beside it |
+| Harvester | 6 | 2,000 | Harvests ripe crops within 4 cells onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |
 | Mill | 7 | 2,500 | 2 Wheat -> Flour (value 40) |
 | Juicer | 8 | 4,000 | 3 Strawberry, Blueberry, Grape, Apple or Tomato -> that Juice (3.5x the fruit) |
 | Oven | 10 | 8,000 | Flour + 2 Strawberry, Blueberry or Apple -> that Pie (value 250, 400, 600) |
@@ -164,7 +164,7 @@ Git history keeps all of it.
    saving inventory, coins and plots; offline growth.
 2. [x] **Garden loop.** The crop table, multi-harvest plants, mutations, the Seed Shop with restocks,
    the Sell Stand, weather, and the HUD for coins, level and weather.
-3. **Automation.** The machine roster and Machine Shop, with Planter, Sprinkler, Harvester, the
+3. [x] **Automation.** The machine roster and Machine Shop, with Planter, Sprinkler, Harvester, the
    processors and the Shipping Bin.
 4. **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
 5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
@@ -247,6 +247,38 @@ Git history keeps all of it.
   and content/remote consistency checks pass; Studio runtime, persistence, device layout and
   multiplayer verification remain unverified because Studio execution requires approval and
   this session's approval policy is never.
+
+### Automation implementation decisions
+
+Built by Claude, not Codex: Codex hit its usage limit, and the user chose not to wait.
+
+- **The harvester replants on its own.** A single crop it harvests restarts from a sprout,
+  as the picker did, rather than keeping seeds for a planter. The Seed Planter is for filling
+  new soil. The harvester works one crop every 3 s, within 4 cells (12 studs) of its centre.
+- **The planter's patch** is 3 wide and 5 deep past its forks, filled nearest row first,
+  one seed every 2 s. Because the farm is a raised bed one cell high, each patch cell is tried
+  at the planter's level and one up, so a planter on the grass beside the bed plants onto it.
+- **Sprinklers** reach 3 cells across and one up or down, on their own plot. The best one
+  counts; several don't stack. Growth speed banks into the saved `growthBonus` and multiplies
+  with rain, so offline time still runs at normal speed.
+- **Watering Can**: 150 coins, a fifth off what's left of the current stage, 1.5 s cooldown.
+- **Shipping Bin** pays per item as it sells, carrying XP remainders per player, and batches
+  its toasts every 2 s. It takes any item with a value, not only resources.
+- **Products** live in `Shared/Factory/Products`. A juice is worth 3.5x one fruit, made from
+  three; Flour is 40 from 2 wheat; crates are 12x the crop from ten. The old dough, bread and
+  fruit crates are gone.
+- **Tier 2 conveyors** cost 75 at level 4; routers are 150 at level 3, including the
+  Randomizer and Sensor, which the table didn't price. Decorative blocks cost 5 to 20 and the
+  Pickaxe and Hammer 50 each, all at level 1. Tools can't be bought while you carry one.
+- **Old saves** keep their machines: DataService renames the old ids (Industrial Flower
+  Picker -> Harvester, Sapling Automatic Planter -> Seed Planter, Teleseller -> Shipping Bin,
+  Industrial Chest -> Storage Chest, Food Processor -> Juicer, Industrial Oven -> Oven, Crate
+  Packer Tier 2 -> Crate Packer) before validating. Old products are dropped with a warning.
+- **New place assets**: `Assets.Blocks.Sprinkler` (a one-cell sprinkler on a stone base) and
+  `Assets.Tools.WateringCan`, both soft placeholders authored in Studio.
+- **Playtested** in "farming game": shop locks, refusals and purchases; a planter filling its
+  patch on the bed; sprinkler timings exactly 1.25x; harvester -> shipping bin paying coins;
+  Mill making Flour; watering taking 20% off a stage, with the cooldown holding.
 
 Placeholder art until phase 5: the current machine models stand in for the new machines (Seed
 Planter = Sapling Automatic Planter, Harvester = Industrial Flower Picker, Shipping Bin =

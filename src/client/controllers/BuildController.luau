@@ -229,6 +229,10 @@ local function decide(): Action?
 		if node and def and def.tool == item.id then
 			return { kind = "Use", model = node }
 		end
+		-- The server checks the crop is yours and still growing.
+		if node and def and def.crop and item.id == "WateringCan" and not World.isRipe(def) then
+			return { kind = "Use", model = node }
+		end
 		return nil
 	end
 	local model = ghost

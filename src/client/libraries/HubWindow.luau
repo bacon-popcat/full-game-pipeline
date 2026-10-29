@@ -18,7 +18,15 @@ local HubWindow = {}
 export type Window = { open: () -> (), close: () -> (), frame: Frame }
 local OPEN_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
-function HubWindow.bind(hud: ScreenGui, name: string, stall: string, render: () -> ()): Window?
+-- `stalls` are the hub stalls whose prompts open this window; `onOpen` hears which one did,
+-- before `render`, and the window closes when you walk away from that stall.
+function HubWindow.bind(
+	hud: ScreenGui,
+	name: string,
+	stalls: { string },
+	render: () -> (),
+	onOpen: ((stall: string) -> ())?
+): Window?
 	local frame = Hud.find(hud, name, "Frame")
 	local scale = Hud.find(hud, name .. ".UIScale", "UIScale")
 	local closeButton = Hud.find(hud, name .. ".Header.Close", "TextButton")
@@ -37,6 +45,7 @@ function HubWindow.bind(hud: ScreenGui, name: string, stall: string, render: () 
 	local tween: Tween? = nil
 	local prior: GuiObject? = nil
 	local action = name .. "Back"
+	local stall = stalls[1]
 	frame.Visible = false
 	frame.SelectionGroup = true
 	frame.SelectionBehaviorUp = Enum.SelectionBehavior.Stop
@@ -64,12 +73,20 @@ function HubWindow.bind(hud: ScreenGui, name: string, stall: string, render: () 
 			GuiService.SelectedObject = closeButton
 		end
 	end
-	local function open()
-		if not Hub.inReach(Players.LocalPlayer, stall) or Players.LocalPlayer:GetAttribute("DataReady") ~= true then
+	local function open(opener: string)
+		if not Hub.inReach(Players.LocalPlayer, opener) or Players.LocalPlayer:GetAttribute("DataReady") ~= true then
 			return
 		end
 		Screens.claim(name)
+		local switching = opener ~= stall
+		stall = opener
+		if onOpen then
+			onOpen(opener)
+		end
 		if frame.Visible then
+			if switching then
+				render()
+			end
 			return
 		end
 		prior = GuiService.SelectedObject
@@ -103,8 +120,8 @@ function HubWindow.bind(hud: ScreenGui, name: string, stall: string, render: () 
 		local counter = prompt.Parent
 		local model = if counter then counter.Parent else nil
 		local hub = workspace:FindFirstChild("Hub")
-		if model and model.Name == stall and model.Parent == hub and prompt.Name == "Prompt" then
-			open()
+		if model and table.find(stalls, model.Name) and model.Parent == hub and prompt.Name == "Prompt" then
+			open(model.Name)
 		end
 	end)
 	trove:Connect(UserInputService:GetPropertyChangedSignal("PreferredInput"), focus)
@@ -126,6 +143,12 @@ function HubWindow.bind(hud: ScreenGui, name: string, stall: string, render: () 
 		close()
 		trove:Destroy()
 	end)
-	return { open = open, close = close, frame = frame }
+	return {
+		open = function()
+			open(stall)
+		end,
+		close = close,
+		frame = frame,
+	}
 end
 return HubWindow

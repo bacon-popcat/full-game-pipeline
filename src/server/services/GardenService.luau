@@ -8,6 +8,7 @@ local Content = require(ReplicatedStorage.Shared.Economy.Content)
 local Hub = require(ReplicatedStorage.Shared.Hub)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
 local World = require(ReplicatedStorage.Shared.World)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
@@ -106,31 +107,68 @@ local function refusal(player: Player, stall: string): string?
 	return nil
 end
 
-local function buy(player: Player, seedId: unknown, count: unknown)
+local function carries(player: Player, itemId: string): boolean
+	local slots = InventoryService.snapshot(player)
+	if not slots then
+		return false
+	end
+	for _, stack in slots do
+		if stack and stack.itemId == itemId then
+			return true
+		end
+	end
+	return false
+end
+
+-- Why a Gear or Machine Shop purchase can't go ahead, or nil once it is paid for.
+local function buyOffer(player: Player, offer: Shops.Offer, count: number): string?
+	local item = Inventory.getItem(offer.itemId)
+	local economy = EconomyService.get(player)
+	if not economy or economy.level < offer.level then
+		return `Reach level {offer.level} to buy this.`
+	elseif item.kind == "Tool" and (count ~= 1 or carries(player, offer.itemId)) then
+		return `You already have a {item.name}.`
+	elseif not InventoryService.canGive(player, offer.itemId, count) then
+		return "Your inventory is full."
+	elseif not EconomyService.trySpend(player, offer.price * count) then
+		return "You need more coins."
+	end
+	InventoryService.give(player, offer.itemId, count)
+	return nil
+end
+
+local function buy(player: Player, shopId: unknown, itemId: unknown, count: unknown)
 	local state = states[player]
-	if not state then
+	if not state or typeof(shopId) ~= "string" or not Hub.STALLS[shopId] then
 		return
 	end
 	restock(state)
-	local message = "Choose a valid seed amount."
-	if typeof(seedId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and seeds[seedId] then
-		local crop = seeds[seedId]
-		local reason = refusal(player, "SeedShop")
+	local message = "Choose a valid amount."
+	if typeof(itemId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and count <= 99 then
+		local reason = refusal(player, shopId)
+		local crop = if shopId == "SeedShop" then seeds[itemId] else nil
+		local offer = Shops.find(shopId, itemId)
 		if reason then
 			message = reason
-		elseif count > (state.seedStock[seedId] or 0) then
-			message = "Not enough seeds in stock."
-		elseif not InventoryService.canGive(player, seedId, count) then
-			message = "Your inventory is full."
-		elseif not EconomyService.trySpend(player, crop.price * count) then
-			message = "You need more coins."
-		else
-			InventoryService.give(player, seedId, count)
-			state.seedStock[seedId] -= count
-			message = `Bought {count} {crop.name} Seeds`
+		elseif crop then
+			if count > (state.seedStock[itemId] or 0) then
+				message = "Not enough seeds in stock."
+			elseif not InventoryService.canGive(player, itemId, count) then
+				message = "Your inventory is full."
+			elseif not EconomyService.trySpend(player, crop.price * count) then
+				message = "You need more coins."
+			else
+				InventoryService.give(player, itemId, count)
+				state.seedStock[itemId] -= count
+				message = `Bought {count} {crop.name} Seeds`
+			end
+		elseif offer then
+			message = buyOffer(player, offer, count) or `Bought {Inventory.getItem(itemId).name}`
 		end
 	end
-	sync(player, state)
+	if shopId == "SeedShop" then
+		sync(player, state)
+	end
 	Remotes.Notify:FireClient(player, message)
 end
 

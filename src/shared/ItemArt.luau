@@ -36,10 +36,16 @@ local function placeholder(): Model
 end
 
 -- Geometry callers use the same seed fallback as icons, without making Build and ItemArt cyclic.
+-- An item with no template of its own borrows the one its `art` names.
 function ItemArt.blockTemplate(itemId: string): Model?
 	local found = asset("Blocks", itemId)
 	if found and found:IsA("Model") then
 		return found
+	end
+	local item = Inventory.find(itemId)
+	local borrowed = if item and item.art then asset("Blocks", item.art) else nil
+	if borrowed and borrowed:IsA("Model") then
+		return borrowed
 	end
 	for _, crop in World.CROPS do
 		if crop.seed == itemId then
@@ -108,17 +114,20 @@ function ItemArt.copy(itemId: string): Model?
 	local base = item.base or itemId
 	local crop = World.CROPS[base]
 	local template = asset("Items", base)
-	local fallback = false
+	local tint: Color3? = nil
 	if not template and crop then
 		template = asset("Items", crop.art)
-		fallback = true
+		tint = crop.color
+	elseif not template and item.art then
+		template = asset("Items", item.art)
+		tint = item.color
 	end
 	if template and template:IsA("Model") then
 		local copy = template:Clone()
 		if item.mutation then
 			ItemArt.tint(copy, Mutations.ALL[item.mutation].color)
-		elseif fallback and crop then
-			ItemArt.tint(copy, crop.color)
+		elseif tint then
+			ItemArt.tint(copy, tint)
 		end
 		return copy
 	end

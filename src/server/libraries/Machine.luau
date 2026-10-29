@@ -49,9 +49,11 @@ export type Env = {
 	source: (() -> (Factory.Source?, string?))?,
 	-- Pickers: reap a ripe crop near it that `source` comes from; returns whether it did.
 	reap: ((source: Factory.Source) -> boolean)?,
-	-- Planters: whether an item could be planted in the planting cell, and planting it there.
+	-- Planters: whether an item could be planted in a free cell of its patch, and planting it there.
 	canPlant: ((itemId: string) -> boolean)?,
 	plant: ((itemId: string) -> boolean)?,
+	-- Sellers: pays the owner for one sold item.
+	sell: ((itemId: string) -> ())?,
 }
 
 local Machine = {}
@@ -115,8 +117,7 @@ function Machine.room(state: State, itemId: string): number
 		return (def.stores - Machine.slotsUsed(state)) * stack + topUp
 	end
 	if def.sells then
-		local item = Inventory.getItem(itemId)
-		return if item.kind == "Resource" then SELL_CAP - total(state.inputs) else 0
+		return if Inventory.getItem(itemId).value then SELL_CAP - total(state.inputs) else 0
 	end
 	local base = Inventory.getItem(itemId).base or itemId
 	local held = 0
@@ -399,7 +400,7 @@ local function stepPlanter(state: State, dt: number, env: Env)
 		end
 	end
 	if not chosen then
-		state.status = if held then "Its planting spot is taken or has no soil" else "Needs seeds"
+		state.status = if held then "No empty soil in its patch" else "Needs seeds"
 		state.job = nil
 		return
 	end
@@ -421,7 +422,7 @@ local function stepPlanter(state: State, dt: number, env: Env)
 	end
 end
 
-local function stepSeller(state: State, dt: number)
+local function stepSeller(state: State, dt: number, env: Env)
 	if total(state.inputs) == 0 then
 		state.status = "Idle"
 		state.timer = 0
@@ -437,13 +438,18 @@ local function stepSeller(state: State, dt: number)
 		end
 		take(state, itemId, 1)
 		state.sold += 1
+		if env.sell then
+			env.sell(itemId)
+		end
 	end
 end
 
 function Machine.step(state: State, dt: number, env: Env)
 	local def = state.def
 	if def.sells then
-		stepSeller(state, dt)
+		stepSeller(state, dt, env)
+	elseif def.sprinkles then
+		state.status = "Watering"
 	elseif def.stores then
 		local used = Machine.slotsUsed(state)
 		state.status = if used == 0 then "Empty" elseif used >= def.stores then "Full" else "Storing"

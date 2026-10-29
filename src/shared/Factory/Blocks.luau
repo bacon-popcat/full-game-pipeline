@@ -10,12 +10,15 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Products = require(ReplicatedStorage.Shared.Factory.Products)
 local World = require(ReplicatedStorage.Shared.World)
 
 -- Belt surface height above a block's floor (the art's BELT_TOP).
 local BELT = 1.59
 local TIER1 = 4
 local TIER2 = 8
+-- Seconds a harvester spends on each ripe crop.
+local HARVEST_EVERY = 3
 
 export type Extents = { min: Vector3, max: Vector3 }
 
@@ -74,15 +77,20 @@ export type Def = {
 	-- Fuel item -> seconds of running it gives. Burns only while working.
 	fuel: { [string]: number }?,
 	produce: Produce?,
-	-- Takes any resource and sells one a second.
+	-- Takes any item with a value and sells one a second for the block's owner.
 	sells: boolean?,
 	-- Chest: keeps whatever arrives in this many slots, each up to the item's stack size,
 	-- until a player takes it out through the panel.
 	stores: number?,
+	-- Planter: the seeds it plants, tried in order, seconds per planting, and the centres of
+	-- the cells it plants into, nearest first. A crop goes in at the planter's own level, or
+	-- one cell up where a raised bed stands beside it (FactoryService).
 	plants: { string }?,
 	plantEvery: number?,
-	-- Centre of the cell just past the planter forks.
-	plantCell: ((ext: Extents) -> Vector3)?,
+	plantArea: ((ext: Extents) -> { Vector3 })?,
+	-- Sprinkler: crops within `radius` cells on its plot grow `speed` times as fast and gain
+	-- `wet` to their Wet chance. The best sprinkler over a crop counts; several don't stack.
+	sprinkles: { radius: number, speed: number, wet: number }?,
 }
 
 local function v(x: number, y: number, z: number): Vector3
@@ -174,13 +182,31 @@ local function pickerSources(): { [string]: Source }
 	local sources: { [string]: Source } = {}
 	for cropId, crop in World.CROPS do
 		sources[World.cropStage(cropId, #World.STAGES)] =
-			{ item = crop.produce, every = 15, count = crop.yield, reaps = true }
+			{ item = crop.produce, every = HARVEST_EVERY, count = crop.yield, reaps = true }
 	end
 	return sources
 end
 
-local function pastForks(ext: Extents): Vector3
-	return v(-3, 1.5, ext.min.Z - 1.5)
+-- 3 wide and 5 deep, starting just past the forks, row by row away from the planter.
+local function plantPatch(ext: Extents): { Vector3 }
+	local cells = {}
+	for row = 0, 4 do
+		for _, x in { -3, -6, 0 } do
+			table.insert(cells, v(x, 1.5, ext.min.Z - 1.5 - row * 3))
+		end
+	end
+	return cells
+end
+
+-- The processing recipes Products lists for one machine.
+local function productRecipes(machine: string): { Recipe }
+	local recipes = {}
+	for _, product in Products do
+		if product.machine == machine then
+			table.insert(recipes, recipe(product.inputs, { [product.id] = 1 }, product.time))
+		end
+	end
+	return recipes
 end
 
 local SEEDS: { string } = {}
@@ -211,30 +237,25 @@ local BLOCKS: { [string]: Def } = {
 		recipe({ IronOre = 1 }, { IronBar = 1 }, 10),
 		recipe({ CopperOre = 1 }, { CopperBar = 1 }, 10),
 	}, { Coal = 30 }),
-	IndustrialOven = processor({ recipe({ BerryDough = 1 }, { BerryBread = 1 }, 10) }),
-	IndustrialFlowerPicker = {
+	Mill = processor(productRecipes("Mill")),
+	Juicer = processor(productRecipes("Juicer")),
+	Oven = processor(productRecipes("Oven")),
+	CratePacker = processor(productRecipes("CratePacker")),
+	Harvester = {
 		kind = "Machine",
 		output = "+Z",
-		produce = { sources = pickerSources(), radius = 6 },
+		produce = { sources = pickerSources(), radius = 4 },
 	},
-	IndustrialMerchantTeleseller = { kind = "Machine", input = "-Z", sells = true },
-	IndustrialChest = { kind = "Machine", input = "-Z", stores = 12 },
-	FoodProcessor = processor({ recipe({ Wheat = 2, Carrot = 1 }, { BerryDough = 1 }, 5) }),
-	CratePacker = processor({
-		recipe({ Carrot = 20 }, { FruitCrate = 1 }, 2),
-		recipe({ Wheat = 20 }, { FruitCrate = 1 }, 2),
-	}),
-	CratePackerTier2 = processor({
-		recipe({ Carrot = 50 }, { LargeFruitCrate = 1 }, 2),
-		recipe({ Wheat = 50 }, { LargeFruitCrate = 1 }, 2),
-	}),
-	SaplingAutomaticPlanter = {
+	ShippingBin = { kind = "Machine", input = "-Z", sells = true },
+	StorageChest = { kind = "Machine", input = "-Z", stores = 12 },
+	SeedPlanter = {
 		kind = "Machine",
 		input = "+Z",
 		plants = SEEDS,
-		plantEvery = 10,
-		plantCell = pastForks,
+		plantEvery = 2,
+		plantArea = plantPatch,
 	},
+	Sprinkler = { kind = "Machine", sprinkles = { radius = 3, speed = 1.25, wet = 0.1 } },
 }
 
 return BLOCKS

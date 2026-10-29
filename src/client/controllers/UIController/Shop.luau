@@ -1,20 +1,33 @@
--- Shop: a generic authored catalogue window. configure supplies title, priced offers and
--- purchase callback; the seed adapter below supplies Phase 2 stock. No prices come from UI.
+-- Shop: the authored catalogue window behind the Seed Shop, Gear Shop and Machine Shop
+-- stalls. Whichever stall's prompt opened it decides the catalogue: seeds with this player's
+-- stock and restock countdown, or Shared/Economy/Shops' offers with their level locks. No
+-- prices come from the UI; the server checks every purchase and answers with Notify.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Content = require(ReplicatedStorage.Shared.Economy.Content)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
 local World = require(ReplicatedStorage.Shared.World)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local EconomyClient = require(Libraries.EconomyClient)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
+local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
-export type Offer = { itemId: string, price: number, rarity: string, stock: number }
+-- `stock` is nil for a shop that never runs out; `level` locks the offer below it.
+export type Offer = {
+	itemId: string,
+	price: number,
+	label: string,
+	color: Color3,
+	order: number,
+	stock: number?,
+	level: number?,
+}
 type Row = {
 	offer: Offer,
 	frame: Frame,
@@ -33,12 +46,28 @@ local rowTemplate: Frame? = nil
 local buyOffer: (string, number) -> () = function(_: string, _: number) end
 local pending = false
 
+local function carries(itemId: string): boolean
+	for index = 1, Inventory.SLOT_COUNT do
+		local stack = InventoryClient.getSlot(index)
+		if stack and stack.itemId == itemId then
+			return true
+		end
+	end
+	return false
+end
+
 local function render()
-	local coins = EconomyClient.get().coins
+	local economy = EconomyClient.get()
 	for _, row in rows do
 		local offer = row.offer
-		local enabled = not pending and offer.stock > 0 and coins >= offer.price
-		row.stock.Text = if offer.stock > 0 then `x{offer.stock}` else "Sold out"
+		local locked = offer.level ~= nil and economy.level < offer.level
+		local soldOut = offer.stock == 0
+		local owned = Inventory.getItem(offer.itemId).kind == "Tool" and carries(offer.itemId)
+		local enabled = not pending and not locked and not soldOut and not owned and economy.coins >= offer.price
+		row.stock.Text = if offer.stock
+			then (if offer.stock > 0 then `x{offer.stock}` else "Sold out")
+			elseif locked then `Lv {offer.level}`
+			else ""
 		row.buy.Active = enabled
 		row.buy.Selectable = enabled
 		row.buy.BackgroundTransparency = if enabled
@@ -49,8 +78,10 @@ local function render()
 			else row.textTransparency + (1 - row.textTransparency) * 0.5
 		row.label.Text = if pending
 			then "..."
-			elseif offer.stock == 0 then "Sold out"
-			elseif coins < offer.price then "Need coins"
+			elseif locked then "Locked"
+			elseif owned then "Owned"
+			elseif soldOut then "Sold out"
+			elseif economy.coins < offer.price then "Need coins"
 			else "Buy"
 	end
 end
@@ -60,15 +91,16 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 		return
 	end
 	rowTrove:Clean()
-
 	table.clear(rows)
 	titleLabel.Text = title
 	buyOffer = purchase
 	pending = false
 	local sorted = table.clone(offers)
 	table.sort(sorted, function(a: Offer, b: Offer)
-		local ar, br = Content.RARITIES[a.rarity].order, Content.RARITIES[b.rarity].order
-		return if ar ~= br then ar < br elseif a.price ~= b.price then a.price < b.price else a.itemId < b.itemId
+		return if a.order ~= b.order
+			then a.order < b.order
+			elseif a.price ~= b.price then a.price < b.price
+			else a.itemId < b.itemId
 	end)
 	for index, offer in sorted do
 		local frame = rowTemplate:Clone()
@@ -99,8 +131,8 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 			continue
 		end
 		name.Text = Inventory.getItem(offer.itemId).name
-		rarity.Text = offer.rarity
-		rarity.TextColor3 = Content.RARITIES[offer.rarity].color
+		rarity.Text = offer.label
+		rarity.TextColor3 = offer.color
 		price.Text = Hud.number(offer.price)
 		ItemIcon.show(icon, offer.itemId)
 		frame.LayoutOrder = index
@@ -152,31 +184,68 @@ function Shop.init(hud: ScreenGui)
 	end
 	list, titleLabel, rowTemplate = foundList, title, template
 	foundList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	local window = HubWindow.bind(hud, "Shop", "SeedShop", render)
+	local trove = Trove.new()
+	local restockAt = 0
+	local seedOffers: { Offer } = {}
+	local seedById: { [string]: Offer } = {}
+	for _, crop in World.CROPS do
+		local rarity = Content.RARITIES[crop.rarity]
+		local offer: Offer = {
+			itemId = crop.seed,
+			price = crop.price,
+			label = crop.rarity,
+			color = rarity.color,
+			order = rarity.order,
+			stock = 0,
+		}
+		table.insert(seedOffers, offer)
+		seedById[crop.seed] = offer
+	end
+	local categories: { [string]: number } = { Tool = 1, Block = 2, Conveyor = 1, Router = 2, Machine = 3 }
+	local function catalogue(stall: string)
+		local shop = Shops.SHOPS[stall]
+		local offers: { Offer } = if shop then {} else seedOffers
+		for _, each in if shop then shop.offers else {} do
+			table.insert(offers, {
+				itemId = each.itemId,
+				price = each.price,
+				label = each.category,
+				color = Shops.CATEGORY_COLORS[each.category],
+				order = categories[each.category] * 100 + each.level,
+				level = each.level,
+			})
+		end
+		restock.Visible = shop == nil
+		Shop.configure(if shop then shop.title else "Seed Shop", offers, function(id: string, count: number)
+			Remotes.ShopBuy:FireServer(stall, id, count)
+		end)
+	end
+	local stalls = { "SeedShop" }
+	for stall in Shops.SHOPS do
+		table.insert(stalls, stall)
+	end
+	local window = HubWindow.bind(hud, "Shop", stalls, render, catalogue)
 	if not window then
 		return
 	end
-	local trove = Trove.new()
-	local restockAt = 0
-	local offers: { Offer } = {}
-	local byId: { [string]: Offer } = {}
-	for _, crop in World.CROPS do
-		local offer = { itemId = crop.seed, price = crop.price, rarity = crop.rarity, stock = 0 }
-		table.insert(offers, offer)
-		byId[crop.seed] = offer
-	end
-	Shop.configure("Seed Shop", offers, function(id: string, count: number)
-		Remotes.ShopBuy:FireServer(id, count)
-	end)
+	catalogue("SeedShop")
 	trove:Connect(Remotes.ShopSync.OnClientEvent, function(snapshot: { restockAt: number, stock: { [string]: number } })
 		restockAt = snapshot.restockAt
-		for id, offer in byId do
+		for id, offer in seedById do
 			offer.stock = snapshot.stock[id] or 0
 		end
 		pending = false
 		render()
 	end)
+	-- Every purchase is answered with a toast, which also ends the Gear and Machine Shops' wait.
+	trove:Connect(Remotes.Notify.OnClientEvent, function()
+		if pending then
+			pending = false
+			render()
+		end
+	end)
 	trove:Connect(EconomyClient.changed, render)
+	trove:Connect(InventoryClient.changed, render)
 	local elapsed = 1
 	trove:Connect(RunService.Heartbeat, function(dt: number)
 		elapsed += dt

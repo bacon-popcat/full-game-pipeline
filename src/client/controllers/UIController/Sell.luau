@@ -74,7 +74,7 @@ function Sell.init(hud: ScreenGui)
 		enable(sellHeld, heldLabel, value ~= nil)
 		enable(sellAll, allLabel, sum > 0)
 	end
-	local window = HubWindow.bind(hud, "Sell", "SellStand", render)
+	local window = HubWindow.bind(hud, "Sell", { "SellStand" }, render)
 	if not window then
 		return
 	end

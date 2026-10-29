@@ -113,7 +113,55 @@ end
 -- Balances and the save's shape must hold. A stack, block or machine's contents that no longer
 -- check out (an item renamed or cut since it was saved) is dropped with a warning, so content
 -- changes never lock a player out of their garden.
+-- Machines the Automation phase renamed; a save from before keeps them under their new ids.
+local RENAMED: { [string]: string } = {
+	IndustrialFlowerPicker = "Harvester",
+	SaplingAutomaticPlanter = "SeedPlanter",
+	IndustrialMerchantTeleseller = "ShippingBin",
+	IndustrialChest = "StorageChest",
+	FoodProcessor = "Juicer",
+	IndustrialOven = "Oven",
+	CratePackerTier2 = "CratePacker",
+}
+
+local function renameCounts(counts: any)
+	if typeof(counts) ~= "table" then
+		return
+	end
+	for old, new in RENAMED do
+		local count = counts[old]
+		if typeof(count) == "number" then
+			counts[old] = nil
+			counts[new] = (if typeof(counts[new]) == "number" then counts[new] else 0) + count
+		end
+	end
+end
+
+local function migrate(data: any)
+	for _, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
+		if typeof(stack) == "table" and RENAMED[stack.itemId] then
+			stack.itemId = RENAMED[stack.itemId]
+		end
+	end
+	local plot = if typeof(data.plot) == "table" then data.plot else {}
+	for _, block in if typeof(plot.blocks) == "table" then plot.blocks else {} do
+		if typeof(block) ~= "table" then
+			continue
+		end
+		block.itemId = RENAMED[block.itemId] or block.itemId
+		local contents = block.contents
+		if typeof(contents) == "table" then
+			renameCounts(contents.inputs)
+			renameCounts(contents.outputs)
+			for _, counts in if typeof(contents.lanes) == "table" then contents.lanes else {} do
+				renameCounts(counts)
+			end
+		end
+	end
+end
+
 local function sanitize(player: Player, data: any)
+	migrate(data)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
 	assert(
 		typeof(data.seedStock) == "table" and integer(data.restockAt) and typeof(data.discovered) == "table",

@@ -3,7 +3,7 @@
 -- panel (UIController/BlockInfo) and the machine panel (UIController/MachinePanel) both
 -- show a block through here, so the two always word it the same way. It reads the
 -- attributes FactoryService publishes on the block model: Status, Fuel, Contents, Output,
--- Progress, Sold, Slots, Powered and Filter.
+-- Progress, Sold, Earned, Slots, Powered and Filter. What a machine reaches comes from its def.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -13,7 +13,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 export type Row = { key: string, value: string }
 
 -- Machine statuses that mean it is doing its job, for the "working" colour.
-local WORKING = { Working = true, Selling = true, Feeding = true, Storing = true }
+local WORKING = { Working = true, Selling = true, Feeding = true, Storing = true, Watering = true }
 
 local BlockText = {}
 
@@ -102,8 +102,20 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 			add("Progress", `{math.round(progress * 100)}%`)
 		end
 		local sold = model:GetAttribute("Sold")
+		local earned = model:GetAttribute("Earned")
 		if def.sells and typeof(sold) == "number" then
-			add("Sold", tostring(sold))
+			add("Sold", if typeof(earned) == "number" then `{sold} for {earned} coins` else tostring(sold))
+		end
+		if def.sprinkles then
+			local rule = def.sprinkles
+			add("Reach", `{rule.radius} cells around`)
+			add("Crops", `grow {math.round((rule.speed - 1) * 100)}% faster, +{math.round(rule.wet * 100)}% Wet`)
+		end
+		if def.produce and def.produce.radius then
+			add("Reach", `{def.produce.radius} cells around`)
+		end
+		if def.plantArea then
+			add("Plants", "3 wide, 5 deep in front")
 		end
 		local slots = model:GetAttribute("Slots")
 		if def.stores and typeof(slots) == "number" then

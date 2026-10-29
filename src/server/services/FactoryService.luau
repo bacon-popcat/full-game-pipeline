@@ -40,6 +40,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Machine = require(ServerScriptService.Libraries.Machine)
 local DropService = require(script.Parent.DropService)
+local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 local WorldService = require(script.Parent.WorldService)
 
@@ -87,6 +88,8 @@ export type Block = {
 	powered: boolean,
 	pulseUntil: number,
 	env: Machine.Env?,
+	-- Shipping bins: coins paid out since it was placed.
+	earned: number,
 }
 
 -- Seconds between machine status refreshes.
@@ -118,6 +121,10 @@ local PICKUP_RADIUS = 1.75
 -- Seconds an item caught off a player's drop rides before that player can walk it up, so
 -- dropping onto a belt you stand on doesn't put the item straight back in your hand.
 local PICKUP_GRACE = 1.5
+-- Seconds a shipping bin's sales are gathered into one toast for its owner.
+local SALES_TOAST_EVERY = 2
+-- Coins of sales that earn one XP, as at the Sell Stand.
+local COINS_PER_XP = 10
 local NEIGHBOURS = {
 	Vector3.xAxis,
 	-Vector3.xAxis,
@@ -142,6 +149,10 @@ end
 
 local placed = placedFolder()
 local blocks: { [Model]: Block } = {}
+local sprinklers: { [Block]: boolean } = {}
+-- Shipping bin sales not yet toasted, and coins not yet turned into XP, per owner.
+local pendingSales: { [Player]: number } = {}
+local xpCoins: { [Player]: number } = {}
 local cellIndex: { [string]: Block } = {}
 local entries: { [string]: { Entry } } = {}
 local laneSet: { [LaneState]: boolean } = {}
@@ -540,10 +551,60 @@ local function sourcesFor(block: Block): { WorldService.Node }
 	return found
 end
 
-local function plantCellOf(block: Block): Vector3?
-	local rule = block.def.plantCell
-	local cell = if rule then cellOf(block.frame:PointToWorldSpace(rule(block.ext))) else nil
-	return if cell and Plot.same(block.origin, cell) then cell else nil
+-- The first cell of a planter's patch `itemId` could go in: at the planter's level, or one up
+-- onto a raised bed beside it. Only cells on the planter's own plot count.
+local function plantCellFor(block: Block, itemId: string): Vector3?
+	local rule = block.def.plantArea
+	if not rule then
+		return nil
+	end
+	for _, point in rule(block.ext) do
+		local cell = cellOf(block.frame:PointToWorldSpace(point))
+		for _, lift in { Vector3.zero, Vector3.yAxis } do
+			local candidate = cell + lift
+			if Plot.same(block.origin, candidate) and WorldService.canPlant(candidate, itemId) then
+				return candidate
+			end
+		end
+	end
+	return nil
+end
+
+local function ownerOf(block: Block): Player?
+	local owner = block.model:GetAttribute("Owner")
+	return if typeof(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
+end
+
+local function paySale(block: Block, itemId: string)
+	local player = ownerOf(block)
+	local value = Inventory.getItem(itemId).value
+	if not player or not value or not EconomyService.add(player, value) then
+		return
+	end
+	block.earned += value
+	pendingSales[player] = (pendingSales[player] or 0) + value
+	local coins = (xpCoins[player] or 0) + value
+	EconomyService.addXp(player, coins // COINS_PER_XP)
+	xpCoins[player] = coins % COINS_PER_XP
+end
+
+-- The best sprinkler over `cell`: the same plot, within its radius across and one cell up or down.
+local function sprinklerAt(cell: Vector3): { radius: number, speed: number, wet: number }?
+	local best = nil
+	for block in sprinklers do
+		local rule = block.def.sprinkles
+		local offset = cell - block.origin
+		if
+			rule
+			and Plot.same(block.origin, cell)
+			and math.max(math.abs(offset.X), math.abs(offset.Z)) <= rule.radius
+			and math.abs(offset.Y) <= 1
+			and (not best or rule.speed > best.speed)
+		then
+			best = rule
+		end
+	end
+	return best
 end
 
 local function envFor(block: Block): Machine.Env
@@ -573,12 +634,16 @@ local function envFor(block: Block): Machine.Env
 	end
 	if def.plants then
 		env.canPlant = function(itemId)
-			local cell = plantCellOf(block)
-			return cell ~= nil and WorldService.canPlant(cell, itemId)
+			return plantCellFor(block, itemId) ~= nil
 		end
 		env.plant = function(itemId)
-			local cell = plantCellOf(block)
+			local cell = plantCellFor(block, itemId)
 			return cell ~= nil and WorldService.plant(cell, itemId)
+		end
+	end
+	if def.sells then
+		env.sell = function(itemId)
+			paySale(block, itemId)
 		end
 	end
 	block.env = env
@@ -648,6 +713,7 @@ local function refreshStatus(block: Block)
 		setAttribute(model, "Progress", math.floor(Machine.progress(machine) * 10) / 10)
 		if block.def.sells then
 			setAttribute(model, "Sold", machine.sold)
+			setAttribute(model, "Earned", block.earned)
 		end
 		if block.def.stores then
 			setAttribute(model, "Slots", Machine.slotsUsed(machine))
@@ -740,6 +806,7 @@ local function register(model: Instance)
 		powered = false,
 		pulseUntil = 0,
 		env = nil,
+		earned = 0,
 	}
 	model:SetAttribute("BlockId", block.id)
 	eachCell(origin, footprint, function(cell)
@@ -786,6 +853,9 @@ local function register(model: Instance)
 		flash(block)
 	end
 	blocks[model] = block
+	if def.sprinkles then
+		sprinklers[block] = true
+	end
 	topology += 1
 end
 
@@ -798,6 +868,7 @@ local function unregister(model: Instance)
 		return
 	end
 	blocks[model] = nil
+	sprinklers[block] = nil
 	eachCell(block.origin, block.footprint, function(cell)
 		if cellIndex[cellKey(cell)] == block then
 			cellIndex[cellKey(cell)] = nil
@@ -1140,6 +1211,25 @@ function FactoryService.init()
 	Players.PlayerAdded:Connect(sendAll)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
+		pendingSales[player] = nil
+		xpCoins[player] = nil
+	end)
+	WorldService.setChanceModifiers(function(cell: Vector3)
+		local sprinkler = sprinklerAt(cell)
+		return { wet = if sprinkler then sprinkler.wet else 0, shocked = 0, golden = 0 }
+	end)
+	WorldService.setSpeedModifier(function(cell: Vector3): number
+		local sprinkler = sprinklerAt(cell)
+		return if sprinkler then sprinkler.speed else 1
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(SALES_TOAST_EVERY)
+			for player, coins in pendingSales do
+				Remotes.Notify:FireClient(player, `Shipping Bin +{coins} coins`)
+			end
+			table.clear(pendingSales)
+		end
 	end)
 	RunService.Heartbeat:Connect(step)
 	RunService.Heartbeat:Connect(pickUpUnderfoot)

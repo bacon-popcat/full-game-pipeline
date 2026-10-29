@@ -80,6 +80,8 @@ function BuildService.place(
 		return nil
 	end
 	local model = template:Clone()
+	-- Named for the item, not the template it may borrow (Items `art`).
+	model.Name = itemId
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			part.Anchored = true

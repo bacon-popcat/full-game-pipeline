@@ -41,6 +41,11 @@ function Inventory.getItem(itemId: string): Item
 	return item
 end
 
+-- The item, or nil for an id that isn't one (say, from a client or an old save).
+function Inventory.find(itemId: string): Item?
+	return byId[itemId]
+end
+
 function Inventory.isPlaceable(item: Item): boolean
 	return item.kind == "Block" or item.kind == "Machine"
 end
