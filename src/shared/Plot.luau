@@ -21,7 +21,9 @@ export type Contents = {
 	lanes: { Counts },
 	fuel: number,
 	sold: number,
+	-- A filter conveyor's items sent left, and (since filters could send right) right.
 	filter: { string },
+	filterRight: { string }?,
 	powered: boolean,
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }

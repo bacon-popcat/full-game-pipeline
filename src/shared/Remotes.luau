@@ -52,8 +52,8 @@ return {
 	-- block or a world node. "Use" applies the held item (feed a machine, set a filter, mine
 	-- a rock); "Take" is an empty hand (collect output, pick berries, switch a split
 	-- conveyor). The machine panel sends the rest, whatever is held: "Load" (itemId, from
-	-- anywhere in the inventory), "Collect", "TakeBack", "Switch", "Filter" (itemId) and
-	-- "ClearFilter".
+	-- anywhere in the inventory), "Collect", "TakeBack", "Switch", "Filter" (itemId: moves it
+	-- on from straight to left to right and back) and "ClearFilter".
 	Interact = get("Interact"),
 	-- server -> client: (update: { t: number, lanes: { [string]: { Lane.Item } } }) the items
 	-- on every lane that gained or lost one, keyed "<BlockId>/<lane index>", as of server

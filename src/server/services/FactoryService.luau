@@ -71,6 +71,8 @@ type LaneState = {
 	version: number,
 }
 
+type Side = "Left" | "Right"
+
 export type Block = {
 	id: number,
 	model: Model,
@@ -90,7 +92,8 @@ export type Block = {
 	outputTarget: Entry?,
 	outputVersion: number,
 	-- Routers.
-	filter: { [string]: boolean },
+	-- Filter conveyors: the side each filtered item goes; anything else goes straight on.
+	filter: { [string]: Side },
 	powered: boolean,
 	pulseUntil: number,
 	env: Machine.Env?,
@@ -104,7 +107,7 @@ local STATUS_EVERY = 0.25
 local PULSE = 1
 -- Seconds a sensor's light curtain shows after an item passes.
 local FLASH = 0.4
--- Most items a filter conveyor filters.
+-- Most items a filter conveyor sends each way.
 local FILTER_MAX = 4
 -- Seconds an open-end check stays good; the world in front can change without the topology.
 local OPEN_RECHECK = 0.5
@@ -337,7 +340,8 @@ local function routeOut(block: Block, item: Lane.Item): LaneState?
 	elseif route == "Split" then
 		return if isPowered(block) then lanes[3] else lanes[2]
 	elseif route == "Filter" then
-		return if block.filter[item.itemId] then lanes[3] else lanes[2]
+		local side = block.filter[item.itemId]
+		return if side == "Left" then lanes[3] elseif side == "Right" then lanes[4] else lanes[2]
 	end
 	local choice = randomChoice[item.id]
 	if not choice then
@@ -833,12 +837,14 @@ local function refreshStatus(block: Block)
 	elseif block.def.route == "Split" then
 		setAttribute(model, "Powered", isPowered(block))
 	elseif block.def.route == "Filter" then
-		local filtered = {}
-		for itemId in block.filter do
-			table.insert(filtered, itemId)
+		local left, right = {}, {}
+		for itemId, side in block.filter do
+			table.insert(if side == "Left" then left else right, itemId)
 		end
-		table.sort(filtered)
-		setAttribute(model, "Filter", table.concat(filtered, ","))
+		table.sort(left)
+		table.sort(right)
+		setAttribute(model, "Filter", table.concat(left, ","))
+		setAttribute(model, "FilterRight", table.concat(right, ","))
 	end
 end
 
@@ -1021,11 +1027,20 @@ function FactoryService.snapshot(model: Model): Plot.Contents?
 	if not block then
 		return nil
 	end
-	local saved: Plot.Contents =
-		{ inputs = {}, outputs = {}, lanes = {}, fuel = 0, sold = 0, filter = {}, powered = block.powered }
-	for itemId in block.filter do
-		table.insert(saved.filter, itemId)
+	local left, right = {}, {}
+	for itemId, side in block.filter do
+		table.insert(if side == "Left" then left else right, itemId)
 	end
+	local saved: Plot.Contents = {
+		inputs = {},
+		outputs = {},
+		lanes = {},
+		fuel = 0,
+		sold = 0,
+		filter = left,
+		filterRight = right,
+		powered = block.powered,
+	}
 	for _, lane in block.lanes do
 		local counts: Plot.Counts = {}
 		for _, item in lane.items do
@@ -1051,7 +1066,10 @@ function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
 	end
 	block.powered = saved.powered
 	for _, itemId in saved.filter do
-		block.filter[itemId] = true
+		block.filter[itemId] = "Left"
+	end
+	for _, itemId in saved.filterRight or {} do
+		block.filter[itemId] = "Right"
 	end
 	for index, counts in saved.lanes do
 		local lane = block.lanes[index]
@@ -1184,16 +1202,25 @@ local function ready(player: Player): boolean
 	return true
 end
 
--- Sends `itemId` left at a filter conveyor, or stops sending it, up to FILTER_MAX items.
-local function toggleFilter(block: Block, itemId: string)
+local function hasRoom(block: Block, side: Side): boolean
 	local count = 0
-	for _ in block.filter do
-		count += 1
+	for _, other in block.filter do
+		if other == side then
+			count += 1
+		end
 	end
-	if block.filter[itemId] then
-		block.filter[itemId] = nil
-	elseif count < FILTER_MAX then
-		block.filter[itemId] = true
+	return count < FILTER_MAX
+end
+
+-- Moves `itemId` on to a filter conveyor's next setting: straight on, then left, then
+-- right, then straight on again. A side already sending FILTER_MAX items is skipped.
+local function toggleFilter(block: Block, itemId: string)
+	local side = block.filter[itemId]
+	block.filter[itemId] = nil
+	if side == nil and hasRoom(block, "Left") then
+		block.filter[itemId] = "Left"
+	elseif side ~= "Right" and hasRoom(block, "Right") then
+		block.filter[itemId] = "Right"
 	end
 end
 

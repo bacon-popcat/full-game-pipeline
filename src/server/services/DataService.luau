@@ -102,9 +102,14 @@ local function contentsValid(contents: any): boolean
 			return false
 		end
 	end
-	for _, itemId in contents.filter do
-		if not knownItems[itemId] then
-			return false
+	if contents.filterRight ~= nil and typeof(contents.filterRight) ~= "table" then
+		return false
+	end
+	for _, list in { contents.filter, contents.filterRight or {} } do
+		for _, itemId in list do
+			if not knownItems[itemId] then
+				return false
+			end
 		end
 	end
 	return true

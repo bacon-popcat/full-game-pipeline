@@ -30,7 +30,9 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 - **Ports connect on faces.** An exit and entry must share a point, face each other and
   belong to the same plot. Hitbox PortDepthBack / PortDepthFront defines short belts between
   machine faces and ports. All conveyor variants and Split, Merger, Filter, Randomizer and
-  Sensor routing remain supported.
+  Sensor routing remain supported. A Filter sends each item it is set for to its left or
+  right arm (up to 4 items a side) and everything else straight on; holding an item and
+  clicking the filter moves that item through the same left, right, straight cycle.
 - **Items move on the server.** Clients receive changed lane lists through FactorySync and
   interpolate with Lane. A machine starts a job only when its outputs fit.
 - **Queued input can bypass an unwanted item.** A machine checks up to twelve queued items,
@@ -137,7 +139,7 @@ on the server, including item ids from the panel.
 | Machine | Load from inventory, Collect output, Take back unused inputs |
 | Storage Chest | Take one item type, Take all |
 | Split | Switch side / straight |
-| Filter | Toggle an inventory item, Clear filter |
+| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); Clear filter |
 
 Hammer picks up owned blocks; Pickaxe breaks matching cubes or mines quarry rocks. An empty
 hand takes belt items, switches routers or harvests owned crops. Machines are worked through

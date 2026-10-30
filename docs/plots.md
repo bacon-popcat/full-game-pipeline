@@ -74,7 +74,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | coins, xp | Live balances; level is derived |
 | inventory | Dense slots, including `false` for empty slots |
 | plot.blocks | Item id, relative cell, rotation, Against, factory contents |
-| factory contents | Separate input/output counts, counts per lane, remaining coal burn time, Sold, filter, manual Split switch |
+| factory contents | Separate input/output counts, counts per lane, remaining coal burn time, Sold, filter (items sent left) and optional filterRight (items sent right), manual Split switch |
 | plot.crops | Crop id, relative cell, current cycle wall-clock plantedAt, harvestCount, optional mutation, mutationRolled and growthBonus |
 | seedStock | Remaining seed counts for this player in the current shop window |
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |

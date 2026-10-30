@@ -43,6 +43,8 @@ type Cell = {
 	button: TextButton,
 	icon: ViewportFrame,
 	count: TextLabel,
+	-- The slot's hotbar-number label; a filter's grid shows in it which side an item goes.
+	key: TextLabel?,
 	bars: { Frame },
 	itemId: string?,
 	amount: number,
@@ -294,10 +296,15 @@ local function setRows(wanted: { BlockText.Row })
 	end
 end
 
-local function paintCell(cell: Cell, offer: Offer?, selected: boolean)
+-- `side` marks a filter's item with the side it goes, "L" or "R" in the slot's key label.
+local function paintCell(cell: Cell, offer: Offer?, selected: boolean, side: BlockText.Side?)
 	cell.itemId = if offer then offer.itemId else nil
 	cell.amount = if offer then offer.count else 0
 	cell.button.Visible = offer ~= nil
+	if cell.key then
+		cell.key.Visible = offer ~= nil and side ~= nil
+		cell.key.Text = if side == "Left" then "L" elseif side == "Right" then "R" else ""
+	end
 	if not offer then
 		return
 	end
@@ -330,11 +337,14 @@ local function showHint(cell: Cell?)
 	local itemId = if cell then cell.itemId else nil
 	if not itemId then
 		ui.hint.Text = if isFilter()
-			then "Click items to send them left (up to 4)."
+			then "Click an item to send it left, again for right, again for straight on."
 			elseif isChest() then "Click an item to take it out."
 			else look.hint
 	elseif isFilter() then
-		ui.hint.Text = `{BlockText.itemName(itemId)}: click to send it left, or not.`
+		local side = if model then BlockText.filter(model)[itemId] else nil
+		local now = if side then string.lower(side) else "straight on"
+		local after = if side == "Left" then "right" elseif side == "Right" then "straight on" else "left"
+		ui.hint.Text = `{BlockText.itemName(itemId)} goes {now}: click to send it {after}.`
 	elseif isChest() then
 		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to take it all out.`
 	else
@@ -353,6 +363,7 @@ local function createCell(): Cell
 		button = button,
 		icon = button.Icon,
 		count = button.Count,
+		key = if key and key:IsA("TextLabel") then key else nil,
 		bars = bracketBars(button.Brackets),
 		itemId = nil,
 		amount = 0,
@@ -422,7 +433,8 @@ local function renderGrid(def: Factory.Def, itemId: string)
 		return def.route == "Filter" or Factory.takesByHand(itemId, candidate)
 	end)
 	for index, offer in list do
-		paintCell(cells[index] or createCell(), offer, filtered[offer.itemId] == true)
+		local side = filtered[offer.itemId]
+		paintCell(cells[index] or createCell(), offer, side ~= nil, side)
 	end
 	for index = #list + 1, #cells do
 		paintCell(cells[index], nil, false)

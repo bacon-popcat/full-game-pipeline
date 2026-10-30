@@ -3,7 +3,7 @@
 -- panel (UIController/BlockInfo) and the machine panel (UIController/MachinePanel) both
 -- show a block through here, so the two always word it the same way. It reads the
 -- attributes FactoryService publishes on the block model: Status, Fuel, Contents, Output,
--- Progress, Sold, Earned, Slots, Powered and Filter. What a machine reaches comes from its def.
+-- Progress, Sold, Earned, Slots, Powered, Filter and FilterRight. What a machine reaches comes from its def.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -48,13 +48,21 @@ function BlockText.status(model: Model, def: Factory.Def): (string?, boolean)
 	return status, WORKING[status] == true
 end
 
--- The items a filter conveyor sends left.
-function BlockText.filter(model: Model): { [string]: boolean }
-	local filtered = {}
-	local encoded = model:GetAttribute("Filter")
-	if typeof(encoded) == "string" then
-		for id in string.gmatch(encoded, "[^,]+") do
-			filtered[id] = true
+export type Side = "Left" | "Right"
+
+local SIDES: { Side } = { "Left", "Right" }
+-- The attribute FactoryService publishes each side's items in.
+local SIDE_ATTRIBUTES: { [Side]: string } = { Left = "Filter", Right = "FilterRight" }
+
+-- The items a filter conveyor sends to a side, and which side; the rest go straight on.
+function BlockText.filter(model: Model): { [string]: Side }
+	local filtered: { [string]: Side } = {}
+	for _, side in SIDES do
+		local encoded = model:GetAttribute(SIDE_ATTRIBUTES[side])
+		if typeof(encoded) == "string" then
+			for id in string.gmatch(encoded, "[^,]+") do
+				filtered[id] = side
+			end
 		end
 	end
 	return filtered
@@ -122,12 +130,16 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 			add("Slots", `{slots} / {def.stores}`)
 		end
 	elseif def.route == "Filter" then
-		local names = {}
-		for id in BlockText.filter(model) do
-			table.insert(names, BlockText.itemName(id))
+		local names: { [Side]: { string } } = { Left = {}, Right = {} }
+		for id, side in BlockText.filter(model) do
+			table.insert(names[side], BlockText.itemName(id))
 		end
-		table.sort(names)
-		add("Sends left", if #names > 0 then table.concat(names, ", ") else "Nothing yet")
+		for _, side in SIDES do
+			local list = names[side]
+			table.sort(list)
+			add(`Sends {string.lower(side)}`, if #list > 0 then table.concat(list, ", ") else "Nothing yet")
+		end
+		add("Straight on", "Everything else")
 	end
 	return rows
 end
