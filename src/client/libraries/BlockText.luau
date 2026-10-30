@@ -51,8 +51,14 @@ end
 export type Side = "Left" | "Right"
 
 local SIDES: { Side } = { "Left", "Right" }
+BlockText.SIDES = SIDES
 -- The attribute FactoryService publishes each side's items in.
 local SIDE_ATTRIBUTES: { [Side]: string } = { Left = "Filter", Right = "FilterRight" }
+
+-- The row key naming what a filter conveyor sends to `side`, so a screen can find that row.
+function BlockText.sideLabel(side: Side): string
+	return `Sends {string.lower(side)}`
+end
 
 -- The items a filter conveyor sends to a side, and which side; the rest go straight on.
 function BlockText.filter(model: Model): { [string]: Side }
@@ -137,7 +143,7 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		for _, side in SIDES do
 			local list = names[side]
 			table.sort(list)
-			add(`Sends {string.lower(side)}`, if #list > 0 then table.concat(list, ", ") else "Nothing yet")
+			add(BlockText.sideLabel(side), if #list > 0 then table.concat(list, ", ") else "Nothing yet")
 		end
 		add("Straight on", "Everything else")
 	end

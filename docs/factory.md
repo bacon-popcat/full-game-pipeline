@@ -139,7 +139,7 @@ on the server, including item ids from the panel.
 | Machine | Load from inventory, Collect output, Take back unused inputs |
 | Storage Chest | Take one item type, Take all |
 | Split | Switch side / straight |
-| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); Clear filter |
+| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; Clear filter |
 
 Hammer picks up owned blocks; Pickaxe breaks matching cubes or mines quarry rocks. An empty
 hand takes belt items, switches routers or harvests owned crops. Machines are worked through

@@ -11,7 +11,8 @@
 -- pieces as the backpack, and takes the backpack's place on screen, so only one of them
 -- is ever open. Item cells clone Assets.UI.Inventory.Slot and rows clone
 -- Assets.UI.BlockInfo.Row, so they look like the backpack's slots and the hover panel's
--- rows.
+-- rows. A filter's status half also shows each side's items as small slots under that
+-- side's row (a strip); pressing one moves that item on to its next side.
 --
 -- It closes on the interact key, the close button or gamepad B, and on its own when the
 -- block is picked up or the player walks out of reach.
@@ -62,6 +63,9 @@ local AIM_DISTANCE = 150
 local CHECK_EVERY = 0.2
 local OPEN_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local OPEN_FROM_SCALE = 0.94
+-- Pixels across a filter strip's slots, and between them.
+local STRIP_SLOT = 44
+local STRIP_GAP = 6
 -- Below this width the two halves stack instead of sitting side by side.
 local COMPACT_WIDTH = 560
 local BUTTONS = { "Collect", "TakeBack", "Switch", "ClearFilter" }
@@ -76,6 +80,9 @@ local trove = Trove.new()
 local openTrove = trove:Extend()
 local cells: { Cell } = {}
 local rows: { Frame } = {}
+-- A filter's item strips, one per side, made the first time a filter opens.
+type Strip = { frame: Frame, cells: { Cell } }
+local strips: { [BlockText.Side]: Strip } = {}
 local model: Model? = nil
 local blockItemId: string? = nil
 local openTween: Tween? = nil
@@ -278,7 +285,8 @@ local function setRows(wanted: { BlockText.Row })
 		local frame = rows[index]
 		if not frame then
 			local clone = ui.rowTemplate:Clone()
-			clone.LayoutOrder = index
+			-- Spaced out so a filter's strips can sit between rows.
+			clone.LayoutOrder = index * 10
 			clone.Parent = ui.rows
 			frame = clone
 			rows[index] = clone
@@ -316,6 +324,105 @@ local function paintCell(cell: Cell, offer: Offer?, selected: boolean, side: Blo
 	ItemIcon.show(cell.icon, offer.itemId)
 	cell.count.Visible = offer.count > 1
 	cell.count.Text = tostring(offer.count)
+end
+
+-- A slot for a filter strip: the backpack slot, smaller, its count and key hidden. Pressing
+-- it moves its item on to the filter's next side.
+local function stripCell(strip: Frame): Cell
+	local button = ui.slotTemplate:Clone()
+	button.Size = UDim2.fromOffset(STRIP_SLOT, STRIP_SLOT)
+	for _, name in { "Count", "Key" } do
+		local label = button:FindFirstChild(name)
+		if label and label:IsA("GuiObject") then
+			label.Visible = false
+		end
+	end
+	button.SelectionImageObject = ui.selectionImage
+	local cell: Cell = {
+		button = button,
+		icon = button.Icon,
+		count = button.Count,
+		key = nil,
+		bars = bracketBars(button.Brackets),
+		itemId = nil,
+		amount = 0,
+	}
+	trove:Add(UI.bindButton(button, {
+		hoverScale = 1.08,
+		onActivate = function()
+			if cell.itemId then
+				send("Filter", cell.itemId)
+			end
+		end,
+	}))
+	button.Parent = strip
+	return cell
+end
+
+local function stripFor(side: BlockText.Side): Strip
+	local existing = strips[side]
+	if existing then
+		return existing
+	end
+	local frame = Instance.new("Frame")
+	frame.Name = `{side}Items`
+	frame.BackgroundTransparency = 1
+	frame.Size = UDim2.new(1, 0, 0, STRIP_SLOT)
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Horizontal
+	list.Padding = UDim.new(0, STRIP_GAP)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = frame
+	frame.Parent = ui.rows
+	trove:Add(frame)
+	local strip = { frame = frame, cells = {} }
+	strips[side] = strip
+	return strip
+end
+
+-- Under each side's row, that side's items as slots; hidden for anything but a filter, and
+-- for a side with nothing on it.
+local function renderStrips(target: Model?, shown: { BlockText.Row }?)
+	local filtered = if target and shown then BlockText.filter(target) else {}
+	for _, side in BlockText.SIDES do
+		local rowIndex = nil
+		for index, row in shown or {} do
+			if row.key == BlockText.sideLabel(side) then
+				rowIndex = index
+			end
+		end
+		local ids = {}
+		for id, itemSide in filtered do
+			if itemSide == side then
+				table.insert(ids, id)
+			end
+		end
+		if not rowIndex or #ids == 0 then
+			local strip = strips[side]
+			if strip then
+				strip.frame.Visible = false
+			end
+			continue
+		end
+		table.sort(ids, function(a, b)
+			return BlockText.itemName(a) < BlockText.itemName(b)
+		end)
+		local strip = stripFor(side)
+		strip.frame.LayoutOrder = rowIndex * 10 + 5
+		strip.frame.Visible = true
+		for index, id in ids do
+			local cell = strip.cells[index] or stripCell(strip.frame)
+			strip.cells[index] = cell
+			cell.button.LayoutOrder = index
+			cell.button.Visible = true
+			cell.itemId = id
+			ItemIcon.show(cell.icon, id)
+		end
+		for index = #ids + 1, #strip.cells do
+			strip.cells[index].button.Visible = false
+			strip.cells[index].itemId = nil
+		end
+	end
 end
 
 local function isFilter(): boolean
@@ -479,7 +586,9 @@ local function render()
 	local progress = target:GetAttribute("Progress")
 	ui.progress.Visible = isMachine and (def.recipes ~= nil or def.produce ~= nil)
 	ui.fill.Size = UDim2.fromScale(if typeof(progress) == "number" then math.clamp(progress, 0, 1) else 0, 1)
-	setRows(BlockText.rows(target, def, false))
+	local shownRows = BlockText.rows(target, def, false)
+	setRows(shownRows)
+	renderStrips(target, if def.route == "Filter" then shownRows else nil)
 
 	local powered = target:GetAttribute("Powered") == true
 	setButton(ui.Collect, isMachine, BlockText.hasOutput(target))
