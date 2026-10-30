@@ -273,15 +273,18 @@ Git history keeps all of it.
     level-up also toasts what it unlocked ("Level 6! New in the shops: Harvester.").
   - `FxController` draws a soil puff when planting; a burst in the crop's (or mutation's) colour
     and the produce bobbing up when harvesting; coins sparkling round the player at the Sell
-    Stand (a small sparkle at a Shipping Bin, its chime at most every 1.5 s); and a warm ring
+    Stand (a small, silent sparkle at a Shipping Bin, so a busy factory stays quiet); and a warm ring
     on level-up. Reduced motion keeps colour and sound and drops the movement.
   - Sound roles live in `Shared/Sounds` (Plant, Harvest, Coin, Buy, Water, Step, LevelUp),
     played through `client/libraries/Sound`: spatial for world moments, flat for the player's
     own. The palette was generated with ElevenLabs sound effects in one family of material words
     (warm wood, soil, soft chimes, no voice or melody); every take is in `assets/sounds/takes`
-    and the chosen ones in `assets/sounds` (README there). Studio's scripts can't upload audio,
-    so the files are imported by hand and their ids set in `Sounds.luau`; until then each role
-    is silent and the game is whole without sound.
+    and the chosen ones in `assets/sounds` (README there). They are uploaded as audio assets
+    through the Open Cloud Assets API (`ROBLOX_API_KEY`) and their ids set in `Sounds.luau`; a
+    role with no id is silent, so the game is whole without sound.
+  - Background music: two calm instrumentals (ElevenLabs Music, 150 s each, in `assets/music`)
+    listed in `Shared/Music`. `MusicController` plays them flat at 0.22 volume in a shuffled
+    order, fading in and out over 4 s, with 25-60 s of quiet between tracks.
   - Playtested in "farming game": the objective panel, a seed purchase completing step 1 (and
     steps 2-3 from the save), level-ups sending their effect and toast, and the live harvest,
     sale and purchase effects from a running plot.

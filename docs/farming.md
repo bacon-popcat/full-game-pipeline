@@ -72,7 +72,7 @@ these for the crop/mutation name, stage, status, countdown and whole-harvest sal
   cooldown per player and a server-made splash of droplets. Ripe crops are left alone. The hand
   sends `Interact "Use"` while holding it (BuildController); WorldService checks the crop.
 - **Seed Planter** and **Harvester** are in factory.md: the planter fills a 3 x 5 patch
-  (onto a raised bed beside it as well), the harvester reaps within 4 cells and replants.
+  at its own level, the harvester reaps within 4 cells at its own level and replants.
 
 ## Mutations
 

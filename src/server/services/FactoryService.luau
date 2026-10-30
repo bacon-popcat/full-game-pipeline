@@ -688,23 +688,27 @@ local function stepLanes(dt: number)
 	end
 end
 
--- Every source lookup and completed harvest stays inside the machine's plot.
+-- A harvester's crops: those standing in its area (Factory.area, at its own level only) on
+-- its own plot. Every source lookup and completed harvest stays inside the machine's plot.
 local function sourcesFor(block: Block): { WorldService.Node }
 	local produce = block.def.produce
 	local found = {}
-	if not produce then
+	local low, high = Factory.area(block.itemId, block.origin, block.footprint, block.frame)
+	if not produce or not low or not high then
 		return found
 	end
-	for _, node in WorldService.nodesNear(centreOf(block), (produce.radius or 6) * Build.GRID, produce.sources) do
-		if Plot.same(block.origin, node.cell) then
+	-- Every cell of the area is within this many studs of the block's centre.
+	local within = ((high - low).Magnitude / 2 + 1) * Build.GRID
+	for _, node in WorldService.nodesNear(centreOf(block), within, produce.sources) do
+		if Factory.inArea(node.cell, low, high) and Plot.same(block.origin, node.cell) then
 			table.insert(found, node)
 		end
 	end
 	return found
 end
 
--- The first cell of a planter's patch `itemId` could go in: at the planter's level, or one up
--- onto a raised bed beside it. Only cells on the planter's own plot count.
+-- The first cell of a planter's patch `itemId` could go in, at the planter's own level only.
+-- Only cells on the planter's own plot count.
 local function plantCellFor(block: Block, itemId: string): Vector3?
 	local rule = block.def.plantArea
 	if not rule then
@@ -712,11 +716,9 @@ local function plantCellFor(block: Block, itemId: string): Vector3?
 	end
 	for _, point in rule(block.ext) do
 		local cell = cellOf(block.frame:PointToWorldSpace(point))
-		for _, lift in { Vector3.zero, Vector3.yAxis } do
-			local candidate = cell + lift
-			if Plot.same(block.origin, candidate) and WorldService.canPlant(candidate, itemId) then
-				return candidate
-			end
+		local candidate = Vector3.new(cell.X, block.origin.Y, cell.Z)
+		if Plot.same(block.origin, candidate) and WorldService.canPlant(candidate, itemId) then
+			return candidate
 		end
 	end
 	return nil
@@ -741,17 +743,18 @@ local function paySale(block: Block, itemId: string)
 	GardenEvents.Sold:Fire(player, value, centreOf(block))
 end
 
--- The best sprinkler over `cell`: the same plot, within its radius across and one cell up or down.
+-- The best sprinkler over `cell`: the same plot, inside its area (at its own level only).
 local function sprinklerAt(cell: Vector3): { radius: number, speed: number, wet: number }?
 	local best = nil
 	for block in sprinklers do
 		local rule = block.def.sprinkles
-		local offset = cell - block.origin
+		local low, high = Factory.area(block.itemId, block.origin, block.footprint, block.frame)
 		if
 			rule
+			and low
+			and high
 			and Plot.same(block.origin, cell)
-			and math.max(math.abs(offset.X), math.abs(offset.Z)) <= rule.radius
-			and math.abs(offset.Y) <= 1
+			and Factory.inArea(cell, low, high)
 			and (not best or rule.speed > best.speed)
 		then
 			best = rule
@@ -778,7 +781,7 @@ local function envFor(block: Block): Machine.Env
 				end
 				return source
 			end
-			return nil, "Needs a ripe crop nearby on this plot"
+			return nil, "Needs a ripe crop nearby at its level"
 		end
 		env.reap = function(_: Factory.Source)
 			local node = selected

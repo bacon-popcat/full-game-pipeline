@@ -53,7 +53,7 @@ export type Source = {
 
 export type Produce = {
 	sources: { [string]: Source },
-	-- In cells, from the block's centre.
+	-- Cells out from each side of the block's footprint, at its own level (Factory.area).
 	radius: number?,
 }
 
@@ -81,15 +81,16 @@ export type Def = {
 	-- until a player takes it out through the panel.
 	stores: number?,
 	-- Planter: the seeds it plants, tried in order, seconds per planting, and the centres of
-	-- the cells it plants into, nearest first. A crop goes in at the planter's own level, or
-	-- one cell up where a raised bed stands beside it (FactoryService).
+	-- the cells it plants into, nearest first. A crop goes in at the planter's own level only
+	-- (FactoryService).
 	plants: { string }?,
 	plantEvery: number?,
 	plantArea: ((ext: Extents) -> { Vector3 })?,
 	-- Planter: its patch in cells, for the panel's words.
 	plantSize: { width: number, depth: number }?,
-	-- Sprinkler: crops within `radius` cells on its plot grow `speed` times as fast and gain
-	-- `wet` to their Wet chance. The best sprinkler over a crop counts; several don't stack.
+	-- Sprinkler: crops within `radius` cells at its own level on its plot grow `speed` times as
+	-- fast and gain `wet` to their Wet chance. The best sprinkler over a crop counts; several
+	-- don't stack.
 	sprinkles: { radius: number, speed: number, wet: number }?,
 }
 

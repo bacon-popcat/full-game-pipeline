@@ -88,6 +88,44 @@ function Factory.extents(itemId: string): Extents?
 	return result
 end
 
+-- The cells a planter, harvester or sprinkler works on, as the lowest and highest corner of a
+-- one-cell-high rectangle at the block's own level (its bottom cell row): a planter's patch,
+-- or `radius` cells out from every side of a harvester or sprinkler's footprint. Nothing above
+-- or below that row counts. `frame` is the block's authored frame (originFrame), which only a
+-- planter needs. Nil for every other block.
+function Factory.area(itemId: string, origin: Vector3, footprint: Vector3, frame: CFrame?): (Vector3?, Vector3?)
+	local def = Blocks[itemId]
+	if not def then
+		return nil, nil
+	end
+	if def.plantArea then
+		local ext = Factory.extents(itemId)
+		if not ext or not frame then
+			return nil, nil
+		end
+		local low, high = nil :: Vector3?, nil :: Vector3?
+		for _, point in def.plantArea(ext) do
+			local scaled = frame:PointToWorldSpace(point) / Build.GRID
+			local cell = Vector3.new(math.floor(scaled.X), origin.Y, math.floor(scaled.Z))
+			low = if low then low:Min(cell) else cell
+			high = if high then high:Max(cell) else cell
+		end
+		return low, high
+	end
+	local radius = if def.produce then def.produce.radius elseif def.sprinkles then def.sprinkles.radius else nil
+	if not radius then
+		return nil, nil
+	end
+	local out = Vector3.new(radius, 0, radius)
+	local far = origin + Vector3.new(footprint.X - 1, 0, footprint.Z - 1)
+	return origin - out, far + out
+end
+
+-- Whether `cell` is inside an area from Factory.area.
+function Factory.inArea(cell: Vector3, low: Vector3, high: Vector3): boolean
+	return cell.Y == low.Y and cell.X >= low.X and cell.X <= high.X and cell.Z >= low.Z and cell.Z <= high.Z
+end
+
 -- Studs from a machine's `face` to where its belt runs into the machine's port, from its
 -- template's hitbox (PortDepthBack / PortDepthFront, measured by the Islands pipeline's
 -- studio_blocks.luau). Nil when the

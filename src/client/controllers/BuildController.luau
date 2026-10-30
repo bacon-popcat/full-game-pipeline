@@ -10,7 +10,9 @@
 --     cubes it fits and mines the world nodes it fits;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
 --   * an empty hand takes from a conveyor (its belt items) or switches a router, or harvests a crop (a ripe one for its produce, a growing one for its seed);
---   * a seed's ghost is only green over soil (Shared/World/Soil).
+--   * a seed's ghost is only green over soil (Shared/World/Soil);
+--   * a planter, harvester or sprinkler's ghost also lays a soft sheet over the cells it
+--     will work (Factory.area), at its own level.
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
 -- The server re-checks everything; nothing here is trusted.
 --
@@ -53,6 +55,9 @@ local PICK_UP_COLOR = Color3.fromRGB(255, 255, 255)
 local USE_COLOR = Color3.fromRGB(255, 200, 60)
 -- Studs the outline stands proud of the box it marks.
 local OUTLINE_MARGIN = 0.15
+-- The work area sheet: a pale wash, and studs it floats over the floor of its cells.
+local AREA_COLOR = Color3.fromRGB(255, 222, 130)
+local AREA_LIFT = 0.08
 
 local BuildController = {}
 
@@ -99,6 +104,43 @@ end
 
 local function hideOutline()
 	outline.Parent = nil
+end
+
+-- The work area sheet: a thin, see-through slab with a soft edge, under a placing ghost.
+local area = Instance.new("Part")
+area.Name = "BuildArea"
+area.Anchored = true
+area.CanCollide = false
+area.CanQuery = false
+area.CanTouch = false
+area.CastShadow = false
+area.Material = Enum.Material.SmoothPlastic
+area.Color = AREA_COLOR
+area.Transparency = 0.6
+local areaBox = Instance.new("SelectionBox")
+areaBox.Adornee = area
+areaBox.LineThickness = 0.08
+areaBox.Color3 = AREA_COLOR
+areaBox.Transparency = 0.1
+areaBox.SurfaceTransparency = 1
+areaBox.Parent = area
+
+local function hideArea()
+	area.Parent = nil
+end
+
+-- Shows the cells `itemId` would work from `origin`, or hides the sheet for blocks with none.
+local function showArea(itemId: string, origin: Vector3, footprint: Vector3, model: Model)
+	local low, high = Factory.area(itemId, origin, footprint, Factory.originFrame(model))
+	if not low or not high then
+		hideArea()
+		return
+	end
+	local size = (high - low + Vector3.one) * Build.GRID
+	local floor = (low + high + Vector3.one) / 2 * Build.GRID - Vector3.new(0, size.Y / 2 - AREA_LIFT, 0)
+	area.Size = Vector3.new(size.X, 0.05, size.Z)
+	area.CFrame = CFrame.new(floor)
+	area.Parent = workspace.CurrentCamera
 end
 
 local function rootPosition(): Vector3?
@@ -178,6 +220,7 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	model.Parent = workspace.CurrentCamera
 	local centre = Build.box(origin, footprint)
 	showOutline(centre, footprint * Build.GRID, if valid then VALID_COLOR else INVALID_COLOR)
+	showArea(item.id, origin, footprint, model)
 	return { kind = "Place", model = nil }
 end
 
@@ -247,6 +290,7 @@ local function update()
 	action = chosen
 	if not chosen or chosen.kind ~= "Place" then
 		placement = nil
+		hideArea()
 		if ghost then
 			ghost.Parent = nil
 		end
@@ -353,6 +397,7 @@ local function clearHeld()
 	placement = nil
 	action = nil
 	hideOutline()
+	hideArea()
 end
 
 -- Re-reads the hand and rebinds everything for whatever it now holds.

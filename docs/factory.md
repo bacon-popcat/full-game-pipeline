@@ -60,14 +60,17 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   paying its owner the item's value and Sell Stand XP (1 per 10 coins, remainders carried per
   player). Its owner sees one "Shipping Bin +N coins" toast every 2 s at most. It publishes
   `Sold` and `Earned`.
+- **Work areas.** A planter, harvester or sprinkler works only on cells at its own level (its
+  bottom cell row), never above or below; `Factory.area` gives the rectangle and the server and
+  the placing ghost share it. While placing one, BuildController lays a soft yellow sheet over
+  that rectangle.
 - **Seed Planter** plants the first loaded seed that fits into the first free cell of a patch
-  3 wide and 5 deep past its forks (`plantArea` in Blocks), every 2 s. Each cell is tried at the
-  planter's level and one cell up, so a planter standing on the grass beside a raised bed plants
-  onto the bed.
-- **Harvester** harvests every ripe crop within 4 cells, one every 3 s, onto its output belt.
+  3 wide and 5 deep past its forks (`plantArea` in Blocks), every 2 s.
+- **Harvester** harvests every ripe crop within 4 cells of its footprint (a square), one every
+  3 s, onto its output belt.
   A single crop restarts from a sprout, so it replants itself; a multi crop regrows its fruit.
   Each harvest gives the owner harvest XP, as a hand harvest does.
-- **Sprinkler** has no ports. Crops within 3 cells across (and one up or down) on its plot grow
+- **Sprinkler** has no ports. Crops within 3 cells across on its plot grow
   1.25x as fast and gain +10% Wet chance. The best sprinkler over a crop counts; several don't
   stack. FactoryService hands WorldService the speed and chance providers; SprinklerController
   draws a soft spray.

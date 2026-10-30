@@ -1,6 +1,7 @@
 -- FxController: shows and sounds the moments FxService sends (Remotes.Fx). Each is short and soft:
 -- a puff of soil when planting, a pop of the crop's colour and its produce bobbing up when
--- harvesting, coins sparkling round you when you sell, a warm ring when you level up. Reduced
+-- harvesting, coins sparkling round you when you sell (a Shipping Bin's sales only sparkle, with
+-- no sound, so a busy factory stays quiet), a warm ring when you level up. Reduced
 -- motion keeps the sounds and colours but drops the movement. Nothing here changes the game.
 local Debris = game:GetService("Debris")
 local GuiService = game:GetService("GuiService")
@@ -22,10 +23,6 @@ local GLOW = Color3.fromRGB(255, 236, 190)
 -- Studs past which nobody needs to see someone else's farm moment.
 local SHOW_WITHIN = 140
 local BOB_TWEEN = TweenInfo.new(0.7, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
--- Seconds between a Shipping Bin's coin sounds, so a busy bin chimes instead of chattering.
-local BIN_SOUND_EVERY = 1.5
-
-local lastBinSound = 0
 
 local function near(position: Vector3): boolean
 	local camera = workspace.CurrentCamera
@@ -143,13 +140,9 @@ local function show(fx: { [string]: any })
 		Sound.play("Water", position)
 	elseif kind == "Sell" then
 		if typeof(position) == "Vector3" then
-			-- a Shipping Bin selling: a small sparkle at the bin, a chime now and then
+			-- a Shipping Bin selling: a small, silent sparkle at the bin
 			if near(position) then
 				burst(position + Vector3.yAxis * 2, COIN, 5, 5, 0.22)
-			end
-			if os.clock() - lastBinSound >= BIN_SOUND_EVERY then
-				lastBinSound = os.clock()
-				Sound.play("Coin", position)
 			end
 		else
 			local at = characterPosition()
