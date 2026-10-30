@@ -24,6 +24,8 @@ export type Contents = {
 	-- A filter conveyor's items sent left, and (since filters could send right) right.
 	filter: { string },
 	filterRight: { string }?,
+	-- Its ticked mutations, as "Left:Golden" or "Right:Plain".
+	filterMutations: { string }?,
 	powered: boolean,
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }

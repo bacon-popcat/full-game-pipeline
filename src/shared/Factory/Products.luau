@@ -1,8 +1,9 @@
 --!strict
 -- Products: what the processing machines and the Workbench make, from what, and what each is
 -- worth. Items turns these into items and Factory/Blocks into recipes, so a product's numbers
--- live only here. Crop values come from World.CROPS; a recipe takes any mutation of a crop input
--- (Machine). Parts have no value: they are spent in the Machine Shop (Shared/Economy/Shops).
+-- live only here. Crop values come from World.CROPS. A batch takes inputs of one mutation only
+-- and its product keeps that mutation (Machine; Items makes the variants of every valued
+-- product). Parts have no value: they are spent in the Machine Shop (Shared/Economy/Shops).
 --
 -- Art: products borrow an existing Assets.Items model (`art`), tinted `color` when given, until
 -- the art phase.

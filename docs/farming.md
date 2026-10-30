@@ -89,11 +89,11 @@ is the cell hook FactoryService fills with the best sprinkler's +10% Wet;
 `chanceModifiers(cell, offline)` combines additive Wet, Shocked and Golden chances with
 weather and clamps each to 0..1.
 
-Harvests use `<Produce>+<Mutation>`. Factory processing accepts mixtures of any input's
-plain and mutated variants and emits the existing plain recipe product. Plain inputs are
-used first; the job records exact consumed variant ids for save/pickup refunds. Per-input
-capacity is shared across variants. Filter Conveyor checks the exact incoming item id,
-so its existing filters already distinguish mutations.
+Harvests use `<Produce>+<Mutation>`. Factory processing keeps each variant apart: a batch
+takes all its inputs in one mutation and makes that mutation's product, and each variant has
+its own input room (factory.md § Processors). The job records exact consumed variant ids for
+save/pickup refunds. A Filter Conveyor sorts by picked item and by its per-side mutation
+checklist.
 
 ## Weather
 

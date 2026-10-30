@@ -39,8 +39,10 @@ coins and XP without yielding. Rejected sales resync inventory and show a refusa
 the multiplier. Selling sums `item.value * count` and never multiplies twice. Processed product
 values live in `Shared/Factory/Products`: Flour 40 (from 24 of wheat), juices 3.5x one fruit
 (from three), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
-more than its plain inputs, which rewards building the line; processing a valuable mutation
-intentionally loses its premium, so a Filter Conveyor that sends mutations to the bin pays. Seeds are not sellable, so buying/selling a seed cannot create currency.
+more than its plain inputs, which rewards building the line. A batch of mutated inputs makes a
+mutated product worth the same multiplier (ten Golden Carrots make a Golden Carrot Crate at
+x20), so processing keeps a mutation's premium; a batch never mixes variants. Seeds are not
+sellable, so buying/selling a seed cannot create currency.
 A Shipping Bin on a plot pays its owner per item (factory.md).
 
 Harvest XP is Common 1, Uncommon 2, Rare 4, Epic 8, Legendary 15 and Mythic 30, once per
@@ -157,9 +159,10 @@ those belong to the authored assets. Existing Backpack/MachinePanel contracts st
 6. Exercise Rain, Thunderstorm and Golden Hour: calm transitions, banner deadline, accelerated
    growth across start/end/save, mutation chances, reduced motion, covered-camera rain and
    Rainbow tint. Check crop effects clean up when harvested or streamed out.
-7. Process mixtures of plain/mutated inputs, collect plain products, then save/break a machine
-   mid-recipe and verify exact input variants return. Filter a specific mutation separately
-   from its plain crop. Back up a picker with fewer free slots than a fruit yield.
+7. Feed a mix of plain and mutated inputs: each batch uses one variant and makes that
+   variant's product (Golden in, Golden out), rare ones waiting without blocking plain ones.
+   Save/break a machine mid-recipe and verify exact input variants return. Tick a mutation on
+   a filter side and check only that variant goes there. Back up a picker with fewer free slots than a fruit yield.
 8. Open all four windows in turn; Close/B, walking away, death, respawn, controller focus,
    mouse/gamepad switching, disabled buttons, row scrolling, toast limit and expiration.
    Inspect desktop, narrow portrait, mobile landscape, tablet and console sizes in Studio.

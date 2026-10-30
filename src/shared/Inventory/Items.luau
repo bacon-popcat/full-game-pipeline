@@ -107,7 +107,7 @@ local ITEMS: { Item } = {
 	machine(
 		"FilterConveyor",
 		"Filter Conveyor",
-		"Click it holding an item to send that item left; anything unfiltered goes straight on. Click empty-handed to clear."
+		"Sends the items and mutations you pick left or right; everything else goes straight on. Open it to set it up."
 	),
 	machine(
 		"SplitConveyor",
@@ -195,12 +195,25 @@ for _, cropId in cropIds do
 		table.insert(ITEMS, variant)
 	end
 end
+-- A valued product made from mutated inputs keeps the mutation (Machine), so each has a
+-- variant per mutation, worth its value times the multiplier. Parts have no value and none.
 for _, product in Products do
 	local item = resource(product.id, product.name, product.description)
 	item.value = product.value
 	item.art = product.art
 	item.color = product.color
 	table.insert(ITEMS, item)
+	local value = product.value
+	if value then
+		for _, name in mutationNames do
+			local variant = resource(product.id .. "+" .. name, name .. " " .. product.name, product.description)
+			variant.base = product.id
+			variant.mutation = name
+			variant.value = value * Mutations.ALL[name].multiplier
+			variant.art = product.art
+			table.insert(ITEMS, variant)
+		end
+	end
 end
 
 return ITEMS

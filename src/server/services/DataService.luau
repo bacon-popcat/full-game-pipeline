@@ -105,6 +105,14 @@ local function contentsValid(contents: any): boolean
 	if contents.filterRight ~= nil and typeof(contents.filterRight) ~= "table" then
 		return false
 	end
+	if contents.filterMutations ~= nil and typeof(contents.filterMutations) ~= "table" then
+		return false
+	end
+	for _, encoded in contents.filterMutations or {} do
+		if typeof(encoded) ~= "string" or not string.match(encoded, "^%a+:%a+$") then
+			return false
+		end
+	end
 	for _, list in { contents.filter, contents.filterRight or {} } do
 		for _, itemId in list do
 			if not knownItems[itemId] then

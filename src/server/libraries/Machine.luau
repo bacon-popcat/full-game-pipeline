@@ -8,11 +8,18 @@
 -- Fuel burns only while a job runs, and a job only starts when its outputs will fit, so a
 -- backed-up machine stops cleanly instead of losing items. Capacities are per item and
 -- small, so a conveyor feeding a machine backs up rather than vanishing into it.
+--
+-- Mutated crops are never mixed with plain ones or with each other: each variant has its own
+-- room, a batch takes all its inputs in one mutation (plain first, then rising rarity), and
+-- its products come out in that mutation too (Golden Carrots make a Golden Carrot Crate). A
+-- recipe with an input that has no variant (bars, parts) only runs plain. Rare variants wait
+-- inside until a whole batch of them is in, without holding up the plain ones.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 
 -- Finished items a machine holds before it stops working.
 local OUTPUT_CAP = 8
@@ -23,6 +30,10 @@ local SELL_CAP = 10
 -- Seconds between a seller's sales.
 local SELL_EVERY = 1
 local NO_RECIPES: { Factory.Recipe } = {}
+-- The variants a batch is looked for in, in order: "" is plain, then the mutations from the
+-- least to the most valuable.
+local VARIANTS: { string } = table.clone(Mutations.ORDER)
+table.insert(VARIANTS, 1, "")
 
 export type Job = {
 	recipe: Factory.Recipe?,
@@ -119,14 +130,8 @@ function Machine.room(state: State, itemId: string): number
 	if def.sells then
 		return if Inventory.getItem(itemId).value then SELL_CAP - total(state.inputs) else 0
 	end
-	local base = Inventory.getItem(itemId).base or itemId
-	local held = 0
-	for id, count in state.inputs do
-		if (Inventory.getItem(id).base or id) == base then
-			held += count
-		end
-	end
-	return math.max(0, capacity(def, itemId) - held)
+	-- Each variant has its own room, so a few rare ones can't crowd out the plain ones.
+	return math.max(0, capacity(def, itemId) - (state.inputs[itemId] or 0))
 end
 
 -- Puts up to `count` of `itemId` in. Returns how many went in.
@@ -252,16 +257,49 @@ local function outputCount(recipe: Factory.Recipe): number
 	return total(recipe.outputs)
 end
 
--- Whether the machine holds everything a recipe consumes.
+-- Recipes are static defs, so each one's variants are worked out once (false: none).
+local variantCache: { [Factory.Recipe]: { [string]: Factory.Recipe | false } } = {}
+
+local function buildVariant(recipe: Factory.Recipe, mutation: string): Factory.Recipe?
+	local inputs: { [string]: number } = {}
+	for itemId, need in recipe.inputs do
+		local id = itemId .. "+" .. mutation
+		if not Inventory.find(id) then
+			return nil
+		end
+		inputs[id] = need
+	end
+	local outputs: { [string]: number } = {}
+	for itemId, count in recipe.outputs do
+		local id = itemId .. "+" .. mutation
+		outputs[if Inventory.find(id) then id else itemId] = count
+	end
+	return { inputs = inputs, outputs = outputs, time = recipe.time }
+end
+
+-- `recipe` made in one variant ("" for plain): every input and product in that mutation, or
+-- nil when an input has no such variant.
+local function inVariant(recipe: Factory.Recipe, mutation: string): Factory.Recipe?
+	if mutation == "" then
+		return recipe
+	end
+	local cached = variantCache[recipe]
+	if not cached then
+		cached = {}
+		variantCache[recipe] = cached
+	end
+	local found = cached[mutation]
+	if found == nil then
+		found = buildVariant(recipe, mutation) or false
+		cached[mutation] = found
+	end
+	return if found then found else nil
+end
+
+-- Whether the machine holds everything a batch consumes, exactly those items.
 local function hasInputs(state: State, recipe: Factory.Recipe): boolean
 	for itemId, need in recipe.inputs do
-		local held = 0
-		for id, count in state.inputs do
-			if (Inventory.getItem(id).base or id) == itemId then
-				held += count
-			end
-		end
-		if held < need then
+		if (state.inputs[itemId] or 0) < need then
 			return false
 		end
 	end
@@ -278,33 +316,21 @@ local function stepRecipes(state: State, dt: number)
 	local blocked = false
 	if not job then
 		for _, recipe in state.def.recipes or NO_RECIPES do
-			local ready = hasInputs(state, recipe)
-			blocked = blocked or (ready and not hasRoom(state, recipe))
-			if ready and hasRoom(state, recipe) then
-				local consumed: { [string]: number } = {}
-				for itemId, need in recipe.inputs do
-					-- Preserve exact variants in the job so saving/pickup refunds the original inputs.
-					local ids = { itemId }
-					for id in state.inputs do
-						if Inventory.getItem(id).base == itemId then
-							table.insert(ids, id)
-						end
+			for _, mutation in VARIANTS do
+				local batch = inVariant(recipe, mutation)
+				local ready = batch ~= nil and hasInputs(state, batch)
+				blocked = blocked or (batch ~= nil and ready and not hasRoom(state, batch))
+				if batch and ready and hasRoom(state, batch) then
+					-- The job keeps the exact variants it took, so saving or pickup refunds them.
+					for itemId, need in batch.inputs do
+						take(state, itemId, need)
 					end
-					for _, id in ids do
-						local count = math.min(need, state.inputs[id] or 0)
-						if count > 0 then
-							consumed[id] = count
-							take(state, id, count)
-							need -= count
-						end
-					end
+					job = { recipe = batch, time = batch.time, elapsed = 0 }
+					state.job = job
+					break
 				end
-				job = {
-					recipe = { inputs = consumed, outputs = recipe.outputs, time = recipe.time },
-					time = recipe.time,
-					elapsed = 0,
-				}
-				state.job = job
+			end
+			if job then
 				break
 			end
 		end

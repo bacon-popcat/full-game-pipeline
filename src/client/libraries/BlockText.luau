@@ -3,12 +3,14 @@
 -- panel (UIController/BlockInfo) and the machine panel (UIController/MachinePanel) both
 -- show a block through here, so the two always word it the same way. It reads the
 -- attributes FactoryService publishes on the block model: Status, Fuel, Contents, Output,
--- Progress, Sold, Earned, Slots, Powered, Filter and FilterRight. What a machine reaches comes from its def.
+-- Progress, Sold, Earned, Slots, Powered, Filter, FilterRight and FilterMutations. What a
+-- machine reaches comes from its def.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 
 export type Row = { key: string, value: string }
 
@@ -52,12 +54,31 @@ export type Side = "Left" | "Right"
 
 local SIDES: { Side } = { "Left", "Right" }
 BlockText.SIDES = SIDES
+-- What a filter's mutation checklist offers, in order: plain items, then each mutation.
+local FILTER_MUTATIONS: { string } = table.clone(Mutations.ORDER)
+table.insert(FILTER_MUTATIONS, 1, "Plain")
+BlockText.FILTER_MUTATIONS = FILTER_MUTATIONS
 -- The attribute FactoryService publishes each side's items in.
 local SIDE_ATTRIBUTES: { [Side]: string } = { Left = "Filter", Right = "FilterRight" }
 
 -- The row key naming what a filter conveyor sends to `side`, so a screen can find that row.
 function BlockText.sideLabel(side: Side): string
 	return `Sends {string.lower(side)}`
+end
+
+-- The mutations ticked on each side of a filter conveyor ("Plain" or a mutation name); a side
+-- with none ticked takes any.
+function BlockText.filterMutations(model: Model): { [Side]: { [string]: boolean } }
+	local ticks: { [Side]: { [string]: boolean } } = { Left = {}, Right = {} }
+	local encoded = model:GetAttribute("FilterMutations")
+	if typeof(encoded) == "string" then
+		for side, name in string.gmatch(encoded, "(%a+):(%a+)") do
+			if side == "Left" or side == "Right" then
+				ticks[side :: Side][name] = true
+			end
+		end
+	end
+	return ticks
 end
 
 -- The items a filter conveyor sends to a side, and which side; the rest go straight on.
@@ -140,10 +161,21 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		for id, side in BlockText.filter(model) do
 			table.insert(names[side], BlockText.itemName(id))
 		end
+		local ticks = BlockText.filterMutations(model)
 		for _, side in SIDES do
 			local list = names[side]
 			table.sort(list)
-			add(BlockText.sideLabel(side), if #list > 0 then table.concat(list, ", ") else "Nothing yet")
+			local ticked = {}
+			for _, name in FILTER_MUTATIONS do
+				if ticks[side][name] then
+					table.insert(ticked, name)
+				end
+			end
+			local value = if #list > 0 then table.concat(list, ", ") else "Anything"
+			if #ticked > 0 then
+				value ..= ` (only {table.concat(ticked, ", ")})`
+			end
+			add(BlockText.sideLabel(side), if #list == 0 and #ticked == 0 then "Nothing yet" else value)
 		end
 		add("Straight on", "Everything else")
 	end

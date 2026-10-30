@@ -83,11 +83,21 @@ value and borrowed art. Items makes the product items from it and Blocks the rec
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
 Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
-Processing accepts mixtures of plain and mutated inputs, outputs plain products, shares
-input capacity across variants and refunds exact variants when an active job is saved or
-picked up. The picker sources the current mutated item and checks the full yield fits
-before reaping. Its single crops restart; multi plants regrow (see farming.md). Filters
-continue matching the exact item id, including the mutation suffix.
+Mutated inputs are never grouped with plain ones or each other. Each variant has its own
+input room; a batch takes every input in one mutation (plain first, then rising rarity) and
+makes its product in that mutation, `<Product>+<Mutation>` worth the product's value times the
+multiplier (Items makes a variant of every valued product). A recipe with an input that has
+no variant (bars, parts) only runs plain, so a Golden Pie needs Golden Flour as well as Golden
+fruit. Rare variants wait inside until a whole batch is in, without blocking plain ones. An
+active job refunds its exact variants when saved or picked up. The picker sources the current
+mutated item and checks the full yield fits before reaping. Its single crops restart; multi
+plants regrow (see farming.md).
+
+A Filter's picks match an item by its exact id or its base crop or product, so a pick covers
+every mutation of it. Each side also has a mutation checklist (Plain, Wet, Shocked, Golden,
+Rainbow): with any ticked, the side takes only those. A side with picks and ticks takes the
+picked items in the ticked mutations; ticks alone take every item in them. When both sides
+take an item, the side that picked it wins, then the side with ticks, then left.
 
 ## Loose items (DropService)
 
@@ -139,7 +149,7 @@ on the server, including item ids from the panel.
 | Machine | Load from inventory, Collect output, Take back unused inputs |
 | Storage Chest | Take one item type, Take all |
 | Split | Switch side / straight |
-| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; Clear filter |
+| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on, then that side's mutation checklist; Clear filter (also unticks every mutation) |
 
 Hammer picks up owned blocks; Pickaxe breaks matching cubes or mines quarry rocks. An empty
 hand takes belt items, switches routers or harvests owned crops. Machines are worked through
