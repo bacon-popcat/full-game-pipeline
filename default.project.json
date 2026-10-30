@@ -26,7 +26,8 @@
         "PickUpBlock": { "$className": "RemoteEvent" },
         "Interact": { "$className": "RemoteEvent" },
         "FactorySync": { "$className": "RemoteEvent" },
-        "DropItem": { "$className": "RemoteEvent" }
+        "DropItem": { "$className": "RemoteEvent" },
+        "DropCollected": { "$className": "RemoteEvent" }
       }
     },
 

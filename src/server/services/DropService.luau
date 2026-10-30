@@ -5,6 +5,12 @@
 -- a drop, and where a drop aimed at a block appears, are FactoryService's rules; it
 -- registers them through `setBelts`, so the two services never require each other. A drop
 -- nobody takes despawns after LIFETIME.
+-- Drops of the same item and owner that come to rest near each other merge into one stack:
+-- one model and one physics body with a Count attribute, however many items it holds, so a
+-- flood of drops stays cheap. A pickup takes as much of a stack as the inventory has room
+-- for. A stack draws a little bigger the more it holds; DropController labels its count.
+-- A drop that is picked up or merged lingers for COLLECT_TIME, anchored and out of play,
+-- while DropCollected has every client draw it being sucked into its target.
 -- Drops retain their owner even outside a plot; pickup and absorption cannot transfer
 -- them to another player's plot. DataService clears these transient items on departure.
 --
@@ -26,8 +32,11 @@ type Drop = {
 	count: number,
 	model: Model,
 	root: BasePart,
-	-- os.clock() when it appeared.
+	-- os.clock() when it appeared, and when it despawns.
 	born: number,
+	expires: number,
+	-- The model's scale for a single item; a stack grows from it.
+	baseScale: number,
 	-- The player who dropped it, if one did.
 	dropper: Player?,
 	owner: number,
@@ -47,6 +56,16 @@ local DROP_DISTANCE = 2.5
 local TOSS = Vector3.new(0, 6, -8)
 -- Seconds between one player's drops; caps how fast a client can spam remotes.
 local COOLDOWN = 0.12
+-- Studs between the centres of two drops that merge into one stack.
+local MERGE_RADIUS = 3
+-- Seconds a new drop flies before it can merge, so a toss lands before it joins a pile.
+local MERGE_DELAY = 0.6
+-- Seconds between merge (and despawn) passes.
+local MERGE_EVERY = 0.4
+-- How much bigger than one item a stack draws, at most (reached at 100 items).
+local STACK_GROWTH = 0.6
+-- Seconds a collected drop stays, out of play, while clients draw it flying into its target.
+local COLLECT_TIME = 0.6
 
 local DropService = {}
 
@@ -67,6 +86,7 @@ local absorber: ((itemId: string, position: Vector3, dropper: Player?) -> boolea
 local beltPoint: ((model: Model) -> Vector3?)? = nil
 local lastAction: { [Player]: number } = {}
 local absorbTimer = 0
+local mergeTimer = 0
 
 local function remove(drop: Drop)
 	if drops[drop.model] == drop then
@@ -75,14 +95,58 @@ local function remove(drop: Drop)
 	end
 end
 
+-- Takes a drop out of play and has clients draw it sucked into `target`. With `whole` false
+-- only part of the stack went, so the drop stays and clients draw a copy leaving it.
+local function collect(drop: Drop, target: BasePart, whole: boolean)
+	Remotes.DropCollected:FireAllClients(drop.model, target, whole)
+	if not whole or drops[drop.model] ~= drop then
+		return
+	end
+	-- Kept for the animation's sake only: out of the table, no belt, pickup or merge sees it.
+	drops[drop.model] = nil
+	drop.root.Anchored = true
+	drop.root.CanCollide = false
+	drop.root.CanTouch = false
+	task.delay(COLLECT_TIME, function()
+		drop.model:Destroy()
+	end)
+end
+
+-- Grows (or shrinks) a drop to suit its count, lifted so it doesn't sink into the floor.
+local function resize(drop: Drop)
+	local growth = 1 + STACK_GROWTH * math.clamp(math.log10(drop.count) / 2, 0, 1)
+	local scale = drop.baseScale * growth
+	local current = drop.model:GetScale()
+	if math.abs(scale - current) < 0.01 then
+		return
+	end
+	local height = drop.root.Size.Y
+	drop.model:ScaleTo(scale)
+	drop.model:PivotTo(drop.model:GetPivot() + Vector3.yAxis * (drop.root.Size.Y - height) / 2)
+end
+
+local function setCount(drop: Drop, count: number)
+	drop.count = count
+	drop.model:SetAttribute("Count", count)
+	resize(drop)
+end
+
 -- Takes `count` units out of a drop, removing it when none are left.
 local function use(drop: Drop, count: number)
-	drop.count -= count
-	if drop.count <= 0 then
+	if drop.count - count <= 0 then
+		drop.count = 0
 		remove(drop)
 	else
-		drop.model:SetAttribute("Count", drop.count)
+		setCount(drop, drop.count - count)
 	end
+end
+
+-- Folds `from` into `into`, drawing `from` flying into the stack it joined.
+local function merge(into: Drop, from: Drop)
+	collect(from, into.root, true)
+	into.expires = math.max(into.expires, from.expires)
+	into.dropper = into.dropper or from.dropper
+	setCount(into, into.count + from.count)
 end
 
 local function onTouched(drop: Drop, hit: BasePart)
@@ -104,7 +168,16 @@ local function onTouched(drop: Drop, hit: BasePart)
 		return
 	end
 	local left = InventoryService.give(player, drop.itemId, drop.count)
-	use(drop, drop.count - left)
+	local taken = drop.count - left
+	if taken <= 0 then
+		return
+	end
+	local target = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	if target and target:IsA("BasePart") then
+		collect(drop, target, left == 0)
+	end
+	-- After a whole collect the drop is already out of play, so this only zeroes it.
+	use(drop, taken)
 end
 
 -- A physical item in the world at `cframe`, moving at `velocity`, and who dropped it.
@@ -149,16 +222,19 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 	model.PrimaryPart = root
 	model:PivotTo(cframe)
 	model:SetAttribute("ItemId", itemId)
-	model:SetAttribute("Count", count or 1)
+	local now = os.clock()
 	local drop: Drop = {
 		itemId = itemId,
-		count = count or 1,
+		count = 0,
 		model = model,
 		root = root,
-		born = os.clock(),
+		born = now,
+		expires = now + LIFETIME,
+		baseScale = model:GetScale(),
 		dropper = dropper,
 		owner = owner,
 	}
+	setCount(drop, count or 1)
 	drops[model] = drop
 	model.Parent = folder
 	root:SetNetworkOwner(nil)
@@ -166,7 +242,6 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 	root.Touched:Connect(function(hit)
 		onTouched(drop, hit)
 	end)
-	task.delay(LIFETIME, remove, drop)
 end
 
 -- Sets the rules for belts: `catch` decides whether a belt (or machine) takes one unit of a
@@ -191,6 +266,67 @@ local function absorb(dt: number)
 		if rule(drop.itemId, drop.root.Position, drop.dropper) then
 			use(drop, 1)
 		end
+	end
+end
+
+local function bucketKey(drop: Drop, cell: Vector3): string
+	return `{drop.owner}|{drop.itemId}|{cell}`
+end
+
+-- A settled drop already bucketed this pass that `drop` can merge with, or nil.
+local function partnerOf(buckets: { [string]: { Drop } }, drop: Drop, cell: Vector3): Drop?
+	local position = drop.root.Position
+	for dx = -1, 1 do
+		for dy = -1, 1 do
+			for dz = -1, 1 do
+				for _, other in buckets[bucketKey(drop, cell + Vector3.new(dx, dy, dz))] or {} do
+					if drops[other.model] == other and (other.root.Position - position).Magnitude <= MERGE_RADIUS then
+						return other
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+-- Despawns expired drops and merges settled drops of one item and owner within
+-- MERGE_RADIUS. Drops are hashed into MERGE_RADIUS cells, so a pass is linear in the number
+-- of drops however many lie on the ground. The bigger stack survives and stays put.
+local function settle(dt: number)
+	mergeTimer += dt
+	if mergeTimer < MERGE_EVERY then
+		return
+	end
+	mergeTimer = 0
+	local now = os.clock()
+	local buckets: { [string]: { Drop } } = {}
+	for _, drop in drops do
+		if now >= drop.expires then
+			remove(drop)
+			continue
+		end
+		if now - drop.born < MERGE_DELAY then
+			continue
+		end
+		local position = drop.root.Position
+		local cell = Vector3.new(
+			math.floor(position.X / MERGE_RADIUS),
+			math.floor(position.Y / MERGE_RADIUS),
+			math.floor(position.Z / MERGE_RADIUS)
+		)
+		local partner = partnerOf(buckets, drop, cell)
+		if partner and partner.count >= drop.count then
+			merge(partner, drop)
+			continue
+		end
+		if partner then
+			-- Its entry goes stale: partnerOf skips drops no longer in play.
+			merge(drop, partner)
+		end
+		local key = bucketKey(drop, cell)
+		buckets[key] = buckets[key] or {}
+		table.insert(buckets[key], drop)
 	end
 end
 
@@ -264,7 +400,10 @@ function DropService.init()
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
 	end)
-	RunService.Heartbeat:Connect(absorb)
+	RunService.Heartbeat:Connect(function(dt)
+		absorb(dt)
+		settle(dt)
+	end)
 end
 
 return DropService

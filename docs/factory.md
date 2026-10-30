@@ -99,6 +99,18 @@ continue matching the exact item id, including the mutation suffix.
 - Walking over an owned belt picks up items underfoot, subject to the dropper's pickup grace.
 - Unconnected outputs throw items off only when the cell ahead is clear. Loose drops are
   transient, cleared on the owner's departure, and not saved as profile contents.
+- **Drops stack.** Once a drop has flown for 0.6 s, drops of the same item and owner whose
+  centres are within 3 studs merge into one: a single model and physics body whose `Count`
+  attribute holds the stack, so a flood of drops costs one part per pile. The bigger stack
+  survives where it lies and keeps the later despawn time; it draws up to 1.6x bigger at 100
+  items. Walking into a stack takes as much as the inventory has room for; a belt still takes
+  one at a time. Merging is a spatial-hash pass every 0.4 s, linear in the number of drops.
+- **Pickup animation.** A drop that is picked up or merged stays 0.6 s on the server,
+  anchored and out of play, and `DropCollected` has every client within 150 studs draw it.
+  DropController hides the real one and flies a local copy into the player (or the stack it
+  joined) on an ease-in arc, shrinking, spinning and fading over 0.35 s. A partial pickup
+  flies a smaller copy and leaves the stack. Reduced motion fades it where it lies.
+  DropController also labels stacks of more than one with their count (below).
 
 ## Machine panel and hand
 
