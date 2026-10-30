@@ -36,7 +36,7 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 |---|---|
 | `StarterGui.HUD` | `Hotbar`, `Backpack` window, `DragGhost`, `ItemName`, `SideButtons.Backpack` |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage` |
-| `ReplicatedStorage.Assets.UI.Drop` | `Count`, a BillboardGui with a TextLabel `Label`, cloned over a loose stack to show "x24"; until it is authored DropController uses a plain white label, without a warning |
+| `ReplicatedStorage.Assets.UI.Stack` | `Count`, a BillboardGui with a TextLabel `Label` inside, cloned over every stack of more than one item, loose or on a belt, to show "x24"; until it is authored StackLabel draws a plain dark pill, without a warning |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
 | Cube studs | Each building cube (Grass, Dirt, Stone, Bricks...) is Plastic with `TopSurface = Studs` (Roblox's built-in surface, which only draws on Plastic), Grow a Garden style; `IslandsMachines/build/studio_studs.luau` sets it, and nothing else is studded |
 | `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe` Tools; the unused Axe template is harmless |

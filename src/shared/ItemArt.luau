@@ -13,6 +13,9 @@ local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 
 local PLACEHOLDER_COLOR = Color3.fromRGB(160, 160, 160)
+-- How much bigger than one item a stack draws, at most, and the count it is reached at.
+local STACK_GROWTH = 0.6
+local STACK_FULL = 100
 
 local ItemArt = {}
 
@@ -33,6 +36,12 @@ local function placeholder(): Model
 	part.Parent = model
 	model.PrimaryPart = part
 	return model
+end
+
+-- How much bigger a stack of `count` draws than one item, loose or on a belt: a pile reads
+-- as bigger, rising quickly at first and no more than 1 + STACK_GROWTH.
+function ItemArt.stackScale(count: number): number
+	return 1 + STACK_GROWTH * math.clamp(math.log(math.max(count, 1)) / math.log(STACK_FULL), 0, 1)
 end
 
 -- Geometry callers use the same seed fallback as icons, without making Build and ItemArt cyclic.

@@ -18,10 +18,13 @@
 -- front is empty -- and waits, as at any blocked end, when something stands there. A
 -- machine with belt art on its output face puts what it makes onto that belt (its own
 -- lane, Factory.lanes), so its output rides out and falls off the end like any conveyor's. A drop
--- that touches any block's belt joins it where it touched, if there is room; one landing on
--- a machine's input end goes into the machine, if it takes it. A settled drop lying beside a
--- belt that carries the same item is pulled onto it alongside (`pull`), unless the drop was
--- thrown off a belt end, which would only carry it round to be thrown off again. A player
+-- that touches any block's belt joins it where it touched, whole, as one stack (Lane.Item
+-- count): into a stack of the same item there, or as a new one if there is room. One landing
+-- on a machine's input end goes into the machine, as much as it takes. A settled drop lying
+-- beside any belt is pulled onto it the same way (`catch` with `reach`), unless the drop
+-- was thrown off a belt end, which would only carry it round to be thrown off again. A
+-- stack travels as one item; a machine, hand or inventory takes as many of it as fit and
+-- leaves the rest, and one thrown off an open end lands as one stacked drop. A player
 -- walking over a belt picks up the items under their feet.
 --
 -- A machine whose input face has belt art takes items only where that belt meets its port:
@@ -107,8 +110,8 @@ local FILTER_MAX = 4
 local OPEN_RECHECK = 0.5
 -- Studs from a lane's path within which a drop counts as touching the belt.
 local CATCH_DISTANCE = 1.8
--- Studs across, and up or down, from a lane's path within which a drop is pulled onto a belt
--- that carries the same item.
+-- Studs across, and up or down, from a lane's path within which a settled drop is pulled
+-- onto the belt.
 local PULL_DISTANCE = 4
 local PULL_HEIGHT = 3
 -- Upward studs per second an item thrown off an open end leaves with.
@@ -293,22 +296,36 @@ local function pulse(sensor: Block)
 	end)
 end
 
--- Hands an item to an entry. Returns whether it was taken.
-local function deliver(entry: Entry, itemId: string, id: number): boolean
+-- Hands an item (a whole stack) to an entry. Returns how many of it were taken: all of it
+-- onto a lane, as many as fit into a machine.
+local function deliver(entry: Entry, item: Lane.Item): number
 	local lane = entry.lane
 	if lane then
 		if not Lane.hasRoom(lane.items) then
-			return false
+			return 0
 		end
-		table.insert(lane.items, { id = id, itemId = itemId, d = 0 })
+		table.insert(lane.items, { id = item.id, itemId = item.itemId, d = 0, count = item.count })
 		markDirty(lane)
 		if entry.block.def.sensor then
 			pulse(entry.block)
 		end
-		return true
+		return Lane.count(item)
 	end
 	local machine = entry.block.machine
-	return machine ~= nil and Machine.insert(machine, itemId, 1) == 1
+	return if machine then Machine.insert(machine, item.itemId, Lane.count(item)) else 0
+end
+
+-- Takes `taken` from the stack at `index` on `lane`, removing it once none are left.
+local function spend(lane: LaneState, index: number, taken: number)
+	local item = lane.items[index]
+	local left = Lane.count(item) - taken
+	if left <= 0 then
+		table.remove(lane.items, index)
+		randomChoice[item.id] = nil
+	else
+		item.count = left
+	end
+	markDirty(lane)
 end
 
 -- The out-lane an item at a router's hub goes to.
@@ -351,12 +368,12 @@ local function isOpen(port: Factory.Port): boolean
 	return open
 end
 
--- Sends an item flying off `port` at `speed` studs per second.
-local function throwOff(block: Block, port: Factory.Port, speed: number, itemId: string)
+-- Sends `count` of an item flying off `port` as one drop at `speed` studs per second.
+local function throwOff(block: Block, port: Factory.Port, speed: number, itemId: string, count: number)
 	local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
 	local userId = block.model:GetAttribute("Owner")
 	local owner = if typeof(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
-	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT, 1, owner, false)
+	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT, count, owner, false)
 end
 
 -- The stretch of belt just inside a machine's input face, from the face inwards.
@@ -378,53 +395,35 @@ local function isOver(points: { Vector3 }, position: Vector3): boolean
 	return distance <= CATCH_DISTANCE and position.Y >= belt.Y - 1
 end
 
--- Puts one item a drop at `position` carries onto the belt it lies over, if there is room
--- there, or into the machine whose input end it lies on, if it takes it. Only the drop's
--- cell and the one just under it are looked at, so a belt never reaches through a block
--- above it. Returns whether it did.
-local function catch(itemId: string, position: Vector3, dropper: Player?): boolean
-	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
-		local block = cellIndex[cellKey(cell)]
-		if not block or not dropper or not Build.canEdit(dropper, block.origin, block.footprint) then
-			continue
-		end
-		for _, lane in block.lanes do
-			local d = Lane.project(lane.points, position)
-			local item = { id = newItemId(), itemId = itemId, d = d }
-			if isOver(lane.points, position) and Lane.insert(lane.items, item) then
-				markDirty(lane)
-				if dropper then
-					graces[item.id] = { dropper = dropper, expires = os.clock() + PICKUP_GRACE }
-				end
-				return true
-			end
-		end
-		-- A machine with no input belt to ride takes a drop lying on its input end directly.
-		local machine = block.machine
-		local port = if block.feedLane then nil else block.inputPort
-		local onInput = port ~= nil and isOver(inputBelt(port), position)
-		if machine and onInput and Machine.insert(machine, itemId, 1) == 1 then
-			return true
-		end
-	end
-	return false
-end
-
-local function carries(lane: LaneState, itemId: string): boolean
+-- Puts `count` of `itemId` onto `lane` at `d` as a stack: into a stack of the same item
+-- within a spacing of it, or as a new stack where it keeps its spacing. Returns where on the
+-- belt it went, or nil when there was no room.
+local function placeStack(lane: LaneState, itemId: string, count: number, d: number, dropper: Player): Vector3?
+	local at: Lane.Item? = nil
 	for _, item in lane.items do
-		if item.itemId == itemId then
-			return true
+		if item.itemId == itemId and math.abs(item.d - d) < Lane.SPACING then
+			item.count = Lane.count(item) + count
+			at = item
+			break
 		end
 	end
-	return false
+	if not at then
+		local item = { id = newItemId(), itemId = itemId, d = d, count = count }
+		if not Lane.insert(lane.items, item) then
+			return nil
+		end
+		at = item
+	end
+	assert(at, "a stack was placed")
+	markDirty(lane)
+	graces[at.id] = { dropper = dropper, expires = os.clock() + PICKUP_GRACE }
+	return (Lane.pointAt(lane.points, at.d))
 end
 
--- Puts one `itemId` onto `lane` beside `position`, if the lane already carries one, runs
--- within reach and has room there or a spacing either side. Returns where it went on.
-local function pullOnto(lane: LaneState, itemId: string, position: Vector3, dropper: Player): Vector3?
-	if not carries(lane, itemId) then
-		return nil
-	end
+-- Puts a drop's whole stack beside `position` onto `lane`, if the belt runs within
+-- PULL_DISTANCE across and PULL_HEIGHT up or down, at the nearest point or a spacing either
+-- side. Returns where it went on.
+local function pullOnto(lane: LaneState, itemId: string, count: number, position: Vector3, dropper: Player): Vector3?
 	local flat = {}
 	for index, point in lane.points do
 		flat[index] = Vector3.new(point.X, position.Y, point.Z)
@@ -438,22 +437,55 @@ local function pullOnto(lane: LaneState, itemId: string, position: Vector3, drop
 		return nil
 	end
 	for _, offset in { 0, Lane.SPACING, -Lane.SPACING } do
-		local item = { id = newItemId(), itemId = itemId, d = math.clamp(along + offset, 0, lane.length) }
-		if Lane.insert(lane.items, item) then
-			markDirty(lane)
-			graces[item.id] = { dropper = dropper, expires = os.clock() + PICKUP_GRACE }
-			return (Lane.pointAt(lane.points, item.d))
+		local point = placeStack(lane, itemId, count, math.clamp(along + offset, 0, lane.length), dropper)
+		if point then
+			return point
 		end
 	end
 	return nil
 end
 
--- Pulls one item of a drop at `position` onto a belt of the dropper's beside it that
--- already carries that item. Blocks in the drop's cell, the cells around it and the layer
--- under them are looked at. Returns where on the belt it went, or nil.
-local function pull(itemId: string, position: Vector3, dropper: Player?): Vector3?
+-- Takes a drop of `count` `itemId` at `position`: whole, as one stack, onto the belt it lies
+-- over if there is room there; as much as fits into the machine whose input end it lies on;
+-- or, with `reach` (a settled drop that may be pulled), whole onto any belt of the dropper's
+-- beside it. Only blocks in the drop's cell and the one under it count for lying on, and those
+-- and the cells around them for beside, so a belt never reaches through a block above it.
+-- Returns how many it took and where they went.
+local function catch(
+	itemId: string,
+	count: number,
+	position: Vector3,
+	dropper: Player?,
+	reach: boolean
+): (number, Vector3?)
 	if not dropper then
-		return nil
+		return 0, nil
+	end
+	for _, cell in { cellOf(position), cellOf(position - Vector3.yAxis) } do
+		local block = cellIndex[cellKey(cell)]
+		if not block or not Build.canEdit(dropper, block.origin, block.footprint) then
+			continue
+		end
+		for _, lane in block.lanes do
+			if isOver(lane.points, position) then
+				local point = placeStack(lane, itemId, count, Lane.project(lane.points, position), dropper)
+				if point then
+					return count, point
+				end
+			end
+		end
+		-- A machine with no input belt to ride takes a drop lying on its input end directly.
+		local machine = block.machine
+		local port = if block.feedLane then nil else block.inputPort
+		if machine and port and isOver(inputBelt(port), position) then
+			local taken = Machine.insert(machine, itemId, count)
+			if taken > 0 then
+				return taken, port.position
+			end
+		end
+	end
+	if not reach then
+		return 0, nil
 	end
 	local origin = cellOf(position)
 	local seen: { [Block]: boolean } = {}
@@ -465,9 +497,9 @@ local function pull(itemId: string, position: Vector3, dropper: Player?): Vector
 					seen[block] = true
 					if Build.canEdit(dropper, block.origin, block.footprint) then
 						for _, lane in block.lanes do
-							local point = pullOnto(lane, itemId, position, dropper)
+							local point = pullOnto(lane, itemId, count, position, dropper)
 							if point then
-								return point
+								return count, point
 							end
 						end
 					end
@@ -475,7 +507,7 @@ local function pull(itemId: string, position: Vector3, dropper: Player?): Vector
 			end
 		end
 	end
-	return nil
+	return 0, nil
 end
 
 -- Where a drop aimed at a placed block's belt appears: over its first lane, a cell's
@@ -545,10 +577,10 @@ local function pullQueued(machine: Machine.State, lane: LaneState): boolean
 			if looked > PULL_DEPTH then
 				return false
 			end
-			if Machine.insert(machine, current.items[index].itemId, 1) == 1 then
-				randomChoice[current.items[index].id] = nil
-				table.remove(current.items, index)
-				markDirty(current)
+			local item = current.items[index]
+			local taken = Machine.insert(machine, item.itemId, Lane.count(item))
+			if taken > 0 then
+				spend(current, index, taken)
 				return true
 			end
 		end
@@ -580,29 +612,33 @@ local function stepLanes(dt: number)
 			-- A machine's input belt: the item goes in once it reaches the port, or waits there
 			-- while the machine takes what it can from behind it.
 			local machine = lane.block.machine
-			if machine and Machine.insert(machine, front.itemId, 1) == 1 then
-				table.remove(lane.items, 1)
-				markDirty(lane)
+			local taken = if machine then Machine.insert(machine, front.itemId, Lane.count(front)) else 0
+			if taken > 0 then
+				spend(lane, 1, taken)
 			elseif machine then
 				pullQueued(machine, lane)
 			end
 		elseif lane.def.exit then
 			local target = laneTarget(lane)
-			if target and deliver(target, front.itemId, front.id) then
+			local taken = if target then deliver(target, front) else 0
+			if taken > 0 and target and target.lane then
+				-- The whole stack moved on under the same id, so it isn't spent.
 				table.remove(lane.items, 1)
 				markDirty(lane)
+			elseif taken > 0 then
+				spend(lane, 1, taken)
 			elseif target and not target.lane and target.block.machine then
 				pullQueued(target.block.machine, lane)
 			elseif not target and lane.exitPort and isOpen(lane.exitPort) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
-				throwOff(lane.block, lane.exitPort, lane.def.speed, front.itemId)
+				throwOff(lane.block, lane.exitPort, lane.def.speed, front.itemId, Lane.count(front))
 			end
 		else
 			local out = routeOut(lane.block, front)
 			if out and Lane.hasRoom(out.items) then
 				table.remove(lane.items, 1)
-				table.insert(out.items, { id = front.id, itemId = front.itemId, d = 0 })
+				table.insert(out.items, { id = front.id, itemId = front.itemId, d = 0, count = front.count })
 				randomChoice[front.id] = nil
 				markDirty(lane)
 				markDirty(out)
@@ -746,11 +782,11 @@ local function stepMachines(dt: number)
 		end
 		local port = block.outputPort
 		local target = if itemId then outputTarget(block) else nil
-		if itemId and target and deliver(target, itemId, newItemId()) then
+		if itemId and target and deliver(target, { id = newItemId(), itemId = itemId, d = 0 }) > 0 then
 			Machine.popOutput(machine)
 		elseif itemId and port and not target and isOpen(port) then
 			Machine.popOutput(machine)
-			throwOff(block, port, MACHINE_THROW, itemId)
+			throwOff(block, port, MACHINE_THROW, itemId, 1)
 		end
 	end
 end
@@ -809,7 +845,7 @@ end
 local function snapshot(lane: LaneState): { Lane.Item }
 	local items = table.create(#lane.items)
 	for index, item in lane.items do
-		items[index] = { id = item.id, itemId = item.itemId, d = item.d }
+		items[index] = { id = item.id, itemId = item.itemId, d = item.d, count = item.count }
 	end
 	return items
 end
@@ -978,7 +1014,8 @@ function FactoryService.unregister(model: Model)
 end
 
 -- Counts preserve the input/output boundary; active recipe inputs are refunded for restart.
--- Belt counts restore to their original lane at legal spacing, with fresh runtime item ids.
+-- Belt counts restore to their original lane at legal spacing, one stack per item, with
+-- fresh runtime item ids.
 function FactoryService.snapshot(model: Model): Plot.Contents?
 	local block = blocks[model]
 	if not block then
@@ -992,7 +1029,7 @@ function FactoryService.snapshot(model: Model): Plot.Contents?
 	for _, lane in block.lanes do
 		local counts: Plot.Counts = {}
 		for _, item in lane.items do
-			counts[item.itemId] = (counts[item.itemId] or 0) + 1
+			counts[item.itemId] = (counts[item.itemId] or 0) + Lane.count(item)
 		end
 		table.insert(saved.lanes, counts)
 	end
@@ -1023,10 +1060,8 @@ function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
 		end
 		local distance = lane.length
 		for itemId, count in counts do
-			for _ = 1, count do
-				table.insert(lane.items, { id = newItemId(), itemId = itemId, d = math.max(0, distance) })
-				distance -= Lane.SPACING
-			end
+			table.insert(lane.items, { id = newItemId(), itemId = itemId, d = math.max(0, distance), count = count })
+			distance -= Lane.SPACING
 		end
 		markDirty(lane)
 	end
@@ -1055,7 +1090,7 @@ function FactoryService.drain(model: Model): { [string]: number }
 	end
 	for _, lane in block.lanes do
 		for _, item in lane.items do
-			counts[item.itemId] = (counts[item.itemId] or 0) + 1
+			counts[item.itemId] = (counts[item.itemId] or 0) + Lane.count(item)
 		end
 		table.clear(lane.items)
 		markDirty(lane)
@@ -1094,12 +1129,13 @@ local function pickUpFrom(player: Player, block: Block, feet: Vector3)
 			local onBelt = feet.Y >= at.Y - 1 and feet.Y <= at.Y + 2
 			local grace = graces[item.id]
 			if across <= PICKUP_RADIUS and onBelt and not (grace and grace.dropper == player) then
-				if InventoryService.give(player, item.itemId, 1) > 0 then
+				local left = InventoryService.give(player, item.itemId, Lane.count(item))
+				if left < Lane.count(item) then
+					spend(lane, index, Lane.count(item) - left)
+				end
+				if left > 0 then
 					return
 				end
-				table.remove(lane.items, index)
-				randomChoice[item.id] = nil
-				markDirty(lane)
 			end
 		end
 	end
@@ -1193,11 +1229,14 @@ local function take(player: Player, block: Block)
 	elseif block.def.kind == "Conveyor" then
 		for _, lane in block.lanes do
 			for index = #lane.items, 1, -1 do
-				if InventoryService.give(player, lane.items[index].itemId, 1) > 0 then
+				local item = lane.items[index]
+				local left = InventoryService.give(player, item.itemId, Lane.count(item))
+				if left < Lane.count(item) then
+					spend(lane, index, Lane.count(item) - left)
+				end
+				if left > 0 then
 					break
 				end
-				table.remove(lane.items, index)
-				markDirty(lane)
 			end
 		end
 	end
@@ -1309,7 +1348,7 @@ function FactoryService.init()
 	end)
 	RunService.Heartbeat:Connect(step)
 	RunService.Heartbeat:Connect(pickUpUnderfoot)
-	DropService.setBelts(catch, dropPoint, pull)
+	DropService.setBelts(catch, dropPoint)
 end
 
 return FactoryService

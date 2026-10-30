@@ -1,20 +1,18 @@
 -- DropController: how loose drops in Workspace.Drops look beyond their physics. A stack of
--- more than one item gets a count label over it, and a drop that is picked up or merged
--- (DropService fires DropCollected) is drawn being sucked into its target -- a player, the
--- stack it joined or the belt that pulled it on: a local copy
--- flies in on an ease-in arc, shrinking and fading, while the real one is hidden for the
--- moment it lingers on the server. Nothing here changes the game; the server already has.
--- Reduced motion fades the copy where it lies instead of flying it.
---
--- The label is ReplicatedStorage.Assets.UI.Drop.Count (a BillboardGui with a TextLabel
--- named Label), authored in Studio; without it a plain label stands in. That fallback is
--- expected until the template is authored, so it is silent.
+-- more than one item gets a count badge over it (StackLabel), and a drop that is picked up,
+-- merged or taken onto a belt (DropService fires DropCollected) is drawn being sucked into
+-- its target -- a player, the stack it joined or its spot on the belt: a local copy flies in
+-- on an ease-in arc, shrinking and fading, while the real one is hidden for the moment it
+-- lingers on the server. Nothing here changes the game; the server already has. Reduced
+-- motion fades the copy where it lies instead of flying it.
 
 local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local StackLabel = require(Players.LocalPlayer.PlayerScripts.Libraries.StackLabel)
 
 -- Seconds a collected drop takes to reach its target.
 local FLIGHT_TIME = 0.35
@@ -30,65 +28,12 @@ local PART_SCALE = 0.7
 local SPIN = 1
 -- Studs from the camera beyond which a collected drop isn't drawn.
 local DRAW_DISTANCE = 150
-local LABEL_NAME = "DropCount"
 
 local DropController = {}
 
-local function labelTemplate(): BillboardGui?
-	local assets = ReplicatedStorage:FindFirstChild("Assets")
-	local ui = assets and assets:FindFirstChild("UI")
-	local folder = ui and ui:FindFirstChild("Drop")
-	local template = folder and folder:FindFirstChild("Count")
-	if template and template:IsA("BillboardGui") and template:FindFirstChild("Label") then
-		return template
-	end
-	return nil
-end
-
--- A plain stand-in for the authored label, so stacks read before it exists.
-local function plainLabel(): BillboardGui
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(60, 24)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 1.4, 0)
-	gui.MaxDistance = 40
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.4
-	label.Parent = gui
-	return gui
-end
-
 local function refreshLabel(model: Model)
-	local root = model.PrimaryPart or model:FindFirstChild("Root")
-	if not root or not root:IsA("BasePart") then
-		return
-	end
 	local count = model:GetAttribute("Count")
-	local existing = root:FindFirstChild(LABEL_NAME)
-	if typeof(count) ~= "number" or count <= 1 then
-		if existing then
-			existing:Destroy()
-		end
-		return
-	end
-	local gui = existing
-	if not gui then
-		local template = labelTemplate()
-		local made = if template then template:Clone() else plainLabel()
-		made.Name = LABEL_NAME
-		made.Adornee = root
-		made.Parent = root
-		gui = made
-	end
-	local label = gui:FindFirstChild("Label")
-	if label and label:IsA("TextLabel") then
-		label.Text = `x{count}`
-	end
+	StackLabel.set(model, if typeof(count) == "number" then count else 1)
 end
 
 local function watch(model: Instance)
@@ -99,8 +44,10 @@ local function watch(model: Instance)
 		refreshLabel(model)
 	end)
 	-- The root can stream in after the model.
-	model.ChildAdded:Connect(function()
-		refreshLabel(model)
+	model.ChildAdded:Connect(function(child)
+		if child:IsA("BasePart") then
+			refreshLabel(model)
+		end
 	end)
 	refreshLabel(model)
 end

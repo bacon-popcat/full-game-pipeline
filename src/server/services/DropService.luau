@@ -9,8 +9,8 @@
 -- one model and one physics body with a Count attribute, however many items it holds, so a
 -- flood of drops stays cheap. A pickup takes as much of a stack as the inventory has room
 -- for. A stack draws a little bigger the more it holds; DropController labels its count.
--- A settled drop beside a belt that already carries its item is pulled onto it, one item at
--- a time (FactoryService's `pull` rule), unless it was thrown off a belt end.
+-- A drop lying on a belt, or a settled one beside any belt, joins it whole as one stack
+-- (FactoryService's `catch` rule), unless it was thrown off a belt end.
 -- A drop that is picked up or merged lingers for COLLECT_TIME, anchored and out of play,
 -- while DropCollected has every client draw it being sucked into its target.
 -- Drops retain their owner even outside a plot; pickup and absorption cannot transfer
@@ -67,8 +67,6 @@ local MERGE_RADIUS = 3
 local MERGE_DELAY = 0.6
 -- Seconds between merge (and despawn) passes.
 local MERGE_EVERY = 0.4
--- How much bigger than one item a stack draws, at most (reached at 100 items).
-local STACK_GROWTH = 0.6
 -- Seconds a collected drop stays, out of play, while clients draw it flying into its target.
 local COLLECT_TIME = 0.6
 
@@ -87,9 +85,10 @@ end
 
 local folder = dropFolder()
 local drops: { [Model]: Drop } = {}
-local absorber: ((itemId: string, position: Vector3, dropper: Player?) -> boolean)? = nil
+type Catch = (itemId: string, count: number, position: Vector3, dropper: Player?, reach: boolean) -> (number, Vector3?)
+
+local absorber: Catch? = nil
 local beltPoint: ((model: Model) -> Vector3?)? = nil
-local puller: ((itemId: string, position: Vector3, dropper: Player?) -> Vector3?)? = nil
 local lastAction: { [Player]: number } = {}
 local absorbTimer = 0
 local mergeTimer = 0
@@ -121,8 +120,7 @@ end
 
 -- Grows (or shrinks) a drop to suit its count, lifted so it doesn't sink into the floor.
 local function resize(drop: Drop)
-	local growth = 1 + STACK_GROWTH * math.clamp(math.log10(drop.count) / 2, 0, 1)
-	local scale = drop.baseScale * growth
+	local scale = drop.baseScale * ItemArt.stackScale(drop.count)
 	local current = drop.model:GetScale()
 	if math.abs(scale - current) < 0.01 then
 		return
@@ -261,18 +259,13 @@ function DropService.spawn(
 	end)
 end
 
--- Sets the rules for belts: `catch` decides whether a belt (or machine) takes one unit of a
--- drop at `position` (and learns who dropped it); `dropPoint` says where a drop aimed at a
--- placed block appears, or nil when it has no belt; `pull` puts one unit of a drop beside a
--- belt carrying the same item onto it and says where, or returns nil.
-function DropService.setBelts(
-	catch: (itemId: string, position: Vector3, dropper: Player?) -> boolean,
-	dropPoint: (model: Model) -> Vector3?,
-	pull: (itemId: string, position: Vector3, dropper: Player?) -> Vector3?
-)
+-- Sets the rules for belts: `catch` takes what it can of a drop of `count` at `position` onto
+-- a belt (or into a machine), reaching for belts beside it when `reach` is set, and says how
+-- many it took and where they went; `dropPoint` says where a drop aimed at a placed block
+-- appears, or nil when it has no belt.
+function DropService.setBelts(catch: Catch, dropPoint: (model: Model) -> Vector3?)
 	absorber = catch
 	beltPoint = dropPoint
-	puller = pull
 end
 
 local function absorb(dt: number)
@@ -284,18 +277,14 @@ local function absorb(dt: number)
 	absorbTimer = 0
 	local now = os.clock()
 	for _, drop in drops do
-		local position = drop.root.Position
-		if rule(drop.itemId, position, drop.dropper) then
-			use(drop, 1)
-			continue
-		end
 		-- Settled first, so a toss lands before a belt beside it pulls it in.
-		local point = if puller and drop.pullable and now - drop.born >= MERGE_DELAY
-			then puller(drop.itemId, position, drop.dropper)
-			else nil
-		if point then
-			collect(drop, point, drop.count == 1)
-			use(drop, 1)
+		local reach = drop.pullable and now - drop.born >= MERGE_DELAY
+		local taken, point = rule(drop.itemId, drop.count, drop.root.Position, drop.dropper, reach)
+		if taken > 0 then
+			if point then
+				collect(drop, point, taken >= drop.count)
+			end
+			use(drop, taken)
 		end
 	end
 end

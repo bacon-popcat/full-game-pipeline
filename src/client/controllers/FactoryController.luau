@@ -2,11 +2,13 @@
 -- lane's item list whenever an item joins or leaves it (FactorySync); between updates this
 -- slides the items along with the same Lane rule the server runs, so positions are never
 -- streamed. An item keeps one model for its whole trip, however many lanes it crosses,
--- and loses it the moment no lane holds it (it went into a machine or a hand).
+-- and loses it the moment no lane holds it (it went into a machine or a hand). A stack of
+-- more than one item draws bigger (ItemArt.stackScale) with a count badge (StackLabel).
 --
 -- Lanes are found by the BlockId attribute FactoryService puts on each placed block. An
 -- update for a block that hasn't replicated yet waits until it has.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
@@ -14,6 +16,7 @@ local Factory = require(ReplicatedStorage.Shared.Factory)
 local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local StackLabel = require(Players.LocalPlayer.PlayerScripts.Libraries.StackLabel)
 
 type LaneView = {
 	model: Model,
@@ -27,6 +30,9 @@ type Visual = {
 	model: Model,
 	-- The model's pivot relative to the bottom-centre of its bounding box.
 	offset: CFrame,
+	-- The model's scale for one item, and the stack count it is drawn for.
+	baseScale: number,
+	count: number,
 }
 
 type Pending = { items: { Lane.Item }, t: number }
@@ -67,7 +73,18 @@ local function makeVisual(itemId: string): Visual?
 	local box, extent = model:GetBoundingBox()
 	local bottom = box * CFrame.new(0, -extent.Y / 2, 0)
 	model.Parent = container
-	return { model = model, offset = bottom:ToObjectSpace(model:GetPivot()) }
+	return { model = model, offset = bottom:ToObjectSpace(model:GetPivot()), baseScale = model:GetScale(), count = 1 }
+end
+
+-- Draws a visual for a stack of `count`: bigger, sitting on the belt, with its badge.
+local function fit(visual: Visual, count: number)
+	visual.count = count
+	local model = visual.model
+	model:ScaleTo(visual.baseScale * ItemArt.stackScale(count))
+	local box, extent = model:GetBoundingBox()
+	local bottom = box * CFrame.new(0, -extent.Y / 2, 0)
+	visual.offset = bottom:ToObjectSpace(model:GetPivot())
+	StackLabel.set(model, count)
 end
 
 local function viewFor(key: string): LaneView?
@@ -196,6 +213,10 @@ local function render(dt: number)
 					continue
 				end
 				visuals[item.id] = visual
+			end
+			local count = Lane.count(item)
+			if visual.count ~= count then
+				fit(visual, count)
 			end
 			local point, direction = Lane.pointAt(view.points, item.d)
 			visual.model:PivotTo(CFrame.lookAlong(point, direction) * visual.offset)

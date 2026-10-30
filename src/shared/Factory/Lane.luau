@@ -15,6 +15,10 @@ export type Item = {
 	itemId: string,
 	-- Studs travelled along the lane.
 	d: number,
+	-- How many of `itemId` ride together as one stack, taking one item's room; nil is one.
+	-- Loose drops join a belt as a stack (FactoryService), and whatever takes from a stack
+	-- takes as many as it has room for.
+	count: number?,
 }
 
 local SPACING = 1.5
@@ -22,6 +26,10 @@ local SPACING = 1.5
 local Lane = {}
 
 Lane.SPACING = SPACING
+
+function Lane.count(item: Item): number
+	return item.count or 1
+end
 
 function Lane.advance(items: { Item }, dt: number, speed: number, length: number)
 	local limit = length

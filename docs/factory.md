@@ -103,19 +103,28 @@ continue matching the exact item id, including the mutation suffix.
   centres are within 3 studs merge into one: a single model and physics body whose `Count`
   attribute holds the stack, so a flood of drops costs one part per pile. The bigger stack
   survives where it lies and keeps the later despawn time; it draws up to 1.6x bigger at 100
-  items. Walking into a stack takes as much as the inventory has room for; a belt still takes
-  one at a time. Merging is a spatial-hash pass every 0.4 s, linear in the number of drops.
-- **Belts pull in matching drops.** A settled drop within 4 studs across (and 3 up or down)
-  of an owned belt that already carries the same item id is pulled onto it beside where it
-  lies, one item every 0.15 s, if there is room within one spacing either way
-  (FactoryService `pull`). Drops a belt or machine threw off an open end are never pulled,
-  since they would ride round and be thrown off again; a stack merged with one isn't either.
-- **Pickup animation.** A drop that is picked up or merged stays 0.6 s on the server,
-  anchored and out of play, and `DropCollected` has every client within 150 studs draw it.
-  DropController hides the real one and flies a local copy into the player (or the stack it
-  joined, or the point on the belt that pulled it) on an ease-in arc, shrinking, spinning and fading over 0.35 s. A partial pickup
-  flies a smaller copy and leaves the stack. Reduced motion fades it where it lies.
-  DropController also labels stacks of more than one with their count (below).
+  items (`ItemArt.stackScale`). Walking into a stack takes as much as the inventory has room
+  for. Merging is a spatial-hash pass every 0.4 s, linear in the number of drops.
+- **Drops join belts as stacks.** A drop lying on an owned belt, or a settled one within 4
+  studs across (and 3 up or down) of any owned belt, goes onto it whole as one belt stack
+  (`Lane.Item.count`): into a stack of the same item within one spacing of where it lands, or
+  as a new stack there or a spacing either side (FactoryService `catch`). One lying on a
+  machine's beltless input goes in, as much as fits. Drops a belt or machine threw off an
+  open end are never pulled from beside a belt, since they would ride round and be thrown off
+  again; a stack merged with one isn't either.
+- **Belt stacks travel as one item**, taking one item's room. A machine, the Shipping Bin, a
+  chest, a hand or walking over it takes as many as fit and leaves the rest on the belt; a
+  stack reaching an open end is thrown off as one stacked drop. Saves keep belt counts, and a
+  lane restores one stack per item.
+- **Pickup animation.** A drop that is picked up, merged or taken onto a belt stays 0.6 s
+  on the server, anchored and out of play, and `DropCollected` has every client within 150
+  studs draw it. DropController hides the real one and flies a local copy into the player
+  (or the stack it joined, or its spot on the belt) on an ease-in arc, shrinking, spinning
+  and fading over 0.35 s. A partial pickup flies a smaller copy and leaves the stack. Reduced
+  motion fades it where it lies.
+- **Stack badge.** Every stack of more than one, loose or on a belt, shows its count over
+  it ("x24") through `client/libraries/StackLabel`, which pops the badge when the count grows
+  (not with reduced motion). The badge is `Assets.UI.Stack.Count` when authored (inventory.md).
 
 ## Machine panel and hand
 
