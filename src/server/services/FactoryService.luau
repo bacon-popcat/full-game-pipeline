@@ -74,7 +74,6 @@ type LaneState = {
 
 type Side = "Left" | "Right"
 
-local SIDES: { Side } = { "Left", "Right" }
 -- What a filter's mutation checklist offers: plain items, then each mutation.
 local FILTER_MUTATIONS: { [string]: boolean } = { Plain = true }
 for name in Mutations.ALL do
@@ -100,10 +99,11 @@ export type Block = {
 	outputTarget: Entry?,
 	outputVersion: number,
 	-- Routers.
-	-- Filter conveyors: the side each picked item goes, and each side's ticked mutations
-	-- ("Plain" or a mutation name; none ticked is any). See `filterSide`.
+	-- Filter conveyors: the side each picked item goes, and for a picked item that comes in
+	-- mutations, the ones ticked ("Plain" or a mutation name; none ticked is any). See
+	-- `filterSide`.
 	filter: { [string]: Side },
-	mutations: { [Side]: { [string]: boolean } },
+	mutations: { [string]: { [string]: boolean } },
 	powered: boolean,
 	pulseUntil: number,
 	env: Machine.Env?,
@@ -341,36 +341,27 @@ local function spend(lane: LaneState, index: number, taken: number)
 	markDirty(lane)
 end
 
--- The side a filter conveyor sends `itemId`, or nil for straight on. A side takes an item
--- when it is set up at all (items picked or mutations ticked), the item is one it picked --
--- by its exact id or its base crop or product, so a pick covers every mutation of it -- or it
--- picked none, and the item's mutation ("Plain" for none) is ticked or it ticked none. So
--- Carrot with Golden ticked is Golden Carrots only, and Golden alone is every Golden item.
--- When both sides take it, the one that picked it wins, then the one that ticked mutations,
--- then Left.
+-- Whether a filter's pick `id` lets through an item of `mutation`: it ticked that one, or it
+-- ticked none.
+local function allows(block: Block, id: string, mutation: string): boolean
+	local ticks = block.mutations[id]
+	return ticks == nil or next(ticks) == nil or ticks[mutation] == true
+end
+
+-- The side a filter conveyor sends `itemId`, or nil for straight on. A pick of the item's
+-- exact id wins; otherwise a pick of its base crop or product, which covers every mutation of
+-- it. Either way the pick's ticked mutations ("Plain" for none) must let it through, so Carrot
+-- with Golden ticked takes Golden Carrots only.
 local function filterSide(block: Block, itemId: string): Side?
 	local item = Inventory.find(itemId)
-	local base = if item then item.base else nil
 	local mutation = if item and item.mutation then item.mutation else "Plain"
-	local best: Side? = nil
-	local bestScore = 0
-	for _, side in SIDES do
-		local ticks = block.mutations[side]
-		local restricted = next(ticks) ~= nil
-		local hasPicks, picked = false, false
-		for id, pickSide in block.filter do
-			if pickSide == side then
-				hasPicks = true
-				picked = picked or id == itemId or id == base
-			end
-		end
-		local takes = (hasPicks or restricted) and (picked or not hasPicks) and (ticks[mutation] or not restricted)
-		local score = (if picked then 2 else 0) + (if restricted then 1 else 0)
-		if takes and score > bestScore then
-			best, bestScore = side, score
+	for _, id in { itemId, if item then item.base else nil } do
+		local side = block.filter[id]
+		if side and allows(block, id, mutation) then
+			return side
 		end
 	end
-	return best
+	return nil
 end
 
 -- The out-lane an item at a router's hub goes to.
@@ -860,27 +851,29 @@ local function setAttribute(model: Model, name: string, value: any)
 	end
 end
 
--- A filter's ticked mutations as "Side:Mutation" strings, sorted: published and saved so.
+-- A filter's ticked mutations as "ItemId:Mutation" strings, sorted: published and saved so.
 local function encodeMutations(block: Block): { string }
 	local list = {}
-	for _, side in SIDES do
-		for name in block.mutations[side] do
-			table.insert(list, `{side}:{name}`)
+	for id, ticks in block.mutations do
+		for name in ticks do
+			table.insert(list, `{id}:{name}`)
 		end
 	end
 	table.sort(list)
 	return list
 end
 
--- Ticks or unticks `name` on a filter's `side`, from a "Side:Mutation" string; anything else
--- is ignored.
+-- Ticks or unticks a mutation on one of a filter's picks, from an "ItemId:Mutation" string.
+-- Only a picked item that comes in mutations has them; anything else is ignored.
 local function toggleMutation(block: Block, encoded: string)
-	local side, name = string.match(encoded, "^(%a+):(%a+)$")
-	if (side ~= "Left" and side ~= "Right") or not name or not FILTER_MUTATIONS[name] then
+	local id, name = string.match(encoded, "^([^:]+):(%a+)$")
+	local picked = id ~= nil and block.filter[id] ~= nil and Inventory.hasMutations(id)
+	if not id or not name or not picked or not FILTER_MUTATIONS[name] then
 		return
 	end
-	local ticks = block.mutations[side :: Side]
+	local ticks = block.mutations[id] or {}
 	ticks[name] = if ticks[name] then nil else true
+	block.mutations[id] = if next(ticks) then ticks else nil
 end
 
 local function refreshStatus(block: Block)
@@ -987,7 +980,7 @@ local function register(model: Instance)
 		outputTarget = nil,
 		outputVersion = -1,
 		filter = {},
-		mutations = { Left = {}, Right = {} },
+		mutations = {},
 		powered = false,
 		pulseUntil = 0,
 		env = nil,
@@ -1293,6 +1286,10 @@ local function toggleFilter(block: Block, itemId: string)
 	elseif side ~= "Right" and hasRoom(block, "Right") then
 		block.filter[itemId] = "Right"
 	end
+	if not block.filter[itemId] then
+		-- Straight on again: its ticks go with the pick.
+		block.mutations[itemId] = nil
+	end
 end
 
 -- Moves a machine's finished items into the player's inventory, while there is room.
@@ -1324,8 +1321,7 @@ local function take(player: Player, block: Block)
 		block.powered = not block.powered
 	elseif block.def.route == "Filter" then
 		table.clear(block.filter)
-		table.clear(block.mutations.Left)
-		table.clear(block.mutations.Right)
+		table.clear(block.mutations)
 	elseif block.def.kind == "Conveyor" then
 		for _, lane in block.lanes do
 			for index = #lane.items, 1, -1 do
@@ -1368,8 +1364,7 @@ local function control(player: Player, block: Block, action: string, itemId: str
 		toggleFilter(block, itemId)
 	elseif action == "ClearFilter" and isFilter then
 		table.clear(block.filter)
-		table.clear(block.mutations.Left)
-		table.clear(block.mutations.Right)
+		table.clear(block.mutations)
 	end
 	refreshStatus(block)
 end
@@ -1411,7 +1406,7 @@ local function onInteract(player: Player, target: unknown, action: unknown, item
 	elseif action == "Take" then
 		take(player, block)
 	elseif action == "Mutation" then
-		-- Not an item id: "Side:Mutation", which toggleMutation checks.
+		-- Not an item id: "ItemId:Mutation", which toggleMutation checks.
 		if block.def.route == "Filter" and typeof(itemId) == "string" then
 			toggleMutation(block, itemId)
 			refreshStatus(block)

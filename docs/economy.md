@@ -161,8 +161,9 @@ those belong to the authored assets. Existing Backpack/MachinePanel contracts st
    Rainbow tint. Check crop effects clean up when harvested or streamed out.
 7. Feed a mix of plain and mutated inputs: each batch uses one variant and makes that
    variant's product (Golden in, Golden out), rare ones waiting without blocking plain ones.
-   Save/break a machine mid-recipe and verify exact input variants return. Tick a mutation on
-   a filter side and check only that variant goes there. Back up a picker with fewer free slots than a fruit yield.
+   Save/break a machine mid-recipe and verify exact input variants return. Open a filter
+   pick's mutation arrow, tick one and check only that variant goes to its side. Back up a
+   picker with fewer free slots than a fruit yield.
 8. Open all four windows in turn; Close/B, walking away, death, respawn, controller focus,
    mouse/gamepad switching, disabled buttons, row scrolling, toast limit and expiration.
    Inspect desktop, narrow portrait, mobile landscape, tablet and console sizes in Studio.

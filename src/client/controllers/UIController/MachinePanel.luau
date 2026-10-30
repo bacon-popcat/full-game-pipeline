@@ -12,9 +12,10 @@
 -- is ever open. Item cells clone Assets.UI.Inventory.Slot and rows clone
 -- Assets.UI.BlockInfo.Row, so they look like the backpack's slots and the hover panel's
 -- rows. A filter's status half also shows each side's items as small slots under that
--- side's row (a strip); pressing one moves that item on to its next side. Under each strip
--- is that side's mutation checklist: chips cloned from the ClearFilter button, one for plain
--- and one per mutation, each ticking or unticking it on that side.
+-- side's row (a strip); pressing one moves that item on to its next side. An item that
+-- comes in mutations has a small arrow under it, which opens its mutation list under the
+-- strip: chips cloned from the ClearFilter button, plain and each mutation in its colour,
+-- each ticking or unticking that mutation on that pick. One list is open at a time.
 --
 -- It closes on the interact key, the close button or gamepad B, and on its own when the
 -- block is picked up or the player walks out of reach.
@@ -69,9 +70,11 @@ local OPEN_FROM_SCALE = 0.94
 -- Pixels across a filter strip's slots, and between them.
 local STRIP_SLOT = 44
 local STRIP_GAP = 6
--- Pixels tall of a mutation chip; the checklist lays them out three to a row.
-local CHIP_HEIGHT = 26
-local CHIPS_PER_ROW = 3
+-- Pixels tall of the arrow under a strip slot, and of a mutation chip in its list.
+local ARROW_HEIGHT = 16
+local CHIP_HEIGHT = 24
+-- Pixels between a slot and its arrow, and between chips.
+local TIGHT_GAP = 3
 -- Below this width the two halves stack instead of sitting side by side.
 local COMPACT_WIDTH = 560
 local BUTTONS = { "Collect", "TakeBack", "Switch", "ClearFilter" }
@@ -86,12 +89,17 @@ local trove = Trove.new()
 local openTrove = trove:Extend()
 local cells: { Cell } = {}
 local rows: { Frame } = {}
--- A filter's item strips, one per side, made the first time a filter opens.
-type Strip = { frame: Frame, cells: { Cell } }
+-- A filter's item strips, one per side, made the first time a filter opens. Each entry is a
+-- picked item's slot with its mutation arrow under it.
+type Entry = { column: Frame, cell: Cell, arrow: TextButton }
+type Strip = { frame: Frame, entries: { Entry } }
 local strips: { [BlockText.Side]: Strip } = {}
--- A filter's mutation checklists, one per side, made the first time a filter opens.
-type Checklist = { frame: Frame, chips: { [string]: TextButton } }
-local checklists: { [BlockText.Side]: Checklist } = {}
+-- The open mutation list, made the first time one opens, and the pick it is for.
+type Dropdown = { frame: Frame, chips: { [string]: TextButton } }
+local dropdown: Dropdown? = nil
+local expanded: string? = nil
+-- `render`, for the strip's arrows, which are made before it is defined.
+local rerender: () -> () = function() end
 local model: Model? = nil
 local blockItemId: string? = nil
 local openTween: Tween? = nil
@@ -336,11 +344,34 @@ local function paintCell(cell: Cell, offer: Offer?, selected: boolean, side: Blo
 	cell.count.Text = tostring(offer.count)
 end
 
--- A slot for a filter strip: the backpack slot, smaller, its count and key hidden. Pressing
--- it moves its item on to the filter's next side.
-local function stripCell(strip: Frame): Cell
+-- A button cloned from ClearFilter, so arrows and chips look like the panel's buttons.
+local function smallButton(name: string, size: UDim2, onActivate: () -> ()): TextButton
+	local button = ui.ClearFilter:Clone()
+	button.Name = name
+	button.Size = size
+	button.Visible = true
+	button.Active = true
+	button.TextTransparency = 0
+	button.BackgroundTransparency = look.buttonTransparency
+	button.TextColor3 = look.buttonText
+	trove:Add(UI.bindButton(button, { hoverScale = 1.05, onActivate = onActivate }))
+	return button
+end
+
+-- A strip entry: the backpack slot, smaller, its count and key hidden, which moves its item
+-- on to the filter's next side when pressed; and under it the arrow that opens its
+-- mutation list.
+local function stripEntry(strip: Frame): Entry
+	local column = Instance.new("Frame")
+	column.BackgroundTransparency = 1
+	column.Size = UDim2.fromOffset(STRIP_SLOT, STRIP_SLOT + TIGHT_GAP + ARROW_HEIGHT)
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, TIGHT_GAP)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = column
 	local button = ui.slotTemplate:Clone()
 	button.Size = UDim2.fromOffset(STRIP_SLOT, STRIP_SLOT)
+	button.LayoutOrder = 1
 	for _, name in { "Count", "Key" } do
 		local label = button:FindFirstChild(name)
 		if label and label:IsA("GuiObject") then
@@ -365,8 +396,18 @@ local function stripCell(strip: Frame): Cell
 			end
 		end,
 	}))
-	button.Parent = strip
-	return cell
+	button.Parent = column
+	local arrow = smallButton("Mutations", UDim2.fromOffset(STRIP_SLOT, ARROW_HEIGHT), function()
+		local itemId = cell.itemId
+		if itemId then
+			expanded = if expanded == itemId then nil else itemId
+			rerender()
+		end
+	end)
+	arrow.LayoutOrder = 2
+	arrow.Parent = column
+	column.Parent = strip
+	return { column = column, cell = cell, arrow = arrow }
 end
 
 local function stripFor(side: BlockText.Side): Strip
@@ -377,7 +418,7 @@ local function stripFor(side: BlockText.Side): Strip
 	local frame = Instance.new("Frame")
 	frame.Name = `{side}Items`
 	frame.BackgroundTransparency = 1
-	frame.Size = UDim2.new(1, 0, 0, STRIP_SLOT)
+	frame.Size = UDim2.new(1, 0, 0, STRIP_SLOT + TIGHT_GAP + ARROW_HEIGHT)
 	local list = Instance.new("UIListLayout")
 	list.FillDirection = Enum.FillDirection.Horizontal
 	list.Padding = UDim.new(0, STRIP_GAP)
@@ -385,77 +426,76 @@ local function stripFor(side: BlockText.Side): Strip
 	list.Parent = frame
 	frame.Parent = ui.rows
 	trove:Add(frame)
-	local strip = { frame = frame, cells = {} }
+	local strip = { frame = frame, entries = {} }
 	strips[side] = strip
 	return strip
 end
 
-local function checklistFor(side: BlockText.Side): Checklist
-	local existing = checklists[side]
+local function dropdownFor(): Dropdown
+	local existing = dropdown
 	if existing then
 		return existing
 	end
-	local rowCount = math.ceil(#BlockText.FILTER_MUTATIONS / CHIPS_PER_ROW)
+	local count = #BlockText.FILTER_MUTATIONS
 	local frame = Instance.new("Frame")
-	frame.Name = `{side}Mutations`
+	frame.Name = "Mutations"
 	frame.BackgroundTransparency = 1
-	frame.Size = UDim2.new(1, 0, 0, rowCount * (CHIP_HEIGHT + STRIP_GAP) - STRIP_GAP)
-	local grid = Instance.new("UIGridLayout")
-	grid.CellSize = UDim2.new(1 / CHIPS_PER_ROW, -STRIP_GAP, 0, CHIP_HEIGHT)
-	grid.CellPadding = UDim2.fromOffset(STRIP_GAP, STRIP_GAP)
-	grid.SortOrder = Enum.SortOrder.LayoutOrder
-	grid.Parent = frame
+	frame.Size = UDim2.new(1, 0, 0, count * (CHIP_HEIGHT + TIGHT_GAP) - TIGHT_GAP)
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, TIGHT_GAP)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = frame
 	local chips: { [string]: TextButton } = {}
 	for index, name in BlockText.FILTER_MUTATIONS do
-		local chip = ui.ClearFilter:Clone()
-		chip.Name = `Mutation{name}`
+		local chip = smallButton(`Mutation{name}`, UDim2.new(1, 0, 0, CHIP_HEIGHT), function()
+			if expanded then
+				send("Mutation", `{expanded}:{name}`)
+			end
+		end)
 		chip.LayoutOrder = index
-		chip.Visible = true
-		chip.Active = true
-		chip.TextTransparency = 0
-		trove:Add(UI.bindButton(chip, {
-			hoverScale = 1.05,
-			onActivate = function()
-				send("Mutation", `{side}:{name}`)
-			end,
-		}))
+		chip.TextXAlignment = Enum.TextXAlignment.Left
 		chip.Parent = frame
 		chips[name] = chip
 	end
 	frame.Parent = ui.rows
 	trove:Add(frame)
-	local checklist = { frame = frame, chips = chips }
-	checklists[side] = checklist
-	return checklist
+	local made = { frame = frame, chips = chips }
+	dropdown = made
+	return made
 end
 
--- Under each side's strip, its mutation checklist: a ticked chip reads "[x]" in the
--- mutation's colour and stands out; hidden for anything but a filter.
-local function renderChecklist(target: Model?, side: BlockText.Side, rowIndex: number?)
-	if not target or not rowIndex then
-		local existing = checklists[side]
-		if existing then
-			existing.frame.Visible = false
+-- The open pick's mutation list, under its side's strip: every mutation in its own colour,
+-- "[x]" and standing out when ticked. Closes when its item is no longer picked.
+local function renderDropdown(target: Model?, filtered: { [string]: BlockText.Side }, rowOf: { [string]: number })
+	local itemId = expanded
+	local side = if itemId then filtered[itemId] else nil
+	local rowIndex = if side then rowOf[side] else nil
+	if not target or not itemId or not side or not rowIndex or not Inventory.hasMutations(itemId) then
+		expanded = if target then nil else expanded
+		if dropdown then
+			dropdown.frame.Visible = false
 		end
 		return
 	end
-	local ticks = BlockText.filterMutations(target)[side]
-	local checklist = checklistFor(side)
-	checklist.frame.LayoutOrder = rowIndex * 10 + 6
-	checklist.frame.Visible = true
-	for name, chip in checklist.chips do
+	local ticks = BlockText.filterMutations(target)[itemId] or {}
+	local list = dropdownFor()
+	list.frame.LayoutOrder = rowIndex * 10 + 6
+	list.frame.Visible = true
+	for name, chip in list.chips do
 		local on = ticks[name] == true
 		local mutation = Mutations.ALL[name]
-		chip.Text = `{if on then "[x]" else "[ ]"} {name}`
+		chip.Text = `  {if on then "[x]" else "[ ]"} {name}`
+		chip.TextColor3 = if mutation then mutation.color else look.buttonText
 		chip.BackgroundTransparency = if on then look.buttonTransparency else look.buttonDisabled
-		chip.TextColor3 = if on and mutation then mutation.color else look.buttonText
 	end
 end
 
 -- Under each side's row, that side's items as slots, hidden for a side with nothing on it,
--- then its mutation checklist; neither shows for anything but a filter.
+-- each with its mutation arrow when it comes in mutations; then the open mutation list.
+-- None of it shows for anything but a filter.
 local function renderStrips(target: Model?, shown: { BlockText.Row }?)
 	local filtered = if target and shown then BlockText.filter(target) else {}
+	local rowOf: { [string]: number } = {}
 	for _, side in BlockText.SIDES do
 		local rowIndex = nil
 		for index, row in shown or {} do
@@ -463,7 +503,6 @@ local function renderStrips(target: Model?, shown: { BlockText.Row }?)
 				rowIndex = index
 			end
 		end
-		renderChecklist(if shown then target else nil, side, rowIndex)
 		local ids = {}
 		for id, itemSide in filtered do
 			if itemSide == side then
@@ -477,6 +516,7 @@ local function renderStrips(target: Model?, shown: { BlockText.Row }?)
 			end
 			continue
 		end
+		rowOf[side] = rowIndex
 		table.sort(ids, function(a, b)
 			return BlockText.itemName(a) < BlockText.itemName(b)
 		end)
@@ -484,18 +524,22 @@ local function renderStrips(target: Model?, shown: { BlockText.Row }?)
 		strip.frame.LayoutOrder = rowIndex * 10 + 5
 		strip.frame.Visible = true
 		for index, id in ids do
-			local cell = strip.cells[index] or stripCell(strip.frame)
-			strip.cells[index] = cell
-			cell.button.LayoutOrder = index
-			cell.button.Visible = true
-			cell.itemId = id
-			ItemIcon.show(cell.icon, id)
+			local entry = strip.entries[index] or stripEntry(strip.frame)
+			strip.entries[index] = entry
+			entry.column.LayoutOrder = index
+			entry.column.Visible = true
+			entry.cell.itemId = id
+			ItemIcon.show(entry.cell.icon, id)
+			-- Kept in the layout either way, so slots line up whether or not they have one.
+			entry.arrow.Visible = Inventory.hasMutations(id)
+			entry.arrow.Text = if expanded == id then "^" else "v"
 		end
-		for index = #ids + 1, #strip.cells do
-			strip.cells[index].button.Visible = false
-			strip.cells[index].itemId = nil
+		for index = #ids + 1, #strip.entries do
+			strip.entries[index].column.Visible = false
+			strip.entries[index].cell.itemId = nil
 		end
 	end
+	renderDropdown(if shown then target else nil, filtered, rowOf)
 end
 
 local function isFilter(): boolean
@@ -517,7 +561,7 @@ local function showHint(cell: Cell?)
 	local itemId = if cell then cell.itemId else nil
 	if not itemId then
 		ui.hint.Text = if isFilter()
-			then "Click an item: left, again for right, again straight on. Tick mutations to narrow a side."
+			then "Click an item: left, again for right, again straight on. Its arrow picks mutations."
 			elseif isChest() then "Click an item to take it out."
 			else look.hint
 	elseif isFilter() then
@@ -687,6 +731,7 @@ local function render()
 	showHint(if current and current.itemId then current else nil)
 	layout()
 end
+rerender = render
 
 -- First thing a gamepad lands on: an enabled button, else the first item.
 local function focusPanel()
@@ -736,6 +781,7 @@ function MachinePanel.open(target: Model, itemId: string)
 	end
 	Screens.claim("MachinePanel")
 	model = target
+	expanded = nil
 	blockItemId = itemId
 	local current = GuiService.SelectedObject
 	priorSelection = if current and not current:IsDescendantOf(ui.window) then current else nil

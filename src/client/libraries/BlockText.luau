@@ -66,16 +66,15 @@ function BlockText.sideLabel(side: Side): string
 	return `Sends {string.lower(side)}`
 end
 
--- The mutations ticked on each side of a filter conveyor ("Plain" or a mutation name); a side
--- with none ticked takes any.
-function BlockText.filterMutations(model: Model): { [Side]: { [string]: boolean } }
-	local ticks: { [Side]: { [string]: boolean } } = { Left = {}, Right = {} }
+-- The mutations ticked on each of a filter conveyor's picks ("Plain" or a mutation name), by
+-- the picked item; a pick with none ticked takes any.
+function BlockText.filterMutations(model: Model): { [string]: { [string]: boolean } }
+	local ticks: { [string]: { [string]: boolean } } = {}
 	local encoded = model:GetAttribute("FilterMutations")
 	if typeof(encoded) == "string" then
-		for side, name in string.gmatch(encoded, "(%a+):(%a+)") do
-			if side == "Left" or side == "Right" then
-				ticks[side :: Side][name] = true
-			end
+		for id, name in string.gmatch(encoded, "([^,:]+):(%a+)") do
+			ticks[id] = ticks[id] or {}
+			ticks[id][name] = true
 		end
 	end
 	return ticks
@@ -158,24 +157,22 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		end
 	elseif def.route == "Filter" then
 		local names: { [Side]: { string } } = { Left = {}, Right = {} }
-		for id, side in BlockText.filter(model) do
-			table.insert(names[side], BlockText.itemName(id))
-		end
 		local ticks = BlockText.filterMutations(model)
-		for _, side in SIDES do
-			local list = names[side]
-			table.sort(list)
+		for id, side in BlockText.filter(model) do
+			-- A pick narrowed to some mutations names them: "Carrot (Golden, Rainbow)".
 			local ticked = {}
 			for _, name in FILTER_MUTATIONS do
-				if ticks[side][name] then
+				if ticks[id] and ticks[id][name] then
 					table.insert(ticked, name)
 				end
 			end
-			local value = if #list > 0 then table.concat(list, ", ") else "Anything"
-			if #ticked > 0 then
-				value ..= ` (only {table.concat(ticked, ", ")})`
-			end
-			add(BlockText.sideLabel(side), if #list == 0 and #ticked == 0 then "Nothing yet" else value)
+			local name = BlockText.itemName(id)
+			table.insert(names[side], if #ticked > 0 then `{name} ({table.concat(ticked, ", ")})` else name)
+		end
+		for _, side in SIDES do
+			local list = names[side]
+			table.sort(list)
+			add(BlockText.sideLabel(side), if #list > 0 then table.concat(list, ", ") else "Nothing yet")
 		end
 		add("Straight on", "Everything else")
 	end

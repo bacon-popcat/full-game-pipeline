@@ -24,7 +24,7 @@ export type Contents = {
 	-- A filter conveyor's items sent left, and (since filters could send right) right.
 	filter: { string },
 	filterRight: { string }?,
-	-- Its ticked mutations, as "Left:Golden" or "Right:Plain".
+	-- Its picks' ticked mutations, as "Carrot:Golden" or "Flour:Plain".
 	filterMutations: { string }?,
 	powered: boolean,
 }

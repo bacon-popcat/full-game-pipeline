@@ -109,7 +109,7 @@ local function contentsValid(contents: any): boolean
 		return false
 	end
 	for _, encoded in contents.filterMutations or {} do
-		if typeof(encoded) ~= "string" or not string.match(encoded, "^%a+:%a+$") then
+		if typeof(encoded) ~= "string" or not string.match(encoded, "^[^:]+:%a+$") then
 			return false
 		end
 	end

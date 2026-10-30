@@ -79,8 +79,8 @@ timestamp based, so crops keep growing while the player is away and the plot is 
 
 A crop rolls a mutation when it ripens (a multi crop rolls again each time its fruit grows back).
 A mutated harvest is its own item id, `<Crop>+<Mutation>` (`Carrot+Golden`), so it stacks with its
-own kind, rides belts and can be sorted by a Filter Conveyor (by item, and by a per-side
-mutation checklist). Processing machines never mix variants: a batch of one mutation makes
+own kind, rides belts and can be sorted by a Filter Conveyor (by item, each pick narrowed by
+its own mutation checklist). Processing machines never mix variants: a batch of one mutation makes
 that mutation's product (`Carrot Crate+Golden`, x20).
 
 | Mutation | Multiplier | Comes from |

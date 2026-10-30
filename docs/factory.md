@@ -93,11 +93,12 @@ active job refunds its exact variants when saved or picked up. The picker source
 mutated item and checks the full yield fits before reaping. Its single crops restart; multi
 plants regrow (see farming.md).
 
-A Filter's picks match an item by its exact id or its base crop or product, so a pick covers
-every mutation of it. Each side also has a mutation checklist (Plain, Wet, Shocked, Golden,
-Rainbow): with any ticked, the side takes only those. A side with picks and ticks takes the
-picked items in the ticked mutations; ticks alone take every item in them. When both sides
-take an item, the side that picked it wins, then the side with ticks, then left.
+A Filter's picks match an item by its exact id, or else by its base crop or product, so a
+pick of a plain crop covers every mutation of it. A pick that comes in mutations
+(`Inventory.hasMutations`) has its own mutation checklist (Plain, Wet, Shocked, Golden,
+Rainbow): with any ticked, the pick takes only those, so Carrot with Golden ticked sends only
+Golden Carrots to its side. A pick with none ticked takes every variant. Ticks are saved as
+"Carrot:Golden" and go when the pick goes back to straight on.
 
 ## Loose items (DropService)
 
@@ -149,7 +150,7 @@ on the server, including item ids from the panel.
 | Machine | Load from inventory, Collect output, Take back unused inputs |
 | Storage Chest | Take one item type, Take all |
 | Split | Switch side / straight |
-| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on, then that side's mutation checklist; Clear filter (also unticks every mutation) |
+| Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; an item with mutations has an arrow under it that opens its coloured mutation checklist; Clear filter (also unticks every mutation) |
 
 Hammer picks up owned blocks; Pickaxe breaks matching cubes or mines quarry rocks. An empty
 hand takes belt items, switches routers or harvests owned crops. Machines are worked through

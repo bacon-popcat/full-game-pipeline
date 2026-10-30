@@ -22,9 +22,14 @@ local HOTBAR_SIZE = 9
 local BACKPACK_SIZE = 81
 
 local byId: { [string]: Item } = {}
+-- Items that have mutated variants: crops' produce and valued products.
+local mutable: { [string]: boolean } = {}
 for _, item in Items do
 	assert(byId[item.id] == nil, `Inventory: duplicate item id "{item.id}"`)
 	byId[item.id] = item
+	if item.base and item.mutation then
+		mutable[item.base] = true
+	end
 end
 
 local Inventory = {}
@@ -44,6 +49,11 @@ end
 -- The item, or nil for an id that isn't one (say, from a client or an old save).
 function Inventory.find(itemId: string): Item?
 	return byId[itemId]
+end
+
+-- Whether `itemId` comes in mutations (`<itemId>+<Mutation>`); false for a mutated variant.
+function Inventory.hasMutations(itemId: string): boolean
+	return mutable[itemId] == true
 end
 
 function Inventory.isPlaceable(item: Item): boolean

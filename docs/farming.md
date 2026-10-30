@@ -92,8 +92,8 @@ weather and clamps each to 0..1.
 Harvests use `<Produce>+<Mutation>`. Factory processing keeps each variant apart: a batch
 takes all its inputs in one mutation and makes that mutation's product, and each variant has
 its own input room (factory.md § Processors). The job records exact consumed variant ids for
-save/pickup refunds. A Filter Conveyor sorts by picked item and by its per-side mutation
-checklist.
+save/pickup refunds. A Filter Conveyor sorts by picked item, each pick narrowed by its own
+mutation checklist.
 
 ## Weather
 
