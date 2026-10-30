@@ -460,6 +460,7 @@ local function water(player: Player, node: Node)
 	local at = timing(node, crop)
 	node.growthBonus += math.max(0, at.nextAt - at.elapsed) * WATER_SHARE
 	splash(node)
+	GardenEvents.Watered:Fire(player, node.cell)
 	grow(node)
 end
 

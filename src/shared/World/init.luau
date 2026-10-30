@@ -111,7 +111,7 @@ end
 local CROPS: { [string]: Crop } = {
 	Carrot = defineCrop("Carrot", "Common", 10, 18, 60, 1, nil, "Carrot", Color3.fromRGB(240, 151, 80)),
 	Wheat = defineCrop("Wheat", "Common", 15, 12, 75, 2, nil, "Wheat", Color3.fromRGB(234, 204, 112)),
-	Strawberry = defineCrop("Strawberry", "Uncommon", 50, 15, 90, 3, 45, "Potato", Color3.fromRGB(232, 117, 133)),
+	Strawberry = defineCrop("Strawberry", "Uncommon", 45, 15, 90, 3, 45, "Potato", Color3.fromRGB(232, 117, 133)),
 	Potato = defineCrop("Potato", "Uncommon", 60, 70, 120, 1, nil, "Potato", Color3.fromRGB(202, 174, 128)),
 	Tomato = defineCrop("Tomato", "Rare", 150, 35, 150, 2, 60, "Carrot", Color3.fromRGB(224, 113, 97)),
 	Corn = defineCrop("Corn", "Rare", 250, 160, 240, 1, nil, "Wheat", Color3.fromRGB(244, 218, 113)),

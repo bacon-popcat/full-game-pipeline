@@ -15,10 +15,12 @@ BuildService.restore -> FactoryService.register/restore -> lanes and machines
 WorldService.restore -> crops, elapsed wall-clock growth
 InventoryService.load + EconomyService.load + GardenService.load -> sync + leaderstats
                  v
+OnboardingService.load -> restored conditions + Objective sync
+                 v
              DataReady = true
 
 ProfileStore OnSave / two-minute snapshot / leave
-    <- inventory slots + economy + garden stock/discoveries + relative blocks, factory contents, crops
+    <- inventory slots + economy + garden stock/discoveries + onboarding + relative blocks, factory contents, crops
 leave -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
       -> release plot -> ProfileStore.EndSession
 ```
@@ -79,6 +81,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | seedStock | Remaining seed counts for this player in the current shop window |
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
+| onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
 
 Vectors serialize as three-number arrays. Rotation and Against keep world axes because
 all plots have the same orientation. Blocks restore before crops so placed soil exists
@@ -94,6 +97,14 @@ at legal spacing. Loose drops are not saved and are cleared on departure. Only c
 offline. Current timing, multi regrowth and weather credit are in [farming.md](farming.md).
 Old crops default missing growthBonus to zero and mutationRolled to false (or true when
 a mutation is already stored); the profile store stays unchanged.
+
+Onboarding defaults to 1 through Reconcile for existing saves. `Shared/Onboarding.sanitize`
+floors and clamps finite numbers to the valid step range, and resets non-numbers, NaN and
+infinities to 1. It loads after all restored state is available, snapshots alongside reward
+coins, and releases before economy cleanup. The service remembers actions ahead of the
+current prompt for this session; only the next step is persisted. Restored crops, discoveries,
+level and Shipping Bin ownership provide durable evidence for already-satisfied steps.
+See [economy.md](economy.md#onboarding) for objectives and the HUD contract.
 
 ProfileStore's autosave period is configured to two minutes. DataService also refreshes
 the snapshot every two minutes, before leave, and from OnSave (including ProfileStore's

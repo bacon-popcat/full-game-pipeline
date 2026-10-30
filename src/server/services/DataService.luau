@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local World = require(ReplicatedStorage.Shared.World)
 local ProfileStore = require(ServerStorage.ServerPackages.ProfileStore)
@@ -18,6 +19,7 @@ local BuildService = require(script.Parent.BuildService)
 local DropService = require(script.Parent.DropService)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
+local OnboardingService = require(script.Parent.OnboardingService)
 local PlotService = require(script.Parent.PlotService)
 local GardenService = require(script.Parent.GardenService)
 local WorldService = require(script.Parent.WorldService)
@@ -31,6 +33,7 @@ type Data = {
 	seedStock: { [string]: number },
 	restockAt: number,
 	discovered: { [string]: boolean },
+	onboarding: number,
 }
 local starter = Inventory.emptySlots()
 for _, stack in
@@ -51,6 +54,7 @@ local PROFILE_TEMPLATE: Data = {
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
+	onboarding = 1,
 }
 
 ProfileStore.SetConstant("AUTO_SAVE_PERIOD", SNAPSHOT_EVERY)
@@ -176,6 +180,7 @@ end
 
 local function sanitize(player: Player, data: any)
 	migrate(data)
+	data.onboarding = Onboarding.sanitize(data.onboarding)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
 	assert(
 		typeof(data.seedStock) == "table" and integer(data.restockAt) and typeof(data.discovered) == "table",
@@ -233,6 +238,9 @@ local function snapshot(player: Player, session: Session)
 	data.seedStock = garden.seedStock
 	data.restockAt = garden.restockAt
 	data.discovered = garden.discovered
+	local onboarding = OnboardingService.snapshot(player)
+	assert(onboarding, "DataService: loaded session lost onboarding state")
+	data.onboarding = onboarding
 	data.plot = { blocks = BuildService.snapshot(player, index), crops = WorldService.snapshot(index) }
 end
 
@@ -244,6 +252,7 @@ local function clear(player: Player)
 	end
 	BuildService.clear(player)
 	DropService.clear(player)
+	OnboardingService.release(player)
 	InventoryService.release(player)
 	EconomyService.release(player)
 	GardenService.release(player)
@@ -320,6 +329,7 @@ local function onPlayer(player: Player)
 		InventoryService.load(player, profile.Data.inventory)
 		EconomyService.load(player, profile.Data.coins, profile.Data.xp)
 		GardenService.load(player, profile.Data.seedStock, profile.Data.restockAt, profile.Data.discovered)
+		OnboardingService.load(player, profile.Data.onboarding)
 	end)
 	if not ok then
 		warn(`DataService: restore failed for {player.UserId}: {message}`)

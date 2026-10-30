@@ -22,6 +22,8 @@ local GardenEvents = {
 	Bought = Signal.new(),
 	-- (player, level: number) the player's level went up
 	LevelUp = Signal.new(),
+	-- (player, cell: Vector3) a growing crop splashed with the watering can
+	Watered = Signal.new(),
 }
 
 return GardenEvents

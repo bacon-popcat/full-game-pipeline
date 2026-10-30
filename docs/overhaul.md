@@ -45,7 +45,7 @@ Cells are `Build` cells (3 studs). The baseplate is ±256 studs, so everything s
 
 - **Coins** are the currency, shown on the HUD and in `leaderstats`.
 - **XP and level.** XP comes from harvesting (the crop's rarity) and from selling (1 per 10 coins).
-  The level unlocks machines in the Machine Shop. Level n needs `100 * n^1.5` XP, rounded.
+  The level unlocks machines in the Machine Shop. Advancing from level n costs `20 * n^2.75` XP, rounded.
 - **Selling.** At the Sell Stand: sell what's in your hand, or sell every crop and product you
   carry. A Shipping Bin on your plot sells what a belt brings it. Price is the item's `value`
   times its mutation's multiplier.
@@ -61,7 +61,7 @@ takes the fruit, and the fruit grows back after `regrow` seconds, for ever.
 |---|---|---|---|---|---|---|
 | Carrot | Common | 10 | 18 | 60 | single | 1 |
 | Wheat | Common | 15 | 12 | 75 | single | 2 |
-| Strawberry | Uncommon | 50 | 15 | 90 | multi, regrow 45 | 3 |
+| Strawberry | Uncommon | 45 | 15 | 90 | multi, regrow 45 | 3 |
 | Potato | Uncommon | 60 | 70 | 120 | single | 1 |
 | Tomato | Rare | 150 | 35 | 150 | multi, regrow 60 | 2 |
 | Corn | Rare | 250 | 160 | 240 | single | 1 |
@@ -134,10 +134,10 @@ Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus pa
 
 | Machine | Level | Coins | Parts | Does |
 |---|---|---|---|---|
-| Seed Planter II | 8 | 4,000 | 4 Gear, 2 Steel Frame | 5 x 7 patch, a seed a second |
-| Sprinkler II | 9 | 5,000 | 2 Circuit, 2 Copper Wire | Radius 5, 1.5x growth, +20% Wet |
-| Mill II | 10 | 6,000 | 4 Gear, 1 Steel Frame | The Mill's recipes in half the time |
-| Harvester II | 12 | 10,000 | 4 Circuit, 2 Steel Frame | Radius 6, a crop every 1.5 s |
+| Seed Planter II | 8 | 4,000 | 6 Gear, 3 Steel Frame | 5 x 7 patch, a seed a second |
+| Sprinkler II | 9 | 5,000 | 6 Circuit, 6 Copper Wire | Radius 5, 1.5x growth, +20% Wet |
+| Mill II | 10 | 6,000 | 8 Gear, 2 Steel Frame | The Mill's recipes in half the time |
+| Harvester II | 12 | 10,000 | 6 Circuit, 3 Steel Frame | Radius 6, a crop every 1.5 s |
 
 ## Crafting
 
@@ -235,6 +235,56 @@ Git history keeps all of it.
 - - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.
+
+### Polish implementation decisions
+
+- **Balance**
+  - `tools/balance/model.py` reads the content owners and compares them with its historical
+    `before.json`. Assumptions, before/after level and machine timings, income, the plain-crop
+    sensitivity and remaining Studio checks are in [economy.md](economy.md#balance).
+  - Only Strawberry's seed price, the two XP curve parameters and tier-two part counts change.
+    Common/Uncommon seeds repay in one plain harvest; every valued product already beats its
+    inputs, including same-mutation batches, so product values and machine speeds stay put.
+  - Tier-two parts were first sized to 20-28 minutes of *supplied* crafting, which needed
+    80-120 hand-mined bars from the shared quarry, a grind wall. Claude resized them to 24-36
+    bars each (Planter II 6 Gear + 3 Steel Frame, Sprinkler II 6 Circuit + 6 Copper Wire, Mill
+    II 8 Gear + 2 Steel Frame, Harvester II 6 Circuit + 3 Steel Frame): about 5 minutes of
+    mining and 5-8 of crafting. Coin prices and unlock
+    levels are unchanged. Existing lifetime XP is kept; levels recalculate with the new curve.
+- **Onboarding**
+  - `Shared/Onboarding` owns the seven ordered objectives, rewards and saved-step sanitization.
+    `OnboardingService` observes `GardenEvents`; it never blocks an action or accepts client
+    completion claims. Actions done ahead of the prompt count during the current session.
+  - DataService restores onboarding after the plot, inventory, economy and garden, snapshots
+    it with balances, and releases it on cleanup. Reconcile gives older saves step one.
+    Existing crops/discoveries, level and Shipping Bin ownership satisfy the corresponding
+    steps; seed purchases and stand sales need live evidence.
+  - `Objective` binds the authored HUD panel through `Hud.find`, uses a short cancellable
+    check/fade, and hides on completion. Reduced motion changes state immediately. The
+    server's `OnboardingStep` attribute recovers a remote sent before the HUD binds.
+
+- **Effects and sound**
+  - `server/libraries/GardenEvents` is the one place live garden actions are announced
+    (Planted, Placed, Harvested, Sold, Bought, LevelUp, Watered), fired by the service that did
+    the action and never by save restoration. Onboarding and effects listen to it; gameplay
+    services know neither.
+  - `FxService` turns those into `Remotes.Fx`: planting, harvesting and watering go to everyone
+    (clients draw only within 140 studs), sales, purchases and level-ups to the player. A
+    level-up also toasts what it unlocked ("Level 6! New in the shops: Harvester.").
+  - `FxController` draws a soil puff when planting; a burst in the crop's (or mutation's) colour
+    and the produce bobbing up when harvesting; coins sparkling round the player at the Sell
+    Stand (a small sparkle at a Shipping Bin, its chime at most every 1.5 s); and a warm ring
+    on level-up. Reduced motion keeps colour and sound and drops the movement.
+  - Sound roles live in `Shared/Sounds` (Plant, Harvest, Coin, Buy, Water, Step, LevelUp),
+    played through `client/libraries/Sound`: spatial for world moments, flat for the player's
+    own. The palette was generated with ElevenLabs sound effects in one family of material words
+    (warm wood, soil, soft chimes, no voice or melody); every take is in `assets/sounds/takes`
+    and the chosen ones in `assets/sounds` (README there). Studio's scripts can't upload audio,
+    so the files are imported by hand and their ids set in `Sounds.luau`; until then each role
+    is silent and the game is whole without sound.
+  - Playtested in "farming game": the objective panel, a seed purchase completing step 1 (and
+    steps 2-3 from the save), level-ups sending their effect and toast, and the live harvest,
+    sale and purchase effects from a running plot.
 
 ### Foundation implementation decisions
 

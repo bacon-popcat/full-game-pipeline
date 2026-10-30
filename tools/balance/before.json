@@ -1,0 +1,623 @@
+{
+  "crops": {
+    "Carrot": {
+      "rarity": "Common",
+      "price": 10,
+      "value": 18,
+      "grow": 60,
+      "yield_count": 1,
+      "regrow": null
+    },
+    "Wheat": {
+      "rarity": "Common",
+      "price": 15,
+      "value": 12,
+      "grow": 75,
+      "yield_count": 2,
+      "regrow": null
+    },
+    "Strawberry": {
+      "rarity": "Uncommon",
+      "price": 50,
+      "value": 15,
+      "grow": 90,
+      "yield_count": 3,
+      "regrow": 45
+    },
+    "Potato": {
+      "rarity": "Uncommon",
+      "price": 60,
+      "value": 70,
+      "grow": 120,
+      "yield_count": 1,
+      "regrow": null
+    },
+    "Tomato": {
+      "rarity": "Rare",
+      "price": 150,
+      "value": 35,
+      "grow": 150,
+      "yield_count": 2,
+      "regrow": 60
+    },
+    "Corn": {
+      "rarity": "Rare",
+      "price": 250,
+      "value": 160,
+      "grow": 240,
+      "yield_count": 1,
+      "regrow": null
+    },
+    "Blueberry": {
+      "rarity": "Rare",
+      "price": 400,
+      "value": 30,
+      "grow": 180,
+      "yield_count": 4,
+      "regrow": 50
+    },
+    "Pumpkin": {
+      "rarity": "Epic",
+      "price": 1200,
+      "value": 1100,
+      "grow": 480,
+      "yield_count": 1,
+      "regrow": null
+    },
+    "Apple": {
+      "rarity": "Epic",
+      "price": 3000,
+      "value": 90,
+      "grow": 360,
+      "yield_count": 3,
+      "regrow": 90
+    },
+    "Watermelon": {
+      "rarity": "Legendary",
+      "price": 6000,
+      "value": 3500,
+      "grow": 600,
+      "yield_count": 1,
+      "regrow": null
+    },
+    "Grape": {
+      "rarity": "Legendary",
+      "price": 10000,
+      "value": 260,
+      "grow": 480,
+      "yield_count": 4,
+      "regrow": 120
+    },
+    "Starfruit": {
+      "rarity": "Mythic",
+      "price": 30000,
+      "value": 1800,
+      "grow": 720,
+      "yield_count": 2,
+      "regrow": 150
+    }
+  },
+  "rarities": {
+    "Common": {
+      "xp": 1.0,
+      "min": 5.0,
+      "max": 15.0,
+      "chance": 1.0
+    },
+    "Uncommon": {
+      "xp": 2.0,
+      "min": 3.0,
+      "max": 8.0,
+      "chance": 1.0
+    },
+    "Rare": {
+      "xp": 4.0,
+      "min": 1.0,
+      "max": 4.0,
+      "chance": 0.6
+    },
+    "Epic": {
+      "xp": 8.0,
+      "min": 1.0,
+      "max": 2.0,
+      "chance": 0.25
+    },
+    "Legendary": {
+      "xp": 15.0,
+      "min": 1.0,
+      "max": 1.0,
+      "chance": 0.08
+    },
+    "Mythic": {
+      "xp": 30.0,
+      "min": 1.0,
+      "max": 1.0,
+      "chance": 0.02
+    }
+  },
+  "offers": {
+    "WateringCan": {
+      "price": 150,
+      "level": 1,
+      "category": "Tool",
+      "parts": {}
+    },
+    "Pickaxe": {
+      "price": 50,
+      "level": 1,
+      "category": "Tool",
+      "parts": {}
+    },
+    "Hammer": {
+      "price": 50,
+      "level": 1,
+      "category": "Tool",
+      "parts": {}
+    },
+    "Grass": {
+      "price": 5,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "Dirt": {
+      "price": 5,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "Stone": {
+      "price": 10,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "WoodPlanks": {
+      "price": 10,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "Bricks": {
+      "price": 15,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "Glass": {
+      "price": 20,
+      "level": 1,
+      "category": "Block",
+      "parts": {}
+    },
+    "ConveyorBelt": {
+      "price": 25,
+      "level": 1,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorBeltLeft": {
+      "price": 25,
+      "level": 1,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorBeltRight": {
+      "price": 25,
+      "level": 1,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorRamp": {
+      "price": 25,
+      "level": 1,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorRampDown": {
+      "price": 25,
+      "level": 1,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorBeltTier2": {
+      "price": 75,
+      "level": 4,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorBeltLeftTier2": {
+      "price": 75,
+      "level": 4,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorBeltRightTier2": {
+      "price": 75,
+      "level": 4,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorRampTier2": {
+      "price": 75,
+      "level": 4,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "ConveyorRampDownTier2": {
+      "price": 75,
+      "level": 4,
+      "category": "Conveyor",
+      "parts": {}
+    },
+    "SplitConveyor": {
+      "price": 150,
+      "level": 3,
+      "category": "Router",
+      "parts": {}
+    },
+    "Merger": {
+      "price": 150,
+      "level": 3,
+      "category": "Router",
+      "parts": {}
+    },
+    "FilterConveyor": {
+      "price": 150,
+      "level": 3,
+      "category": "Router",
+      "parts": {}
+    },
+    "Randomizer": {
+      "price": 150,
+      "level": 3,
+      "category": "Router",
+      "parts": {}
+    },
+    "ConveyorSensor": {
+      "price": 150,
+      "level": 3,
+      "category": "Router",
+      "parts": {}
+    },
+    "StorageChest": {
+      "price": 200,
+      "level": 2,
+      "category": "Machine",
+      "parts": {}
+    },
+    "ShippingBin": {
+      "price": 300,
+      "level": 2,
+      "category": "Machine",
+      "parts": {}
+    },
+    "SeedPlanter": {
+      "price": 800,
+      "level": 4,
+      "category": "Machine",
+      "parts": {}
+    },
+    "Sprinkler": {
+      "price": 1000,
+      "level": 5,
+      "category": "Machine",
+      "parts": {}
+    },
+    "Harvester": {
+      "price": 2000,
+      "level": 6,
+      "category": "Machine",
+      "parts": {}
+    },
+    "Mill": {
+      "price": 2500,
+      "level": 7,
+      "category": "Machine",
+      "parts": {}
+    },
+    "Juicer": {
+      "price": 4000,
+      "level": 8,
+      "category": "Machine",
+      "parts": {}
+    },
+    "CratePacker": {
+      "price": 6000,
+      "level": 9,
+      "category": "Machine",
+      "parts": {}
+    },
+    "Oven": {
+      "price": 8000,
+      "level": 10,
+      "category": "Machine",
+      "parts": {}
+    },
+    "SeedPlanterTier2": {
+      "price": 4000,
+      "level": 8,
+      "category": "Machine",
+      "parts": {
+        "Gear": 4,
+        "SteelFrame": 2
+      }
+    },
+    "SprinklerTier2": {
+      "price": 5000,
+      "level": 9,
+      "category": "Machine",
+      "parts": {
+        "Circuit": 2,
+        "CopperWire": 2
+      }
+    },
+    "MillTier2": {
+      "price": 6000,
+      "level": 10,
+      "category": "Machine",
+      "parts": {
+        "Gear": 4,
+        "SteelFrame": 1
+      }
+    },
+    "HarvesterTier2": {
+      "price": 10000,
+      "level": 12,
+      "category": "Machine",
+      "parts": {
+        "Circuit": 4,
+        "SteelFrame": 2
+      }
+    },
+    "Workbench": {
+      "price": 400,
+      "level": 3,
+      "category": "Crafting",
+      "parts": {}
+    },
+    "Smelter": {
+      "price": 500,
+      "level": 3,
+      "category": "Crafting",
+      "parts": {}
+    }
+  },
+  "recipes": {
+    "Flour": {
+      "machine": "Mill",
+      "value": 40.0,
+      "inputs": {
+        "Wheat": 2
+      },
+      "time": 4.0
+    },
+    "StrawberryJuice": {
+      "machine": "Juicer",
+      "inputs": {
+        "Strawberry": 3
+      },
+      "value": 53,
+      "time": 5.0
+    },
+    "BlueberryJuice": {
+      "machine": "Juicer",
+      "inputs": {
+        "Blueberry": 3
+      },
+      "value": 105,
+      "time": 5.0
+    },
+    "GrapeJuice": {
+      "machine": "Juicer",
+      "inputs": {
+        "Grape": 3
+      },
+      "value": 910,
+      "time": 5.0
+    },
+    "AppleJuice": {
+      "machine": "Juicer",
+      "inputs": {
+        "Apple": 3
+      },
+      "value": 315,
+      "time": 5.0
+    },
+    "TomatoJuice": {
+      "machine": "Juicer",
+      "inputs": {
+        "Tomato": 3
+      },
+      "value": 123,
+      "time": 5.0
+    },
+    "StrawberryPie": {
+      "machine": "Oven",
+      "inputs": {
+        "Flour": 1,
+        "Strawberry": 2
+      },
+      "value": 250,
+      "time": 8.0
+    },
+    "BlueberryPie": {
+      "machine": "Oven",
+      "inputs": {
+        "Flour": 1,
+        "Blueberry": 2
+      },
+      "value": 400,
+      "time": 8.0
+    },
+    "ApplePie": {
+      "machine": "Oven",
+      "inputs": {
+        "Flour": 1,
+        "Apple": 2
+      },
+      "value": 600,
+      "time": 8.0
+    },
+    "CarrotCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Carrot": 10
+      },
+      "value": 216.0,
+      "time": 3.0
+    },
+    "WheatCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Wheat": 10
+      },
+      "value": 144.0,
+      "time": 3.0
+    },
+    "StrawberryCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Strawberry": 10
+      },
+      "value": 180.0,
+      "time": 3.0
+    },
+    "PotatoCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Potato": 10
+      },
+      "value": 840.0,
+      "time": 3.0
+    },
+    "TomatoCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Tomato": 10
+      },
+      "value": 420.0,
+      "time": 3.0
+    },
+    "CornCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Corn": 10
+      },
+      "value": 1920.0,
+      "time": 3.0
+    },
+    "BlueberryCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Blueberry": 10
+      },
+      "value": 360.0,
+      "time": 3.0
+    },
+    "PumpkinCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Pumpkin": 10
+      },
+      "value": 13200.0,
+      "time": 3.0
+    },
+    "AppleCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Apple": 10
+      },
+      "value": 1080.0,
+      "time": 3.0
+    },
+    "WatermelonCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Watermelon": 10
+      },
+      "value": 42000.0,
+      "time": 3.0
+    },
+    "GrapeCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Grape": 10
+      },
+      "value": 3120.0,
+      "time": 3.0
+    },
+    "StarfruitCrate": {
+      "machine": "CratePacker",
+      "inputs": {
+        "Starfruit": 10
+      },
+      "value": 21600.0,
+      "time": 3.0
+    },
+    "Gear": {
+      "machine": "Workbench",
+      "inputs": {
+        "IronBar": 2
+      },
+      "time": 4,
+      "value": 0
+    },
+    "CopperWire": {
+      "machine": "Workbench",
+      "inputs": {
+        "CopperBar": 1
+      },
+      "time": 3,
+      "value": 0
+    },
+    "Circuit": {
+      "machine": "Workbench",
+      "inputs": {
+        "CopperWire": 2,
+        "Gear": 1
+      },
+      "time": 6,
+      "value": 0
+    },
+    "SteelFrame": {
+      "machine": "Workbench",
+      "inputs": {
+        "IronBar": 4,
+        "Stone": 1
+      },
+      "time": 6,
+      "value": 0
+    }
+  },
+  "coefficient": 100.0,
+  "exponent": 1.5,
+  "starter_coins": 50.0,
+  "starter_seeds": {
+    "Carrot": 10,
+    "Wheat": 5
+  },
+  "restock": 300,
+  "harvest_seconds": 3.0,
+  "plant_seconds": 2.0,
+  "growth_speed": 1.25,
+  "wet": 0.1,
+  "smelt_seconds": 10.0,
+  "coal_seconds": 30.0,
+  "multipliers": {
+    "Plain": 1,
+    "Wet": 2,
+    "Shocked": 10,
+    "Golden": 20,
+    "Rainbow": 50
+  },
+  "rewards": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}

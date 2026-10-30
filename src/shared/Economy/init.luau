@@ -1,11 +1,11 @@
 --!strict
 -- Economy: level math shared by the server and wallet HUD. XP is lifetime XP; level one
--- starts at zero, and advancing from level n costs round(100 * n^1.5) additional XP.
+-- starts at zero, and advancing from level n costs round(20 * n^2.75) additional XP.
 
 local Economy = {}
 
 function Economy.required(level: number): number
-	return math.round(100 * level ^ 1.5)
+	return math.round(20 * level ^ 2.75)
 end
 
 function Economy.progress(xp: number): (number, number, number)
