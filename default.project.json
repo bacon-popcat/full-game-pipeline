@@ -14,6 +14,8 @@
         "$className": "Folder",
         "InventorySync": { "$className": "RemoteEvent" },
         "EconomySync": { "$className": "RemoteEvent" },
+        "Fx": { "$className": "RemoteEvent" },
+        "Objective": { "$className": "RemoteEvent" },
         "ShopSync": { "$className": "RemoteEvent" },
         "ShopBuy": { "$className": "RemoteEvent" },
         "Sell": { "$className": "RemoteEvent" },

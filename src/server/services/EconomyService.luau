@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(ReplicatedStorage.Shared.Economy)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 
 type State = { coins: number, xp: number, level: number }
 local states: { [Player]: State } = {}
@@ -73,9 +74,13 @@ function EconomyService.addXp(player: Player, amount: number): boolean
 	if not state or not valid(amount) then
 		return false
 	end
+	local before = state.level
 	state.xp += amount
 	state.level = Economy.progress(state.xp)
 	sync(player, state)
+	if state.level > before then
+		GardenEvents.LevelUp:Fire(player, state.level)
+	end
 	return true
 end
 

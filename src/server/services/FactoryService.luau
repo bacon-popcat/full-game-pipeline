@@ -40,6 +40,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Machine = require(ServerScriptService.Libraries.Machine)
 local DropService = require(script.Parent.DropService)
+local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 local WorldService = require(script.Parent.WorldService)
@@ -586,6 +587,7 @@ local function paySale(block: Block, itemId: string)
 	local coins = (xpCoins[player] or 0) + value
 	EconomyService.addXp(player, coins // COINS_PER_XP)
 	xpCoins[player] = coins % COINS_PER_XP
+	GardenEvents.Sold:Fire(player, value, centreOf(block))
 end
 
 -- The best sprinkler over `cell`: the same plot, within its radius across and one cell up or down.

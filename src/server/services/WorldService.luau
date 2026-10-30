@@ -13,6 +13,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
+local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local GardenService = require(script.Parent.GardenService)
 local WeatherService = require(script.Parent.WeatherService)
 local Layout = require(ReplicatedStorage.Shared.World.Layout)
@@ -371,6 +372,7 @@ local function awardHarvest(node: Node)
 	local player = if typeof(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
 	if player and def.crop then
 		GardenService.harvest(player, def.crop, node.mutation)
+		GardenEvents.Harvested:Fire(player, def.crop, node.mutation, node.cell)
 	end
 end
 -- The node covering `cell`, if any.

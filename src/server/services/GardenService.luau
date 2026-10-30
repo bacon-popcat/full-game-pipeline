@@ -10,6 +10,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
 local World = require(ReplicatedStorage.Shared.World)
+local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 type State = { seedStock: { [string]: number }, restockAt: number, discovered: { [string]: boolean } }
@@ -155,6 +156,7 @@ local function buyOffer(player: Player, offer: Shops.Offer, count: number): stri
 		InventoryService.take(player, itemId, amount)
 	end
 	InventoryService.give(player, offer.itemId, count)
+	GardenEvents.Bought:Fire(player, offer.itemId, count)
 	return nil
 end
 
@@ -181,6 +183,7 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 			else
 				InventoryService.give(player, itemId, count)
 				state.seedStock[itemId] -= count
+				GardenEvents.Bought:Fire(player, itemId, count)
 				message = `Bought {count} {crop.name} Seeds`
 			end
 		elseif offer then
@@ -213,6 +216,9 @@ local function sell(player: Player, mode: unknown)
 	EconomyService.add(player, coins)
 	EconomyService.addXp(player, math.floor(coins / 10))
 	Remotes.Notify:FireClient(player, if coins > 0 then `+{coins} coins` else "Hold a crop or product to sell it.")
+	if coins > 0 then
+		GardenEvents.Sold:Fire(player, coins, nil)
+	end
 end
 function GardenService.init()
 	Remotes.ShopBuy.OnServerEvent:Connect(buy)

@@ -18,6 +18,7 @@ local Plot = require(ReplicatedStorage.Shared.Plot)
 local World = require(ReplicatedStorage.Shared.World)
 local WorldService = require(script.Parent.WorldService)
 local Soil = require(ReplicatedStorage.Shared.World.Soil)
+local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local FactoryService = require(script.Parent.FactoryService)
 local InventoryService = require(script.Parent.InventoryService)
 
@@ -143,10 +144,17 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	end
 
 	if World.PLANTS[itemId] then
-		if not WorldService.plant(origin, itemId) then
+		if WorldService.plant(origin, itemId) then
+			GardenEvents.Planted:Fire(player, origin, itemId)
+		else
 			InventoryService.give(player, itemId, 1)
 		end
-	elseif not BuildService.place(player, itemId, origin, rotation, side) then
+		return
+	end
+	local model = BuildService.place(player, itemId, origin, rotation, side)
+	if model then
+		GardenEvents.Placed:Fire(player, itemId, model)
+	else
 		InventoryService.give(player, itemId, 1)
 	end
 end

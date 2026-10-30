@@ -26,6 +26,13 @@ return {
 	Sell = get("Sell"),
 	-- server -> client: (message: string), a short transaction or rare-harvest toast.
 	Notify = get("Notify"),
+	-- server -> client: (fx: { kind: "Plant" | "Harvest" | "Sell" | "Buy" | "LevelUp", position: Vector3?,
+	-- itemId: string?, mutation: string?, amount: number? }) a moment to show and sound (FxService ->
+	-- FxController). Cosmetic only: nothing the client does with it changes the game.
+	Fx = get("Fx"),
+	-- server -> client: (objective: { step: number, total: number, text: string, done: boolean })
+	-- the player's current onboarding objective (OnboardingService); sent on load and each step.
+	Objective = get("Objective"),
 	-- server -> client: (snapshot: { coins: number, xp: number, level: number }); XP is
 	-- lifetime XP (Shared/Economy derives progress). Sent on profile load and balance changes.
 	EconomySync = get("EconomySync"),
