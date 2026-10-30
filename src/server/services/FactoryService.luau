@@ -384,8 +384,8 @@ local function routeOut(block: Block, item: Lane.Item): LaneState?
 	return lanes[choice]
 end
 
--- Whether nothing but characters and loose drops stands in the cell past an unconnected
--- port.
+-- Whether nothing but characters, loose drops and covered art stands in the cell past an
+-- unconnected port.
 local function isOpen(port: Factory.Port): boolean
 	local now = os.clock()
 	local cached = openCache[port]
@@ -396,7 +396,11 @@ local function isOpen(port: Factory.Port): boolean
 	local open = true
 	for _, part in workspace:GetPartBoundsInBox(centre, size, overlapParams) do
 		local model = part:FindFirstAncestorOfClass("Model")
-		if not Build.isLoose(part) and (not model or not Players:GetPlayerFromCharacter(model)) then
+		if
+			not Build.isLoose(part)
+			and not Build.isCoveredArt(part)
+			and (not model or not Players:GetPlayerFromCharacter(model))
+		then
 			open = false
 			break
 		end

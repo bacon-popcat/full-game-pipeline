@@ -53,6 +53,16 @@ of the hitbox by up to 0.15 studs, which `Build`'s overlap margin allows for. Th
 on the floor at a convenient cell centre (the conveyor's, or under a machine column); placement reads it relative to the hitbox, so where it sits never changes placement.
 Machine parts collide with their exact shape.
 
+A machine whose art leaves some of its cells empty (a Randomizer fills a 1×3 belt and one
+side cell of its 3×2×3 box) keeps that box as its `PrimaryPart` for the footprint, pivot and
+ports, but the box is not queryable. Smaller parts, also named `Hitbox`, sit inside it and
+cover only the filled cells, and aim rays and overlap tests meet those. Other blocks can go
+in the empty cells. Overlap tests skip the art of any model whose `PrimaryPart` is a
+`Hitbox` (`Build.isCoveredArt`), because a mesh's bounding box can span cells its shape
+leaves empty. `IslandsMachines/build/studio_cells.luau` makes the cell boxes from the art:
+a cell is filled when the art reaches more than 0.5 studs into it. Run it again after every
+run of `studio_blocks.luau`.
+
 A placement must fit entirely inside the loaded player's own plot; the ghost uses the same
 check as the server and is red elsewhere. A placement is blocked by anything but a character (or a loose drop) inside its cells, and
 by a character only where the block's own colliding parts would clip them

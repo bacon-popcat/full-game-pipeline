@@ -15,7 +15,9 @@
 -- placing it fills the placement's box. The template's pivot is read relative to the
 -- hitbox, so it can sit wherever is convenient to hold it by. A machine's hitbox is an
 -- invisible part named Hitbox around its art, which may poke past it by up to 0.15 studs
--- (docs/inventory.md); a plain cube is its own hitbox.
+-- (docs/inventory.md); a plain cube is its own hitbox. A machine whose art leaves some of
+-- its cells empty has smaller boxes, also named Hitbox, inside that hitbox covering just the
+-- filled cells; then those, not the whole box, are what aim rays and overlap tests meet.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -26,6 +28,8 @@ type Measure = {
 	footprint: Vector3,
 	-- The template's pivot relative to its hitbox (identity unless someone moved it).
 	pivotOffset: CFrame,
+	-- The boxes of filled cells, in studs from the hitbox's centre; nil when it is all filled.
+	cells: { { centre: Vector3, size: Vector3 } }?,
 }
 
 local GRID = 3
@@ -90,9 +94,16 @@ local function measure(itemId: string): Measure?
 		warn(`Build: "{itemId}"'s hitbox is {hitbox.Size}, not whole {GRID}-stud cells`)
 		return nil
 	end
+	local cellBoxes = {}
+	for _, child in hitbox:GetChildren() do
+		if child:IsA("BasePart") and child.Name == "Hitbox" then
+			table.insert(cellBoxes, { centre = hitbox.CFrame:PointToObjectSpace(child.Position), size = child.Size })
+		end
+	end
 	local result = {
 		footprint = footprint,
 		pivotOffset = hitbox.CFrame:ToObjectSpace(template:GetPivot()),
+		cells = if #cellBoxes > 0 then cellBoxes else nil,
 	}
 	measures[itemId] = result
 	return result
@@ -209,13 +220,64 @@ function Build.isCharacter(part: Instance): boolean
 	return false
 end
 
--- Whether nothing queryable but characters and loose drops overlaps a placement's box.
--- Characters are `clipsCharacter`'s to judge, against the block's art.
-function Build.isFree(origin: Vector3, footprint: Vector3, params: OverlapParams): boolean
+-- Whether `part` is art inside a model whose Hitbox speaks for it. Overlap queries match
+-- bounding boxes, and a mesh's box can span cells its shape leaves empty, so only the
+-- hitboxes of such a model count as where it stands.
+function Build.isCoveredArt(part: BasePart): boolean
+	if part.Name == "Hitbox" then
+		return false
+	end
+	local model = part:FindFirstAncestorOfClass("Model")
+	local hitbox = if model then model.PrimaryPart else nil
+	return hitbox ~= nil and hitbox.Name == "Hitbox"
+end
+
+-- The boxes `itemId` fills when placed at `origin` turned `rotation` quarter turns, each
+-- shrunk by TOUCH_MARGIN like `box`: its filled cells, or its whole box.
+function Build.boxes(itemId: string, origin: Vector3, rotation: number): { { cframe: CFrame, size: Vector3 } }
+	local measured = measure(itemId)
+	local footprint = Build.footprint(itemId, rotation)
+	if not measured or not footprint then
+		return {}
+	end
 	local centre, size = Build.box(origin, footprint)
-	for _, part in workspace:GetPartBoundsInBox(centre, size, params) do
-		if not Build.isLoose(part) and not Build.isCharacter(part) then
-			return false
+	if not measured.cells then
+		return { { cframe = centre, size = size } }
+	end
+	local turn = CFrame.Angles(0, rotation * math.pi / 2, 0)
+	local boxes = {}
+	for _, cell in measured.cells do
+		local turned = if rotation % 2 == 1 then Vector3.new(cell.size.Z, cell.size.Y, cell.size.X) else cell.size
+		table.insert(boxes, {
+			cframe = CFrame.new(centre.Position + turn:VectorToWorldSpace(cell.centre)),
+			size = turned - Vector3.one * (TOUCH_MARGIN * 2),
+		})
+	end
+	return boxes
+end
+
+-- Whether nothing queryable but characters, loose drops and covered art overlaps a
+-- placement's box, or only the cells `itemId` fills when it is given. Characters are
+-- `clipsCharacter`'s to judge, against the block's art.
+function Build.isFree(
+	origin: Vector3,
+	footprint: Vector3,
+	params: OverlapParams,
+	itemId: string?,
+	rotation: number?
+): boolean
+	local boxes
+	if itemId then
+		boxes = Build.boxes(itemId, origin, rotation or 0)
+	else
+		local centre, size = Build.box(origin, footprint)
+		boxes = { { cframe = centre, size = size } }
+	end
+	for _, box in boxes do
+		for _, part in workspace:GetPartBoundsInBox(box.cframe, box.size, params) do
+			if not Build.isLoose(part) and not Build.isCharacter(part) and not Build.isCoveredArt(part) then
+				return false
+			end
 		end
 	end
 	return true

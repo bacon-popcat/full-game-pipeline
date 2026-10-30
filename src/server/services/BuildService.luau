@@ -129,7 +129,7 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	if
 		not Build.canEdit(player, origin, footprint)
 		or not Build.inReach(root.Position, origin, footprint)
-		or not Build.isFree(origin, footprint, overlapParams)
+		or not Build.isFree(origin, footprint, overlapParams, itemId, rotation)
 	then
 		return
 	end
@@ -231,7 +231,7 @@ function BuildService.restore(player: Player, index: number, saved: Plot.SavedBl
 	if
 		not footprint
 		or not Build.owns(player, origin, footprint)
-		or not Build.isFree(origin, footprint, overlapParams)
+		or not Build.isFree(origin, footprint, overlapParams, saved.itemId, saved.rotation)
 	then
 		return false
 	end

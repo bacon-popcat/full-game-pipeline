@@ -164,7 +164,7 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	end
 	local valid = Build.inReach(from, origin, footprint)
 		and Build.canEdit(player, origin, footprint)
-		and Build.isFree(origin, footprint, overlapParams)
+		and Build.isFree(origin, footprint, overlapParams, item.id, rotation)
 		and not Build.clipsCharacter(item.id, pivot)
 		and Soil.canPlant(item.id, origin)
 	local normal = result.Normal
