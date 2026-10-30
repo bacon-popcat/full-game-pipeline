@@ -62,9 +62,9 @@ return {
 	-- client -> server: (onto: Model?) drop one of the held item: onto a placed conveyor
 	-- within reach, or in front of the player when `onto` is nil
 	DropItem = get("DropItem"),
-	-- server -> client: (drop: Model, target: BasePart, whole: boolean) a loose drop in
-	-- Workspace.Drops was picked up by the character whose root is `target`, or merged into the
-	-- stack whose root it is. `whole` means the drop is gone (it lingers briefly, out of play,
+	-- server -> client: (drop: Model, target: BasePart | Vector3, whole: boolean) a loose drop
+	-- in Workspace.Drops was picked up by the character whose root is `target`, merged into the
+	-- stack whose root it is, or pulled onto a belt at that point. `whole` means the drop is gone (it lingers briefly, out of play,
 	-- for the animation); false means part of a stack went and the drop stays. Cosmetic only.
 	DropCollected = get("DropCollected"),
 }

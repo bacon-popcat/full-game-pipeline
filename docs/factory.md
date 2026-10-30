@@ -105,10 +105,15 @@ continue matching the exact item id, including the mutation suffix.
   survives where it lies and keeps the later despawn time; it draws up to 1.6x bigger at 100
   items. Walking into a stack takes as much as the inventory has room for; a belt still takes
   one at a time. Merging is a spatial-hash pass every 0.4 s, linear in the number of drops.
+- **Belts pull in matching drops.** A settled drop within 4 studs across (and 3 up or down)
+  of an owned belt that already carries the same item id is pulled onto it beside where it
+  lies, one item every 0.15 s, if there is room within one spacing either way
+  (FactoryService `pull`). Drops a belt or machine threw off an open end are never pulled,
+  since they would ride round and be thrown off again; a stack merged with one isn't either.
 - **Pickup animation.** A drop that is picked up or merged stays 0.6 s on the server,
   anchored and out of play, and `DropCollected` has every client within 150 studs draw it.
   DropController hides the real one and flies a local copy into the player (or the stack it
-  joined) on an ease-in arc, shrinking, spinning and fading over 0.35 s. A partial pickup
+  joined, or the point on the belt that pulled it) on an ease-in arc, shrinking, spinning and fading over 0.35 s. A partial pickup
   flies a smaller copy and leaves the stack. Reduced motion fades it where it lies.
   DropController also labels stacks of more than one with their count (below).
 

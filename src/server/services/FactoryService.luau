@@ -19,8 +19,10 @@
 -- machine with belt art on its output face puts what it makes onto that belt (its own
 -- lane, Factory.lanes), so its output rides out and falls off the end like any conveyor's. A drop
 -- that touches any block's belt joins it where it touched, if there is room; one landing on
--- a machine's input end goes into the machine, if it takes it. A player walking over a
--- belt picks up the items under their feet.
+-- a machine's input end goes into the machine, if it takes it. A settled drop lying beside a
+-- belt that carries the same item is pulled onto it alongside (`pull`), unless the drop was
+-- thrown off a belt end, which would only carry it round to be thrown off again. A player
+-- walking over a belt picks up the items under their feet.
 --
 -- A machine whose input face has belt art takes items only where that belt meets its port:
 -- the belt is a lane of its own (Factory.lanes) that items ride in on, and the machine
@@ -105,6 +107,10 @@ local FILTER_MAX = 4
 local OPEN_RECHECK = 0.5
 -- Studs from a lane's path within which a drop counts as touching the belt.
 local CATCH_DISTANCE = 1.8
+-- Studs across, and up or down, from a lane's path within which a drop is pulled onto a belt
+-- that carries the same item.
+local PULL_DISTANCE = 4
+local PULL_HEIGHT = 3
 -- Upward studs per second an item thrown off an open end leaves with.
 local THROW_LIFT = 1.5
 -- Studs per second a machine pushes its output off an open face.
@@ -350,7 +356,7 @@ local function throwOff(block: Block, port: Factory.Port, speed: number, itemId:
 	local at = CFrame.lookAlong(port.position + port.normal * 0.6 + Vector3.yAxis * 0.6, port.normal)
 	local userId = block.model:GetAttribute("Owner")
 	local owner = if typeof(userId) == "number" then Players:GetPlayerByUserId(userId) else nil
-	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT, 1, owner)
+	DropService.spawn(itemId, at, port.normal * speed + Vector3.yAxis * THROW_LIFT, 1, owner, false)
 end
 
 -- The stretch of belt just inside a machine's input face, from the face inwards.
@@ -402,6 +408,74 @@ local function catch(itemId: string, position: Vector3, dropper: Player?): boole
 		end
 	end
 	return false
+end
+
+local function carries(lane: LaneState, itemId: string): boolean
+	for _, item in lane.items do
+		if item.itemId == itemId then
+			return true
+		end
+	end
+	return false
+end
+
+-- Puts one `itemId` onto `lane` beside `position`, if the lane already carries one, runs
+-- within reach and has room there or a spacing either side. Returns where it went on.
+local function pullOnto(lane: LaneState, itemId: string, position: Vector3, dropper: Player): Vector3?
+	if not carries(lane, itemId) then
+		return nil
+	end
+	local flat = {}
+	for index, point in lane.points do
+		flat[index] = Vector3.new(point.X, position.Y, point.Z)
+	end
+	local d, distance = Lane.project(flat, position)
+	if distance > PULL_DISTANCE then
+		return nil
+	end
+	local along = d * lane.length / math.max(Lane.length(flat), 1e-3)
+	if math.abs(Lane.pointAt(lane.points, along).Y - position.Y) > PULL_HEIGHT then
+		return nil
+	end
+	for _, offset in { 0, Lane.SPACING, -Lane.SPACING } do
+		local item = { id = newItemId(), itemId = itemId, d = math.clamp(along + offset, 0, lane.length) }
+		if Lane.insert(lane.items, item) then
+			markDirty(lane)
+			graces[item.id] = { dropper = dropper, expires = os.clock() + PICKUP_GRACE }
+			return (Lane.pointAt(lane.points, item.d))
+		end
+	end
+	return nil
+end
+
+-- Pulls one item of a drop at `position` onto a belt of the dropper's beside it that
+-- already carries that item. Blocks in the drop's cell, the cells around it and the layer
+-- under them are looked at. Returns where on the belt it went, or nil.
+local function pull(itemId: string, position: Vector3, dropper: Player?): Vector3?
+	if not dropper then
+		return nil
+	end
+	local origin = cellOf(position)
+	local seen: { [Block]: boolean } = {}
+	for dy = 0, -1, -1 do
+		for dx = -1, 1 do
+			for dz = -1, 1 do
+				local block = cellIndex[cellKey(origin + Vector3.new(dx, dy, dz))]
+				if block and not seen[block] then
+					seen[block] = true
+					if Build.canEdit(dropper, block.origin, block.footprint) then
+						for _, lane in block.lanes do
+							local point = pullOnto(lane, itemId, position, dropper)
+							if point then
+								return point
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return nil
 end
 
 -- Where a drop aimed at a placed block's belt appears: over its first lane, a cell's
@@ -1235,7 +1309,7 @@ function FactoryService.init()
 	end)
 	RunService.Heartbeat:Connect(step)
 	RunService.Heartbeat:Connect(pickUpUnderfoot)
-	DropService.setBelts(catch, dropPoint)
+	DropService.setBelts(catch, dropPoint, pull)
 end
 
 return FactoryService

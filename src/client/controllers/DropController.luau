@@ -1,12 +1,14 @@
 -- DropController: how loose drops in Workspace.Drops look beyond their physics. A stack of
 -- more than one item gets a count label over it, and a drop that is picked up or merged
--- (DropService fires DropCollected) is drawn being sucked into its target: a local copy
+-- (DropService fires DropCollected) is drawn being sucked into its target -- a player, the
+-- stack it joined or the belt that pulled it on: a local copy
 -- flies in on an ease-in arc, shrinking and fading, while the real one is hidden for the
 -- moment it lingers on the server. Nothing here changes the game; the server already has.
 -- Reduced motion fades the copy where it lies instead of flying it.
 --
 -- The label is ReplicatedStorage.Assets.UI.Drop.Count (a BillboardGui with a TextLabel
--- named Label), authored in Studio; without it a plain label stands in.
+-- named Label), authored in Studio; without it a plain label stands in. That fallback is
+-- expected until the template is authored, so it is silent.
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,8 +34,6 @@ local LABEL_NAME = "DropCount"
 
 local DropController = {}
 
-local warned = false
-
 local function labelTemplate(): BillboardGui?
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local ui = assets and assets:FindFirstChild("UI")
@@ -41,10 +41,6 @@ local function labelTemplate(): BillboardGui?
 	local template = folder and folder:FindFirstChild("Count")
 	if template and template:IsA("BillboardGui") and template:FindFirstChild("Label") then
 		return template
-	end
-	if not warned then
-		warned = true
-		warn("DropController: ReplicatedStorage.Assets.UI.Drop.Count is missing; using a plain label")
 	end
 	return nil
 end
@@ -167,7 +163,9 @@ local function onCollected(model: unknown, target: unknown, whole: unknown)
 		local alpha = math.min(elapsed / duration, 1)
 		-- Ease in: it drifts at first, then is pulled in fast, like being sucked up.
 		local pull = alpha * alpha
-		if typeof(target) == "Instance" and target:IsA("BasePart") and target:IsDescendantOf(workspace) then
+		if typeof(target) == "Vector3" then
+			goal = target
+		elseif typeof(target) == "Instance" and target:IsA("BasePart") and target:IsDescendantOf(workspace) then
 			goal = target.Position
 		end
 		if not reduced then

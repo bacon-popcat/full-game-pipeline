@@ -9,6 +9,8 @@
 -- one model and one physics body with a Count attribute, however many items it holds, so a
 -- flood of drops stays cheap. A pickup takes as much of a stack as the inventory has room
 -- for. A stack draws a little bigger the more it holds; DropController labels its count.
+-- A settled drop beside a belt that already carries its item is pulled onto it, one item at
+-- a time (FactoryService's `pull` rule), unless it was thrown off a belt end.
 -- A drop that is picked up or merged lingers for COLLECT_TIME, anchored and out of play,
 -- while DropCollected has every client draw it being sucked into its target.
 -- Drops retain their owner even outside a plot; pickup and absorption cannot transfer
@@ -39,6 +41,9 @@ type Drop = {
 	baseScale: number,
 	-- The player who dropped it, if one did.
 	dropper: Player?,
+	-- Whether a belt beside it carrying the same item may pull it on; false for drops a belt
+	-- threw off its end, which would ride round and be thrown off again.
+	pullable: boolean,
 	owner: number,
 }
 
@@ -84,6 +89,7 @@ local folder = dropFolder()
 local drops: { [Model]: Drop } = {}
 local absorber: ((itemId: string, position: Vector3, dropper: Player?) -> boolean)? = nil
 local beltPoint: ((model: Model) -> Vector3?)? = nil
+local puller: ((itemId: string, position: Vector3, dropper: Player?) -> Vector3?)? = nil
 local lastAction: { [Player]: number } = {}
 local absorbTimer = 0
 local mergeTimer = 0
@@ -95,9 +101,10 @@ local function remove(drop: Drop)
 	end
 end
 
--- Takes a drop out of play and has clients draw it sucked into `target`. With `whole` false
--- only part of the stack went, so the drop stays and clients draw a copy leaving it.
-local function collect(drop: Drop, target: BasePart, whole: boolean)
+-- Takes a drop out of play and has clients draw it sucked into `target` (a character's or
+-- stack's root, or a point on a belt). With `whole` false only part of the stack went, so
+-- the drop stays and clients draw a copy leaving it.
+local function collect(drop: Drop, target: BasePart | Vector3, whole: boolean)
 	Remotes.DropCollected:FireAllClients(drop.model, target, whole)
 	if not whole or drops[drop.model] ~= drop then
 		return
@@ -146,6 +153,7 @@ local function merge(into: Drop, from: Drop)
 	collect(from, into.root, true)
 	into.expires = math.max(into.expires, from.expires)
 	into.dropper = into.dropper or from.dropper
+	into.pullable = into.pullable and from.pullable
 	setCount(into, into.count + from.count)
 end
 
@@ -181,7 +189,15 @@ local function onTouched(drop: Drop, hit: BasePart)
 end
 
 -- A physical item in the world at `cframe`, moving at `velocity`, and who dropped it.
-function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, count: number?, dropper: Player?)
+-- `pullable` false keeps belts beside it from pulling it on (see Drop).
+function DropService.spawn(
+	itemId: string,
+	cframe: CFrame,
+	velocity: Vector3,
+	count: number?,
+	dropper: Player?,
+	pullable: boolean?
+)
 	local position = cframe.Position / Build.GRID
 	local index = Plot.at(Vector3.new(math.floor(position.X), 0, math.floor(position.Z)))
 	local plots = workspace:FindFirstChild("Plots")
@@ -233,6 +249,7 @@ function DropService.spawn(itemId: string, cframe: CFrame, velocity: Vector3, co
 		baseScale = model:GetScale(),
 		dropper = dropper,
 		owner = owner,
+		pullable = pullable ~= false,
 	}
 	setCount(drop, count or 1)
 	drops[model] = drop
@@ -246,13 +263,16 @@ end
 
 -- Sets the rules for belts: `catch` decides whether a belt (or machine) takes one unit of a
 -- drop at `position` (and learns who dropped it); `dropPoint` says where a drop aimed at a
--- placed block appears, or nil when it has no belt.
+-- placed block appears, or nil when it has no belt; `pull` puts one unit of a drop beside a
+-- belt carrying the same item onto it and says where, or returns nil.
 function DropService.setBelts(
 	catch: (itemId: string, position: Vector3, dropper: Player?) -> boolean,
-	dropPoint: (model: Model) -> Vector3?
+	dropPoint: (model: Model) -> Vector3?,
+	pull: (itemId: string, position: Vector3, dropper: Player?) -> Vector3?
 )
 	absorber = catch
 	beltPoint = dropPoint
+	puller = pull
 end
 
 local function absorb(dt: number)
@@ -262,8 +282,19 @@ local function absorb(dt: number)
 		return
 	end
 	absorbTimer = 0
+	local now = os.clock()
 	for _, drop in drops do
-		if rule(drop.itemId, drop.root.Position, drop.dropper) then
+		local position = drop.root.Position
+		if rule(drop.itemId, position, drop.dropper) then
+			use(drop, 1)
+			continue
+		end
+		-- Settled first, so a toss lands before a belt beside it pulls it in.
+		local point = if puller and drop.pullable and now - drop.born >= MERGE_DELAY
+			then puller(drop.itemId, position, drop.dropper)
+			else nil
+		if point then
+			collect(drop, point, drop.count == 1)
 			use(drop, 1)
 		end
 	end
