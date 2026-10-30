@@ -65,7 +65,8 @@ return {
 	DropItem = get("DropItem"),
 	-- server -> client: (drop: Model, target: BasePart | Vector3, whole: boolean) a loose drop
 	-- in Workspace.Drops was picked up by the character whose root is `target`, merged into the
-	-- stack whose root it is, or pulled onto a belt at that point. `whole` means the drop is gone (it lingers briefly, out of play,
-	-- for the animation); false means part of a stack went and the drop stays. Cosmetic only.
+	-- stack whose root it is, or taken onto a belt at that point. `whole` means the drop is gone
+	-- (it lingers briefly, out of play, for the animation); false means part of a stack went
+	-- and the drop stays. Cosmetic only.
 	DropCollected = get("DropCollected"),
 }
