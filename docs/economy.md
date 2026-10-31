@@ -113,7 +113,7 @@ Each screen under `controllers/UIController` receives `init(hud)`.
 
 ```text
 StarterGui.HUD [ScreenGui]
-  Wallet [Frame]                         moved to the bottom-left corner by Wallet.luau
+  Wallet [Frame]                         bottom-left, see-through, balance counts and pops (Wallet.luau)
     Coins [TextLabel]                   formatted 1,234
     Level [TextLabel]                   Lv 3
     XpBar [Frame]
