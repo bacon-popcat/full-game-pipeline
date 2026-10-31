@@ -62,7 +62,7 @@ local PROFILE_TEMPLATE: Data = {
 	coins = 50,
 	xp = 0,
 	inventory = starter,
-	plot = { sections = {}, ground = { dug = {}, tilled = {} }, blocks = {}, crops = {} },
+	plot = { sections = {}, ground = { dug = {}, tilled = {}, grassed = {} }, blocks = {}, crops = {} },
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
@@ -318,9 +318,14 @@ local function sanitize(player: Player, data: any)
 	)
 	data.plot.sections = Plot.encode(Plot.decode(data.plot.sections))
 	local ground = data.plot.ground
-	if typeof(ground) ~= "table" or typeof(ground.dug) ~= "table" or typeof(ground.tilled) ~= "table" then
+	if
+		typeof(ground) ~= "table"
+		or typeof(ground.dug) ~= "table"
+		or typeof(ground.tilled) ~= "table"
+		or (ground.grassed ~= nil and typeof(ground.grassed) ~= "table")
+	then
 		warn(`DataService: reset {player.UserId}'s dug and tilled ground, which was not a valid save`)
-		data.plot.ground = { dug = {}, tilled = {} }
+		data.plot.ground = { dug = {}, tilled = {}, grassed = {} }
 	end
 	for index, stack in data.inventory do
 		local item = if typeof(stack) == "table" then knownItems[stack.itemId] else nil

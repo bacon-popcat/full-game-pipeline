@@ -17,6 +17,9 @@
 -- same cell. Farmland is wet while a sprinkler covers the crop cell above it or it is raining,
 -- and dries Ground.WET_FOR seconds after neither does. Wetness is a look (GroundArt) and a
 -- `Wet` attribute for the hover panel; it is not saved.
+--
+-- Dirt with open air above it grows over into grass after GRASS_MIN..GRASS_MAX seconds (saved
+-- as a change, "Grassed", like digging and tilling); anything solid landing on top restarts it.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -35,8 +38,11 @@ local WorldService = require(script.Parent.WorldService)
 
 -- Seconds between one player's ground actions; caps how fast a client can spam remotes.
 local COOLDOWN = 0.15
--- Seconds between checks of which Farmland is wet.
+-- Seconds between checks of which Farmland is wet and which dirt has grown over.
 local WET_TICK = 1
+-- Seconds bare dirt takes to grow over into grass, picked at random between these.
+local GRASS_MIN = 60
+local GRASS_MAX = 120
 local NEIGHBOURS = {
 	Vector3.xAxis,
 	-Vector3.xAxis,
@@ -46,7 +52,7 @@ local NEIGHBOURS = {
 	-Vector3.zAxis,
 }
 
-type Change = "Dug" | "Tilled"
+type Change = "Dug" | "Tilled" | "Grassed"
 -- A cell's ground, by its node type; SOLID for ground that never stands as a node (locked land,
 -- off the garden, under the floor); nil for air.
 local SOLID = "Solid"
@@ -61,7 +67,10 @@ local standing: { [number]: { [string]: WorldService.Node } } = {}
 local byModel: { [Model]: { index: number, node: WorldService.Node } } = {}
 -- Every Farmland node, and until when (os.clock) it stays wet, or 0 when dry.
 local fields: { [WorldService.Node]: number } = {}
+-- Every dirt node, with its plot, and when (os.clock) it grows over, or 0 while covered.
+local bare: { [WorldService.Node]: { index: number, at: number } } = {}
 local lastAction: { [Player]: number } = {}
+local random = Random.new()
 
 local function key(cell: Vector3): string
 	return `{cell.X},{cell.Y},{cell.Z}`
@@ -116,6 +125,8 @@ local function groundAt(index: number, cell: Vector3): string?
 		return nil
 	elseif change == "Tilled" then
 		return "Farmland"
+	elseif change == "Grassed" then
+		return "GrassGround"
 	end
 	return Ground.natural(relative)
 end
@@ -138,6 +149,7 @@ local function unstand(index: number, cellKey: string, node: WorldService.Node)
 	plotNodes(index)[cellKey] = nil
 	byModel[node.model] = nil
 	fields[node] = nil
+	bare[node] = nil
 	WorldService.removeGround(node)
 end
 
@@ -159,6 +171,8 @@ local function refresh(index: number, cell: Vector3)
 		byModel[spawned.model] = { index = index, node = spawned }
 		if wanted == "Farmland" then
 			fields[spawned] = 0
+		elseif wanted == "DirtGround" then
+			bare[spawned] = { index = index, at = 0 }
 		end
 	end
 end
@@ -196,7 +210,11 @@ end
 local function change(index: number, cell: Vector3, to: Change?)
 	local relative = Plot.toRelative(index, cell)
 	local natural = Ground.natural(relative)
-	if (to == "Dug" and not natural) or (to == "Tilled" and natural == "Farmland") then
+	if
+		(to == "Dug" and not natural)
+		or (to == "Tilled" and natural == "Farmland")
+		or (to == "Grassed" and natural == "GrassGround")
+	then
 		to = nil
 	end
 	plotChanges(index)[key(relative)] = to
@@ -240,12 +258,16 @@ function GroundService.isClear(origin: Vector3, footprint: Vector3): boolean
 end
 
 function GroundService.snapshot(index: number): Plot.SavedGround
-	local saved: Plot.SavedGround = { dug = {}, tilled = {} }
+	local saved: Plot.SavedGround = { dug = {}, tilled = {}, grassed = {} }
+	local lists = { Dug = saved.dug, Tilled = saved.tilled, Grassed = saved.grassed }
 	for relativeKey, kind in plotChanges(index) do
-		table.insert(if kind == "Dug" then saved.dug else saved.tilled, relativeKey)
+		if kind then
+			table.insert(lists[kind], relativeKey)
+		end
 	end
-	table.sort(saved.dug)
-	table.sort(saved.tilled)
+	for _, list in lists do
+		table.sort(list)
+	end
 	return saved
 end
 
@@ -264,7 +286,10 @@ function GroundService.restore(index: number, saved: Plot.SavedGround)
 				continue
 			end
 			local natural = Ground.natural(relative)
-			local fits = if kind == "Dug" then natural ~= nil else natural == nil or World.getNode(natural).tills
+			local fits = if kind == "Dug"
+				then natural ~= nil
+				elseif kind == "Grassed" then natural == "DirtGround"
+				else natural == nil or World.getNode(natural).tills
 			if fits then
 				list[key(relative)] = kind
 			end
@@ -272,6 +297,7 @@ function GroundService.restore(index: number, saved: Plot.SavedGround)
 	end
 	apply(saved.dug, "Dug")
 	apply(saved.tilled, "Tilled")
+	apply(saved.grassed, "Grassed")
 	raise(index)
 end
 
@@ -387,6 +413,25 @@ local function water()
 	end
 end
 
+-- Grows grass over dirt that has had open air above it long enough.
+local function spread()
+	local now = os.clock()
+	local grown = {}
+	for node, entry in bare do
+		if groundAt(entry.index, node.cell + Vector3.yAxis) then
+			entry.at = 0
+		elseif entry.at == 0 then
+			entry.at = now + random:NextNumber(GRASS_MIN, GRASS_MAX)
+		elseif now >= entry.at then
+			table.insert(grown, entry.index)
+			table.insert(grown, node.cell)
+		end
+	end
+	for i = 1, #grown, 2 do
+		change(grown[i], grown[i + 1], "Grassed")
+	end
+end
+
 function GroundService.init()
 	Remotes.Interact.OnServerEvent:Connect(onInteract)
 	Players.PlayerRemoving:Connect(function(player)
@@ -396,6 +441,7 @@ function GroundService.init()
 		while true do
 			task.wait(WET_TICK)
 			water()
+			spread()
 		end
 	end)
 end

@@ -113,11 +113,12 @@ Each screen under `controllers/UIController` receives `init(hud)`.
 
 ```text
 StarterGui.HUD [ScreenGui]
-  Wallet [Frame]
+  Wallet [Frame]                         moved to the bottom-left corner by Wallet.luau
     Coins [TextLabel]                   formatted 1,234
     Level [TextLabel]                   Lv 3
     XpBar [Frame]
       Fill [Frame]                     tweened X.Scale 0..1
+      Text [TextLabel]                 optional; "120 / 450 XP" (made plain if missing)
   Weather [Frame]                       initially hidden
     Title [TextLabel]                   Rain / Thunderstorm / Golden Hour
     Time [TextLabel]                    1:42

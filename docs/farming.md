@@ -78,6 +78,9 @@ layer of blocks and digging uncovers the cells round the hole. `GroundService` o
   becomes Farmland ground in its cell. Stone does not till. Seeds, by hand or Seed Planter,
   plant only on Farmland (`Soil.isUnder` finds a `soil` node under the cell); grass, dirt and
   placed blocks no longer take seeds. The Hoe is in the starter kit and the Gear Shop.
+- **Grass regrowth.** Dirt ground with open air above it (dug down to, or uncovered) grows
+  over into grass after a random 60-120 seconds; something solid on top restarts the wait.
+  Saved like digging and tilling (`grassed`).
 - **Wet Farmland.** Farmland is wet while a sprinkler covers the crop cell above it (the
   sprinkler's own level, `WorldService.speedAt`) or it is raining (Rain or Thunderstorm), checked
   every second, and dries `Ground.WET_FOR` (120) seconds after neither reaches it. Wet is a darker

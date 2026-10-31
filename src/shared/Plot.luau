@@ -50,8 +50,9 @@ export type Contents = {
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }
 -- A garden's ground where it differs from untouched (Shared/World/Ground): plot-relative cells
--- as "x,y,z", dug out or tilled into Farmland.
-export type SavedGround = { dug: { string }, tilled: { string } }
+-- as "x,y,z", dug out, tilled into Farmland, or dirt grown over into grass (optional: older saves
+-- have none).
+export type SavedGround = { dug: { string }, tilled: { string }, grassed: { string }? }
 
 local WIDTH, DEPTH = SECTIONS_X * SECTION, SECTIONS_Z * SECTION
 -- The front-left corners of the six gardens, in cells: three across, 10 cells apart, one row
