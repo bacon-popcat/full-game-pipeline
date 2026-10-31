@@ -24,12 +24,13 @@ conveyors play, never for their models.
 
 ## The map
 
-Cells are `Build` cells (3 studs). The baseplate is ±256 studs, so everything stays inside ±80 cells.
+Cells are `Build` cells (3 studs). The gardens reach x -115 ... 114 cells, past the place's
+Baseplate, so PlotService widens it to cover them all (plots.md).
 
 ```text
-          z = -74 ... -27      [Plot 1] [Plot 2] [Plot 3]  (maximum footprints)
+          z = -76 ... -17      [Plot 1] [Plot 2] [Plot 3]  (maximum footprints)
           z = -12 ...  12      Seed Shop · Gear Shop · Machine Shop · Sell Stand · Quarry  (hub)
-          z =  24 ...  71      [Plot 4] [Plot 5] [Plot 6]  (maximum footprints)
+          z =  16 ...  75      [Plot 4] [Plot 5] [Plot 6]  (maximum footprints)
 ```
 
 - **Plots.** Six gardens, each a grid of 7 x 6 sections of 10 x 10 cells (70 x 60 cells), in two
@@ -127,7 +128,7 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Storage Chest | 2 | 200 | Holds 12 slots from a belt (the Industrial Chest) |
 | Seed Planter | 4 | 800 | Plants seeds from its hopper into empty soil in a 3 x 5 patch in front |
 | Sprinkler | 5 | 1,000 | Crops within 3 cells grow 1.25x faster and can turn out Wet |
-| Harvester | 6 | 2,000 | Harvests ripe crops within 4 cells onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |
+| Harvester | 6 | 2,000 | Harvests ripe crops in a 5 x 3 patch behind it onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |
 | Mill | 7 | 2,500 | 2 Wheat -> Flour (value 40) |
 | Juicer | 8 | 4,000 | 3 Strawberry, Blueberry, Grape, Apple or Tomato -> that Juice (3.5x the fruit) |
 | Oven | 10 | 8,000 | Flour + 2 Strawberry, Blueberry or Apple -> that Pie (value 250, 400, 600) |
@@ -142,7 +143,7 @@ Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus pa
 | Seed Planter II | 8 | 4,000 | 6 Gear, 3 Steel Frame | 5 x 7 patch, a seed a second |
 | Sprinkler II | 9 | 5,000 | 6 Circuit, 6 Copper Wire | Radius 5, 1.5x growth, +20% Wet |
 | Mill II | 10 | 6,000 | 8 Gear, 2 Steel Frame | The Mill's recipes in half the time |
-| Harvester II | 12 | 10,000 | 6 Circuit, 3 Steel Frame | Radius 6, a crop every 1.5 s |
+| Harvester II | 12 | 10,000 | 6 Circuit, 3 Steel Frame | 7 x 5 patch, a crop every 1.5 s |
 
 ## Crafting
 
@@ -183,10 +184,11 @@ Git history keeps all of it.
 3. [x] **Automation.** The machine roster and Machine Shop, with Planter, Sprinkler, Harvester, the
    processors and the Shipping Bin.
 4. [x] **Crafting.** The quarry, Smelter, Workbench, parts and tier 2 machines.
-5. **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
+5. [ ] **Art.** New soft Blender models for crops, machines, stalls, plots and props, through the
    `IslandsMachines/build` pipeline. *In progress:* every crop, machine, processor, conveyor,
    router, stall and plot prop has art of its own (below). What is left is the quarry's copper
    rock (still a placeholder cube) and any polish.
+6. [x] **Polish.** Onboarding, sounds, VFX, balance (notes below).
 
 ### Art progress
 
@@ -215,7 +217,7 @@ Git history keeps all of it.
   Each takes items in at -Z and puts products out at +Z, so each is one cell wide and three
   deep, with a belt and arch at both ends (1.1-stud ports). Mill II draws the Mill.
   Playtested: wheat -> Mill -> Flour riding straight into a Shipping Bin.
-- - **Conveyors (done).** Plain belts, turns, ramps (tier 1 and 2) and the sensor are our own in
+- **Conveyors (done).** Plain belts, turns, ramps (tier 1 and 2) and the sensor are our own in
   `IslandsMachines/build/garden_conveyors.py`, imported as the GardenConveyors set under their
   item ids, so they replace the Islands templates. Only the geometry the game needs is kept:
   belt top 1.59, belt 2.3 wide, ends on cell faces, the ramps' 6-long 3-high climb, every
@@ -230,7 +232,7 @@ Git history keeps all of it.
   and an arch on each arm, and a pastel icon on the cap (a sage fork, a blue V, a terracotta
   funnel, a die). In `garden_machines.py` as the GardenRouters set. Playtested: a carrot through
   a Split, straight on into a Shipping Bin.
-- - **Hub and plots (done).** The four stalls are market stalls with striped awnings in their own
+- **Hub and plots (done).** The four stalls are market stalls with striped awnings in their own
   colours (sage, butter, sky, lilac), an emblem on a sign (sprout, coin, watering can, gear) and
   goods on the counter; the plots get a white picket fence with wooden posts and sage caps, a
   two-cell gate, and a sign beside it with the owner's name on its board; the hub gets a paved
@@ -242,9 +244,8 @@ Git history keeps all of it.
   and Seed Shop opening were playtested. The section garden was playtested: an old save moved
   into the start block intact, a ring 1 section bought, fenced and built on, and labels read from
   the hub. The fence follows the owned sections and keeps the gate at the start block's front.
-- - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
+- The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
-6. **Polish.** Onboarding, sounds, VFX, balance.
 
 ### Polish implementation decisions
 
@@ -275,7 +276,7 @@ Git history keeps all of it.
 
 - **Effects and sound**
   - `server/libraries/GardenEvents` is the one place live garden actions are announced
-    (Planted, Placed, Harvested, Sold, Bought, LevelUp, Watered), fired by the service that did
+    (Planted, Placed, Harvested, Sold, Bought, SectionBought, LevelUp, Watered), fired by the service that did
     the action and never by save restoration. Onboarding and effects listen to it; gameplay
     services know neither.
   - `FxService` turns those into `Remotes.Fx`: planting, harvesting and watering go to everyone
@@ -382,7 +383,8 @@ Built by Claude, not Codex: Codex hit its usage limit, and the user chose not to
 
 - **The harvester replants on its own.** A single crop it harvests restarts from a sprout,
   as the picker did, rather than keeping seeds for a planter. The Seed Planter is for filling
-  new soil. The harvester works one crop every 3 s, within 4 cells (12 studs) of its centre.
+  new soil. The harvester works one crop every 3 s, in a patch 5 wide and 3 deep behind it
+  (the side away from its output belt), at its own level.
 - **The planter's patch** is 3 wide and 5 deep past its forks, filled nearest row first,
   one seed every 2 s, at the planter's own level. The starter farm is sunk flush with the grass,
   so a planter on the grass beside it plants straight onto it.
@@ -431,9 +433,3 @@ Built by Claude: Codex was still at its usage limit.
   Copper Wire and a Circuit; the "Need parts" row and refusal; and buying Sprinkler II, which
   took the coins and every part. A smelter whose outlet faces a machine it doesn't line up
   with keeps its bars waiting on its belt; nothing is lost.
-
-Placeholder art until phase 5: the current machine models stand in for the new machines (Seed
-Planter = Sapling Automatic Planter, Harvester = Industrial Flower Picker, Shipping Bin =
-Industrial Merchant Teleseller, Mill = Industrial Sawmill, Juicer = Food Processor, Oven =
-Industrial Oven, Crate Packer = Crate Packer, Smelter = Industrial Smelter, Workbench = Copper
-Press), and new crops borrow an existing crop's stage art tinted their colour.

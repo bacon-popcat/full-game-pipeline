@@ -10,7 +10,7 @@ price, sell value, total grow time, quarter duration, yield, optional regrow tim
 art and colour. The twelve crops and their target numbers are in [overhaul.md](overhaul.md#crops).
 `regrow == nil` means single harvest; a number means a permanent multi-harvest plant.
 
-The table generates node stages, `World.PLANTS`, seed/produce catalogue entries and picker
+The table generates node stages, `World.PLANTS`, seed/produce catalogue entries and Harvester
 sources. `Inventory/Items` also generates every produce x mutation combination; `item.value`
 already contains the multiplier. Seeds have no sell value. Planter seeds derive from the
 same table. WheatSeeds, CarrotSeeds, PotatoSeeds and their produce ids remain compatible.
@@ -31,7 +31,7 @@ DataService -> snapshot/restore crop cycle and rain credit
 - Ripe multi crops give their fruit and return to Mature. Each subsequent fruit cycle
   takes `regrow` seconds; harvesting never removes the plant. Hand digging while unripe
   removes it and returns its seed. Removing its soil still uproots it into owned drops.
-- A full inventory leaves the entire hand harvest intact, with a toast. Picker output
+- A full inventory leaves the entire hand harvest intact, with a toast. Harvester output
   capacity is checked for the entire yield before changing the plant.
 - Harvest XP is awarded once per harvest to the plot owner, including machine harvests;
   unripe digging and soil removal give no XP. Discovery is saved on the first harvest.

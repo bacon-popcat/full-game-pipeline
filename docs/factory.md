@@ -50,11 +50,11 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Harvester, Shipping Bin and Storage Chest (one cell wide, two deep) and the processors (one
   wide, three deep) and the routers have templates of their own, and their tier 2s draw them
   too. No placeable block uses Islands art any more.
-- **Borrowed art.** A machine with no template of its own names one in its item's `art`
-  (Shared/Inventory/Items): the Harvester draws the Industrial Flower Picker, the Shipping Bin
-  the Teleseller, and so on. `ItemArt.blockTemplate` is the one place that resolves it, so
-  placement, the ghost, icons and the factory all agree, and the art phase changes one field.
-  Placed models are named for the item, not the template.
+- **Borrowed art.** An item with no template of its own can name one in its `art`
+  (Shared/Inventory/Items); no machine does any more, but products and parts still borrow
+  Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
+  placement, the ghost, icons and the factory all agree. Placed models are named for the
+  item, not the template.
 - **Storage Chest** (stores) accepts belt items into twelve stack slots. Its panel takes
   individual item types or all contents; it does not accept hand loading.
 - **Shipping Bin** (sells) takes any item with a value from a belt and sells one a second,
@@ -94,7 +94,7 @@ makes its product in that mutation, `<Product>+<Mutation>` worth the product's v
 multiplier (Items makes a variant of every valued product). A recipe with an input that has
 no variant (bars, parts) only runs plain, so a Golden Pie needs Golden Flour as well as Golden
 fruit. Rare variants wait inside until a whole batch is in, without blocking plain ones. An
-active job refunds its exact variants when saved or picked up. The picker sources the current
+active job refunds its exact variants when saved or picked up. The Harvester sources the current
 mutated item and checks the full yield fits before reaping. Its single crops restart; multi
 plants regrow (see farming.md).
 

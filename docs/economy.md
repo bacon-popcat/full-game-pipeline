@@ -57,7 +57,7 @@ coins and XP without yielding. Rejected sales resync inventory and show a refusa
 
 `Inventory/Items` generates crop values from `World.CROPS`; mutation values already include
 the multiplier. Selling sums `item.value * count` and never multiplies twice. Processed product
-values live in `Shared/Factory/Products`: Flour 40 (from 24 of wheat), juices 3.5x one fruit
+values live in `Shared/Factory/Products`: Flour 40 (from 2 Wheat, worth 24), juices 3.5x one fruit
 (from three), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
 more than its plain inputs, which rewards building the line. A batch of mutated inputs makes a
 mutated product worth the same multiplier (ten Golden Carrots make a Golden Carrot Crate at
@@ -77,9 +77,10 @@ and one changed signal. First harvest also marks the crop id in saved `discovere
 
 ## Hub and screens
 
-HubService builds soft, non-colliding SeedShop and SellStand models at runtime under
-Workspace.Hub. Positions and transaction reach live in Shared/Hub: stalls are at world
-(-24, 0, -15) and (24, 0, -15), clear of spawn and the quarry. Each counter contains Prompt
+HubService stands four soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
+SellStand, GearShop and MachineShop, each its `Assets.Props` model or a plain placeholder.
+Positions and transaction reach live in Shared/Hub: the stalls are at world (-24, 0, -15),
+(24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. The server
 allows twelve studs from the stall's interaction point to tolerate movement during transit.
 The client checks the same reach, closes out of range/on death, and treats the server reply
@@ -183,7 +184,7 @@ those belong to the authored assets. Existing Backpack/MachinePanel contracts st
    variant's product (Golden in, Golden out), rare ones waiting without blocking plain ones.
    Save/break a machine mid-recipe and verify exact input variants return. Open a filter
    pick's mutation arrow, tick one and check only that variant goes to its side. Back up a
-   picker with fewer free slots than a fruit yield.
+   Harvester with fewer free slots than a fruit yield.
 8. Open all four windows in turn; Close/B, walking away, death, respawn, controller focus,
    mouse/gamepad switching, disabled buttons, row scrolling, toast limit and expiration.
    Inspect desktop, narrow portrait, mobile landscape, tablet and console sizes in Studio.
@@ -304,9 +305,9 @@ ore from three shared iron rocks (2 ore every 45 s each), a grind wall the calm 
 out. The parts were sized down so a tier 2 machine is 24-36 bars of ore, about 5 minutes of
 mining plus 5-8 minutes of smelting and crafting: roughly 15 minutes of real effort.
 
-Each tier-two bundle now needs 120 bars (20 minutes of Smelter operation), 40 Coal, and
+Each tier-two bundle now needs 24-36 bars (4-6 minutes of Smelter operation, 8-12 Coal) and
 recursive Workbench operations. The table adds all Workbench time serially as a conservative
-upper bound; feeding the Workbench while smelting approaches twenty minutes plus the last
+upper bound; feeding the Workbench while smelting approaches the smelting time plus the last
 part. Ore/coal collection, loading and quarry contention add real time. Farm income during
 crafting covers the unchanged coin prices. Keeping the ten-second bars and quick part
 recipes preserves visible flow rather than making a single machine operation feel slow.

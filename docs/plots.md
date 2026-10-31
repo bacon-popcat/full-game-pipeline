@@ -106,9 +106,9 @@ awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClien
 See [economy.md](economy.md).
 
 DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, ten Carrot
-Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub;
-until the Machine Shop arrives, automation playtests can grant machines through the
-server's InventoryService.give API. Selected hotbar slot resets to one on load.
+Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub
+and machines at the Machine Shop; playtests can still grant items through the server's
+InventoryService.give API. Selected hotbar slot resets to one on load.
 
 ## Profile contents
 
@@ -173,7 +173,8 @@ the same server but do not survive Studio Stop.
 
 ## Studio playtest
 
-1. Join fresh: check the starter kit, 50 Coins, Level 1, hub spawn, owner sign and 96
+1. Join fresh: check the starter kit, 50 Coins, Level 1, a hub spawn followed by
+   arrival at your own gate, owner sign and 96
    Farmland cells per plot. With API access off, expect the mock-store warning.
 2. Use two players: test full-footprint boundary ghosts, planting, Hammer/Pickaxe pickup,
    harvest, machine panels, belt pickup and aimed drops on another plot. All writes must
@@ -183,8 +184,8 @@ the same server but do not survive Studio Stop.
    plot. Verify contents, rotations, Against, offline crop stages and Next stage countdown.
 4. Break planted soil and collect owned drops. Leave with loaded machines and crops;
    verify cleanup produces no duplicate harvest and the plot can be reassigned.
-5. Test planter/picker near boundaries, smelter coal, fuel-free processors, all conveyor
-   and router variants, chest Take all and the Teleseller's Sold counter.
+5. Test Seed Planter/Harvester near boundaries, smelter coal, fuel-free processors, all conveyor
+   and router variants, chest Take all and the Shipping Bin's Sold counter.
 6. Exercise EconomyService on the server: overspend, add coins, add XP across a level
    boundary, then rejoin and verify balances and the wallet. Continue with the Garden loop
    checklist in [economy.md](economy.md#studio-verification-still-required).
