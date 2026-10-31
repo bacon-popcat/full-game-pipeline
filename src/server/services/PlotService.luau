@@ -287,10 +287,9 @@ local function build()
 		local at = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE + 3, 0, -0.5)) * GRID
 		local turn = if Plot.flipped(index) then CFrame.Angles(0, math.pi, 0) else CFrame.identity
 		signs[index] = sign(model, CFrame.new(at) * turn)
-		local farm = Plot.START_OFFSET
-		for x = 6, 17 do
-			for z = 2, 9 do
-				WorldService.farmland(Plot.toWorld(index, farm + Vector3.new(x, 0, z)))
+		for x = Plot.FARM_LOW.X, Plot.FARM_HIGH.X do
+			for z = Plot.FARM_LOW.Z, Plot.FARM_HIGH.Z do
+				WorldService.farmland(Plot.toWorld(index, Vector3.new(x, Plot.FARM_LOW.Y, z)))
 			end
 		end
 	end

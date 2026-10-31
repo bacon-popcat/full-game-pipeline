@@ -12,6 +12,7 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
+local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local World = require(ReplicatedStorage.Shared.World)
 local ProfileStore = require(ServerStorage.ServerPackages.ProfileStore)
@@ -30,8 +31,8 @@ type Data = {
 	xp: number,
 	inventory: Inventory.Slots,
 	plot: { sections: { string }, blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
-	-- 2 once the plot is laid out in sections (migrate). Not in the template, so Reconcile
-	-- never fills it in for an old save.
+	-- 2 once the plot is laid out in sections, 3 once its starter farm is sunk (migrate). Not
+	-- in the template, so Reconcile never fills it in for an old save.
 	plotLayout: number?,
 	seedStock: { [string]: number },
 	restockAt: number,
@@ -165,7 +166,7 @@ local OLD_TIER_SIZES = { 36, 42, 48 }
 -- measured from its corner; that corner is now the start block's (Plot.START_OFFSET), so every
 -- saved cell shifts by it, and an old expansion becomes the sections that cover what it had.
 local function migrateLayout(data: any)
-	if data.plotLayout == 2 then
+	if typeof(data.plotLayout) == "number" and data.plotLayout >= 2 then
 		return
 	end
 	local plot = if typeof(data.plot) == "table" then data.plot else {}
@@ -192,8 +193,46 @@ local function migrateLayout(data: any)
 	data.plotLayout = 2
 end
 
+-- Whether a footprint at `cell` stands over the starter farm, in plot-relative cells.
+local function overFarm(cell: Vector3, footprint: Vector3): boolean
+	return cell.X <= Plot.FARM_HIGH.X
+		and cell.X + footprint.X - 1 >= Plot.FARM_LOW.X
+		and cell.Z <= Plot.FARM_HIGH.Z
+		and cell.Z + footprint.Z - 1 >= Plot.FARM_LOW.Z
+end
+
+-- Sinks a save's starter farm one level, once: its Farmland used to stand at y = 0 with
+-- crops on it at y = 1, and now lies at y = -1 (Plot.FARM_LOW). Crops on it, and every
+-- block standing over it at y >= 1 (so a stack keeps its shape), move down one.
+local function sinkFarm(data: any)
+	if typeof(data.plotLayout) == "number" and data.plotLayout >= 3 then
+		return
+	end
+	local plot = if typeof(data.plot) == "table" then data.plot else {}
+	for _, crop in if typeof(plot.crops) == "table" then plot.crops else {} do
+		local cell = if typeof(crop) == "table" then Plot.unpack(crop.cell) else nil
+		if cell and cell.Y == 1 and overFarm(cell, Vector3.one) then
+			crop.cell = Plot.pack(cell - Vector3.yAxis)
+		end
+	end
+	for _, block in if typeof(plot.blocks) == "table" then plot.blocks else {} do
+		local cell = if typeof(block) == "table" then Plot.unpack(block.cell) else nil
+		local footprint = if cell
+				and typeof(block.itemId) == "string"
+				and typeof(block.rotation) == "number"
+				and Build.isRotation(block.rotation)
+			then Build.footprint(block.itemId, block.rotation)
+			else nil
+		if cell and footprint and cell.Y >= 1 and overFarm(cell, footprint) then
+			block.cell = Plot.pack(cell - Vector3.yAxis)
+		end
+	end
+	data.plotLayout = 3
+end
+
 local function migrate(data: any)
 	migrateLayout(data)
+	sinkFarm(data)
 	for _, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
 		if typeof(stack) == "table" and RENAMED[stack.itemId] then
 			stack.itemId = RENAMED[stack.itemId]

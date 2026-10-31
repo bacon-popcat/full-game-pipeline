@@ -48,7 +48,10 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   from the start. Origins are x = -115, -35, 45 and z = -76, 16 cells (10-cell gaps), indexed
   across the south row, then the north row; the hub and quarry sit between the rows.
   PlotService widens the place's Baseplate (its top unchanged) to cover them all plus 36 studs.
-- Farms contain twelve by eight Farmland nodes at relative x 26..37, z 2..9, y 0 (in the start block).
+- Farms contain twelve by eight Farmland nodes at relative x 26..37, z 2..9 (`Plot.FARM_LOW`/
+  `FARM_HIGH`, in the start block), sunk one level under the ground at y = -1. Its art sits
+  0.1 stud up (the node's `lift`), just proud of the grass, so the farm is flush with the
+  ground and its crops grow at y = 0, the level of machines standing on the grass beside it.
   Crops plant above them; the rest is open grass. Players spawn at the hub, then PlotService
   sends them to stand in front of their own gate, facing in, as soon as their garden is
   assigned and again after every respawn. The hub
@@ -124,7 +127,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
-| plotLayout | 2 once the save's cells are laid out in sections (below); not in the template |
+| plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk (below); not in the template |
 
 Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an
 unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn`/`axis`). Blocks restore before crops so placed soil exists
@@ -141,6 +144,10 @@ once, turns an old sign tier (36/42/48 cells) into the sections that covered it,
 Reconcile would otherwise fill it in on old saves and skip the move. Sections load through
 `Plot.decode`, which drops anything that is not a whole, in-grid, non-start section. Moving a
 whole garden to a new map origin translates its blocks, crops and starter soil together.
+
+A save below `plotLayout = 3` had its Farmland at y = 0 and the crops on it at y = 1. Once,
+crops at y = 1 over the farm move down to y = 0, and every block whose footprint stands over
+the farm at y >= 1 moves down one (so a stack keeps its shape), then `plotLayout` becomes 3.
 
 Active recipe ingredients are refunded into saved input counts and processing restarts
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,

@@ -27,6 +27,9 @@ export type Node = {
 	stage: number?,
 	-- Crops can be planted on top of it.
 	soil: boolean?,
+	-- Studs its art sits above its cell: the starter Farmland lies one level under the ground,
+	-- and this keeps its top just proud of the grass.
+	lift: number?,
 }
 
 export type Crop = {
@@ -137,6 +140,7 @@ NODES.Farmland = {
 	name = "Farmland",
 	hint = "Tilled soil. Plant seeds on it, as on grass or dirt.",
 	soil = true,
+	lift = 0.1,
 }
 
 local PLANTS: { [string]: Plant } = {}

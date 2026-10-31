@@ -177,7 +177,8 @@ local function spawnNode(
 	local hitbox = model.PrimaryPart
 	assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
 	local pivotOffset = hitbox.CFrame:ToObjectSpace(model:GetPivot())
-	model:PivotTo(CFrame.new(centre.Position) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
+	local lift = Vector3.new(0, World.getNode(nodeType).lift or 0, 0)
+	model:PivotTo(CFrame.new(centre.Position + lift) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
 	model:SetAttribute("NodeType", nodeType)
 	model:SetAttribute("Cell", cell)
 	local node: Node = {

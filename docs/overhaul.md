@@ -162,7 +162,7 @@ ProfileStore (`ServerPackages.ProfileStore`) keeps, per player: coins, XP, inven
 stock and the time of the restock it belongs to, discovered crops, and the plot including its
 bought sections. Saves from before sections move once into the start block (+20 relative X,
 `plotLayout`, plots.md), in the same GardenFoundation_v1 store; starter Farmland sits at
-x 26..37, z 2..9. The plot is saved
+x 26..37, z 2..9, sunk to y = -1 so it is flush with the grass. The plot is saved
 relative to its own origin, so it loads into whichever plot is free: each placed block's item id,
 cell, rotation and `Against`, and each crop's type, plant time, mutation and harvest count. Machine
 contents are saved as their item counts. A profile autosaves every 2 minutes and on leave.
@@ -384,8 +384,8 @@ Built by Claude, not Codex: Codex hit its usage limit, and the user chose not to
   as the picker did, rather than keeping seeds for a planter. The Seed Planter is for filling
   new soil. The harvester works one crop every 3 s, within 4 cells (12 studs) of its centre.
 - **The planter's patch** is 3 wide and 5 deep past its forks, filled nearest row first,
-  one seed every 2 s. Because the farm is a raised bed one cell high, each patch cell is tried
-  at the planter's level and one up, so a planter on the grass beside the bed plants onto it.
+  one seed every 2 s, at the planter's own level. The starter farm is sunk flush with the grass,
+  so a planter on the grass beside it plants straight onto it.
 - **Sprinklers** reach 3 cells across and one up or down, on their own plot. The best one
   counts; several don't stack. Growth speed banks into the saved `growthBonus` and multiplies
   with rain, so offline time still runs at normal speed.
