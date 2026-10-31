@@ -15,7 +15,11 @@ local Hud = require(Libraries.Hud)
 -- Pixels between the wallet and the screen's bottom-left corner.
 local MARGIN = 16
 -- Pixels tall the XP bar is made.
-local XP_BAR_HEIGHT = 24
+local XP_BAR_HEIGHT = 20
+local XP_TEXT_SIZE = 14
+-- Pixels between the bar and the panel's bottom edge, and between the balance row and the bar.
+local INSET = 10
+local GAP = 6
 local COUNT_TIME = 0.6
 local COUNT_TWEEN = TweenInfo.new(COUNT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local POP_TWEEN = TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -28,8 +32,9 @@ local GAIN_COLOR = Color3.fromRGB(120, 230, 120)
 
 local Wallet = {}
 
--- The XP bar's "xp / needed" label: authored, or a plain one laid over the bar.
-local function xpLabel(bar: Instance): TextLabel
+-- The XP bar's "xp / needed" label: authored, or one laid over the bar in the level label's
+-- font and colours, so it reads as part of the same HUD.
+local function xpLabel(bar: Instance, style: TextLabel): TextLabel
 	local found = bar:FindFirstChild("Text")
 	if found and found:IsA("TextLabel") then
 		return found
@@ -39,14 +44,12 @@ local function xpLabel(bar: Instance): TextLabel
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.fromScale(1, 1)
 	label.ZIndex = 10
-	label.Font = Enum.Font.GothamBold
-	label.TextScaled = true
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.4
-	local padding = Instance.new("UIPadding")
-	padding.PaddingTop = UDim.new(0.1, 0)
-	padding.PaddingBottom = UDim.new(0.1, 0)
-	padding.Parent = label
+	label.FontFace = style.FontFace
+	label.TextColor3 = style.TextColor3
+	label.TextStrokeColor3 = style.TextStrokeColor3
+	label.TextStrokeTransparency = math.min(style.TextStrokeTransparency, 0.5)
+	label.TextScaled = false
+	label.TextSize = XP_TEXT_SIZE
 	label.Parent = bar
 	return label
 end
@@ -72,11 +75,23 @@ function Wallet.init(hud: ScreenGui)
 	end
 	local bar = fill.Parent :: Instance
 	if bar:IsA("GuiObject") and wallet and wallet:IsA("GuiObject") then
-		local grow = math.max(0, XP_BAR_HEIGHT - bar.AbsoluteSize.Y)
+		-- Pin the bar to the panel's bottom, inside it, and size the panel to hold the balance row
+		-- above it, so a taller bar can never hang out of the panel.
+		bar.AnchorPoint = Vector2.new(bar.AnchorPoint.X, 1)
+		bar.Position = UDim2.new(bar.Position.X, UDim.new(1, -INSET))
 		bar.Size = UDim2.new(bar.Size.X, UDim.new(0, XP_BAR_HEIGHT))
-		wallet.Size += UDim2.fromOffset(0, grow)
+		local function fit()
+			local top = math.max(
+				coins.AbsolutePosition.Y + coins.AbsoluteSize.Y,
+				level.AbsolutePosition.Y + level.AbsoluteSize.Y
+			) - wallet.AbsolutePosition.Y
+			if top > 0 then
+				wallet.Size = UDim2.new(wallet.Size.X, UDim.new(0, math.ceil(top + GAP + XP_BAR_HEIGHT + INSET)))
+			end
+		end
+		task.defer(fit)
 	end
-	local progress = xpLabel(bar)
+	local progress = xpLabel(bar, level)
 	-- The balance as shown, counted toward the real one.
 	local shown = Instance.new("NumberValue")
 	shown.Value = EconomyClient.get().coins
