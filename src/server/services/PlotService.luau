@@ -2,25 +2,32 @@
 -- first free plot is assigned by DataService after a profile opens; release follows saving
 -- and clearing the old world. All plots face -Z, keeping saved coordinates and farms aligned.
 -- Decorative fences never obstruct placement queries. The hub spawn is shared.
+-- The saved expansion is applied before restoration. Purchases validate the next tier and
+-- spend without yielding; only scenery is rebuilt, never soil, crops or placed machines.
 --
 -- The fence is one PlotFence prop per edge cell, with a PlotFencePost at each corner and either
--- side of a two-cell gate in the middle of the front; the PlotSign stands outside the fence beside
+-- side of a fixed two-cell gate at the original front; the PlotSign stands outside the fence beside
 -- the gate with the owner's name on its board. A place without those props gets plain parts.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local Props = require(ServerScriptService.Libraries.Props)
+local EconomyService = require(script.Parent.EconomyService)
 local WorldService = require(script.Parent.WorldService)
 
 -- The front edge's cells left open as the gate.
-local GATE = { [11] = true, [12] = true }
+local GATE = { [Plot.SIZE / 2 - 1] = true, [Plot.SIZE / 2] = true }
+local COOLDOWN = 0.5
 
 local PlotService = {}
 local assigned: { [Player]: number } = {}
 local models: { Model } = {}
 local signs: { TextLabel } = {}
+local lastAction: { [Player]: number } = {}
 local plots = Instance.new("Folder")
 plots.Name = "Plots"
 plots.Parent = workspace
@@ -48,13 +55,14 @@ local function part(
 	return block
 end
 
-local function fence(model: Model, origin: Vector3, width: number): boolean
+local function fence(model: Model, origin: Vector3, size: number): boolean
 	if not Props.template("PlotFence") or not Props.template("PlotFencePost") then
 		return false
 	end
 	local grid = Build.GRID
+	local width = size * grid
 	local turn = CFrame.Angles(0, math.pi / 2, 0)
-	for i = 0, Plot.SIZE - 1 do
+	for i = 0, size - 1 do
 		local along = (i + 0.5) * grid
 		Props.place("PlotFence", CFrame.new(origin + Vector3.new(0, 0, along)) * turn, model)
 		Props.place("PlotFence", CFrame.new(origin + Vector3.new(width, 0, along)) * turn, model)
@@ -103,7 +111,8 @@ local function sign(model: Model, origin: Vector3, width: number): TextLabel
 		return label
 	end
 	local fenceColor = Color3.fromRGB(225, 211, 178)
-	local plain = part(model, "Sign", Vector3.new(9, 3, 0.4), origin + Vector3.new(width / 2, 4, -1), fenceColor, false)
+	local plain =
+		part(model, "Sign", Vector3.new(9, 3, 0.4), origin + Vector3.new(width / 2 + 9, 4, -1.5), fenceColor, false)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(210, 50)
 	gui.Adornee = plain
@@ -111,6 +120,69 @@ local function sign(model: Model, origin: Vector3, width: number): TextLabel
 	gui.Parent = plain
 	label.Parent = gui
 	return label
+end
+
+local function landscape(index: number, tier: number)
+	local model = models[index]
+	local old = model:FindFirstChild("Boundary")
+	if old then
+		old:Destroy()
+	end
+	local boundary = Instance.new("Model")
+	boundary.Name = "Boundary"
+	local origin = Plot.origin(index) * Build.GRID
+	local size = Plot.size(tier)
+	local width = size * Build.GRID
+	local maximum = Plot.MAX_SIZE * Build.GRID
+	part(
+		boundary,
+		"Grass",
+		Vector3.new(width, 0.4, width),
+		-- 0.05 proud of the baseplate so its texture cannot flicker through.
+		origin + Vector3.new(width / 2, -0.15, width / 2),
+		Color3.fromRGB(153, 191, 126),
+		true
+	)
+	-- Separate strips keep both ground tones flush, with no overlapping surfaces.
+	if width < maximum then
+		local locked = Color3.fromRGB(119, 132, 105)
+		part(
+			boundary,
+			"LockedLand",
+			Vector3.new(maximum - width, 0.4, maximum),
+			origin + Vector3.new((width + maximum) / 2, -0.15, maximum / 2),
+			locked,
+			true
+		)
+		part(
+			boundary,
+			"LockedLand",
+			Vector3.new(width, 0.4, maximum - width),
+			origin + Vector3.new(width / 2, -0.15, (width + maximum) / 2),
+			locked,
+			true
+		)
+	end
+	if not fence(boundary, origin, size) then
+		local color = Color3.fromRGB(225, 211, 178)
+		for _, x in { 0, width } do
+			part(boundary, "Fence", Vector3.new(0.5, 2, width), origin + Vector3.new(x, 1, width / 2), color, false)
+		end
+		part(boundary, "Fence", Vector3.new(width, 2, 0.5), origin + Vector3.new(width / 2, 1, width), color, false)
+		local gateStart = (Plot.SIZE / 2 - 1) * Build.GRID
+		local gateEnd = (Plot.SIZE / 2 + 1) * Build.GRID
+		part(boundary, "Fence", Vector3.new(gateStart, 2, 0.5), origin + Vector3.new(gateStart / 2, 1, 0), color, false)
+		part(
+			boundary,
+			"Fence",
+			Vector3.new(width - gateEnd, 2, 0.5),
+			origin + Vector3.new((width + gateEnd) / 2, 1, 0),
+			color,
+			false
+		)
+	end
+	boundary.Parent = model
+	model:SetAttribute("Expansion", tier)
 end
 
 local function build()
@@ -126,47 +198,18 @@ local function build()
 		models[index] = model
 		local origin = Plot.origin(index) * Build.GRID
 		local width = Plot.SIZE * Build.GRID
-		part(
-			model,
-			"Grass",
-			Vector3.new(width, 0.4, width),
-			-- 0.05 proud of the baseplate so its grid texture can't flicker through.
-			origin + Vector3.new(width / 2, -0.15, width / 2),
-			Color3.fromRGB(153, 191, 126),
-			true
-		)
-		if not fence(model, origin, width) then
-			local fenceColor = Color3.fromRGB(225, 211, 178)
-			for _, x in { 0, width } do
-				part(
-					model,
-					"Fence",
-					Vector3.new(0.5, 2, width),
-					origin + Vector3.new(x, 1, width / 2),
-					fenceColor,
-					false
-				)
-			end
-			part(
-				model,
-				"Fence",
-				Vector3.new(width, 2, 0.5),
-				origin + Vector3.new(width / 2, 1, width),
-				fenceColor,
-				false
-			)
-			for _, x in { width / 4 - 2, width * 3 / 4 + 2 } do
-				part(
-					model,
-					"Fence",
-					Vector3.new(width / 2 - 4, 2, 0.5),
-					origin + Vector3.new(x, 1, 0),
-					fenceColor,
-					false
-				)
-			end
-		end
+		landscape(index, 0)
 		signs[index] = sign(model, origin, width)
+		local anchor =
+			part(model, "ExpansionSign", Vector3.one, origin + Vector3.new(width / 2 + 9, 3, -1.5), Color3.new(), false)
+		anchor.Transparency = 1
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "ExpandPlot"
+		prompt.ActionText = "Expand garden"
+		prompt.ObjectText = "Garden space"
+		prompt.MaxActivationDistance = Plot.REACH
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = anchor
 		for x = 6, 17 do
 			for z = 2, 9 do
 				WorldService.farmland(Plot.toWorld(index, Vector3.new(x, 0, z)))
@@ -184,7 +227,7 @@ local function build()
 	spawn.Parent = plots
 end
 
-function PlotService.assign(player: Player): number?
+function PlotService.assign(player: Player, tier: number?): number?
 	build()
 	if assigned[player] then
 		return assigned[player]
@@ -192,6 +235,7 @@ function PlotService.assign(player: Player): number?
 	for index, model in models do
 		if model:GetAttribute("Owner") == 0 then
 			assigned[player] = index
+			landscape(index, Plot.sanitize(tier))
 			model:SetAttribute("Owner", player.UserId)
 			signs[index].Text = player.DisplayName .. "'s garden"
 			return index
@@ -205,17 +249,48 @@ function PlotService.get(player: Player): number?
 end
 
 function PlotService.release(player: Player)
+	lastAction[player] = nil
 	local index = assigned[player]
 	if not index then
 		return
 	end
 	models[index]:SetAttribute("Owner", 0)
+	landscape(index, 0)
 	signs[index].Text = "Available garden"
 	assigned[player] = nil
 end
 
+local function purchase(player: Player, nextTier: unknown)
+	local now = os.clock()
+	if now - (lastAction[player] or -math.huge) < COOLDOWN then
+		return
+	end
+	lastAction[player] = now
+	local index = assigned[player]
+	if player:GetAttribute("DataReady") ~= true or not index or not Plot.inReach(player, index) then
+		Remotes.Notify:FireClient(player, "Visit your garden sign to buy more space.")
+		return
+	end
+	local tier = Plot.tier(index)
+	local offer = Plot.EXPANSIONS[tier + 1]
+	if typeof(nextTier) ~= "number" or nextTier ~= tier + 1 or not offer then
+		Remotes.Notify:FireClient(player, "That expansion is no longer available. Check your garden sign.")
+		return
+	end
+	if not EconomyService.trySpend(player, offer.price) then
+		Remotes.Notify:FireClient(player, "You need more coins for this expansion.")
+		return
+	end
+	-- Publish the entitlement before scenery work; a snapshot always sees the paid tier.
+	models[index]:SetAttribute("Expansion", tier + 1)
+	landscape(index, tier + 1)
+	Remotes.Notify:FireClient(player, `Garden expanded to {offer.size} x {offer.size} cells!`)
+	GardenEvents.Expanded:Fire(player, tier + 1)
+end
+
 function PlotService.init()
 	build()
+	Remotes.PlotExpand.OnServerEvent:Connect(purchase)
 	-- Remove only the live showcases; authored templates and the place file stay untouched.
 	for _, name in
 		{

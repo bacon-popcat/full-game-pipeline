@@ -145,8 +145,8 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 			add("Reach", `{rule.radius} cells around`)
 			add("Crops", `grow {math.round((rule.speed - 1) * 100)}% faster, +{math.round(rule.wet * 100)}% Wet`)
 		end
-		if def.produce and def.produce.radius then
-			add("Reach", `{def.produce.radius} cells around`)
+		if def.produce then
+			add("Reaps", `{def.produce.size.width} wide, {def.produce.size.depth} deep behind`)
 		end
 		if def.plantSize then
 			add("Plants", `{def.plantSize.width} wide, {def.plantSize.depth} deep in front`)

@@ -29,7 +29,7 @@ type Data = {
 	coins: number,
 	xp: number,
 	inventory: Inventory.Slots,
-	plot: { blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
+	plot: { expansion: number, blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
 	seedStock: { [string]: number },
 	restockAt: number,
 	discovered: { [string]: boolean },
@@ -50,7 +50,7 @@ local PROFILE_TEMPLATE: Data = {
 	coins = 50,
 	xp = 0,
 	inventory = starter,
-	plot = { blocks = {}, crops = {} },
+	plot = { expansion = 0, blocks = {}, crops = {} },
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
@@ -191,6 +191,7 @@ local function sanitize(player: Player, data: any)
 		typeof(data.plot) == "table" and typeof(data.plot.blocks) == "table" and typeof(data.plot.crops) == "table",
 		"Invalid plot"
 	)
+	data.plot.expansion = Plot.sanitize(data.plot.expansion)
 	for index, stack in data.inventory do
 		local item = if typeof(stack) == "table" then knownItems[stack.itemId] else nil
 		if stack ~= false and not (item and integer(stack.count) and stack.count > 0 and stack.count <= item.stack) then
@@ -241,7 +242,11 @@ local function snapshot(player: Player, session: Session)
 	local onboarding = OnboardingService.snapshot(player)
 	assert(onboarding, "DataService: loaded session lost onboarding state")
 	data.onboarding = onboarding
-	data.plot = { blocks = BuildService.snapshot(player, index), crops = WorldService.snapshot(index) }
+	data.plot = {
+		expansion = Plot.tier(index),
+		blocks = BuildService.snapshot(player, index),
+		crops = WorldService.snapshot(index),
+	}
 end
 
 local function clear(player: Player)
@@ -314,7 +319,7 @@ local function onPlayer(player: Player)
 	end)
 	local ok, message = pcall(function()
 		sanitize(player, profile.Data)
-		local index = PlotService.assign(player)
+		local index = PlotService.assign(player, profile.Data.plot.expansion)
 		assert(index, "All six gardens are occupied")
 		for _, block in profile.Data.plot.blocks do
 			if not BuildService.restore(player, index, block) then

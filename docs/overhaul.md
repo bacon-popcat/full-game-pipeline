@@ -27,15 +27,21 @@ conveyors play, never for their models.
 Cells are `Build` cells (3 studs). The baseplate is ±256 studs, so everything stays inside ±80 cells.
 
 ```text
-          z = -40 ... -17      [Plot 1] [Plot 2] [Plot 3]
+          z = -74 ... -27      [Plot 1] [Plot 2] [Plot 3]  (maximum footprints)
           z = -12 ...  12      Seed Shop · Gear Shop · Machine Shop · Sell Stand · Quarry  (hub)
-          z =  17 ...  40      [Plot 4] [Plot 5] [Plot 6]
+          z =  24 ...  71      [Plot 4] [Plot 5] [Plot 6]  (maximum footprints)
 ```
 
-- **Plots.** Six, 24 x 24 cells each, centred at x = -30, 0, 30. A player who joins takes the first
+- **Plots.** Six, starting at 30 x 30 cells and expandable to 48 x 48, with minimum x =
+  -78, -24, 30 cells. The maximum footprints leave six-cell column gaps and a clear hub
+  corridor. All plots face -Z and grow only toward +X/+Z. A player who joins takes the first
   free plot; it is released when they leave. A plot has a sign with its owner's name, a fence,
   and a farm of Farmland in front of the open build area. A player can place, plant and pick up only
   inside their own plot (`Shared/Plot`), and machines work only inside the plot they stand on.
+  The sign opens a Buy/Cancel confirmation: 36 x 36 for 2,500 coins, 42 x 42 for 25,000,
+  then 48 x 48 for 125,000, with no level gate. Locked ground is muted beyond the owned
+  fence and rejects building/farming/machine work. [plots.md](plots.md#buying-space) owns
+  the flow; [economy.md](economy.md#plot-expansions) explains the prices.
 - **Hub.** NPC stalls opened with a ProximityPrompt: Seed Shop, Gear Shop, Machine Shop and
   Sell Stand. The quarry's rocks (stone, coal, iron, copper) respawn and are shared.
 - Everything else from the old world goes: the ore field, the grove, the meadow, the pens and the
@@ -154,7 +160,10 @@ Iron and Copper Bars, and a Workbench makes parts:
 ## Persistence
 
 ProfileStore (`ServerPackages.ProfileStore`) keeps, per player: coins, XP, inventory slots, seed
-stock and the time of the restock it belongs to, discovered crops, and the plot. The plot is saved
+stock and the time of the restock it belongs to, discovered crops, and the plot including its
+purchased expansion tier. Existing saves default to tier zero in the same GardenFoundation_v1
+store; no relative-cell migration is needed. Starter Farmland stays at x 6..17, z 2..9 relative
+to the unchanged minimum-corner coordinate convention. The plot is saved
 relative to its own origin, so it loads into whichever plot is free: each placed block's item id,
 cell, rotation and `Against`, and each crop's type, plant time, mutation and harvest count. Machine
 contents are saved as their item counts. A profile autosaves every 2 minutes and on leave.
@@ -230,8 +239,9 @@ Git history keeps all of it.
   into `ReplicatedStorage.Assets.Props` (no hitbox, pivot at the bottom centre). HubService and
   PlotService place them through `server/libraries/Props`, which makes every prop scenery only
   (no collisions, queries or touches), and fall back to plain parts when a prop is missing.
-  The stall prompts sit on each stall's Counter part. Playtested: every plot's 94 fence sections
-  and 8 posts, the owner's name on the sign, and the Seed Shop opening from its new counter.
+  The stall prompts sit on each stall's Counter part. The original 24-cell fence/sign props
+  and Seed Shop opening were playtested; expansion scenery/purchases still need the Studio
+  checks in plots.md. Fences now follow owned dimensions and leave the original gate fixed.
 - - The importer counts the finish script's Hitbox as a part, so a full re-import of an already
   finished set rebuilds every model in it. New art therefore goes in its own set.
 6. **Polish.** Onboarding, sounds, VFX, balance.

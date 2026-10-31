@@ -27,6 +27,31 @@ prompt activation. Prompt refresh recovers from a load sync that preceded HUD bi
 rare harvests. All remote instances/payloads are owned by `default.project.json` and
 `Shared/Remotes`.
 
+## Plot expansions
+
+`Shared/Plot.EXPANSIONS` owns space and coin prices. All six gardens start larger for free;
+players buy the next tier at their own garden sign, with no level requirement or parts.
+
+| Tier | Owned cells | Added cells | Coins for this step |
+|---|---|---:|---:|
+| 0 (starting) | 30 x 30 | 324 more than the old 24 x 24 | Free |
+| 1 | 36 x 36 | 396 | 2,500 |
+| 2 | 42 x 42 | 468 | 25,000 |
+| 3 (maximum) | 48 x 48 | 540 | 125,000 |
+
+The total is 152,500 coins. Starting players keep their 50 coins and get extra building
+room without delaying seeds or the Shipping Bin. Tier one is an optional automation-era
+purchase; later tiers provide coin goals for established farms (level ~13 wallets can be
+hundreds of thousands). These are space purchases, not free crops or machines. The original
+96 soil cells remain; players place soil to farm the extra grass. The balance simulation
+below does not purchase these optional expansions, so its milestone estimates are unchanged.
+
+The confirmation shows current/next size, extra cells and price. PlotService validates
+owner, readiness, living character/sign reach, cooldown, exact next tier and coins before
+granting space; the client supplies no price or plot id. Success toasts and plays the normal
+purchase sound through GardenEvents.Expanded, without counting as buying seeds/a Shipping Bin
+for onboarding. See [plots.md](plots.md#buying-space) for replication, persistence and tests.
+
 ## Selling and XP
 
 `Sell("Held" | "All")` rechecks DataReady, the living character, stall reach and cooldown.
@@ -65,7 +90,7 @@ allows twelve studs from the stall's interaction point to tolerate movement duri
 The client checks the same reach, closes out of range/on death, and treats the server reply
 as authoritative.
 
-`libraries/Screens` arbitrates Backpack, MachinePanel, Shop and Sell. `HubWindow` owns
+`libraries/Screens` arbitrates Backpack, MachinePanel, Shop, Sell and Expansion. `HubWindow` owns
 stall prompt binding, UIScale pop, Close, gamepad B, selection trapping/restoration and reach
 closing. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
 text feedback as well as a muted appearance. Reduced motion skips spatial pops/XP animation.
@@ -82,13 +107,17 @@ room, every part, coins and reach before changing anything, then takes coins and
 gives the machine in one step. Rows sort by rarity or category and level,
 then price. No price is
 sent back as authority. Sell previews the held-stack and whole-inventory totals.
+Expansion uses HubWindow's custom prompt/reach source for the owner's plot sign.
 
 ## Authored HUD contract (place file only)
 
-The repo never creates or edits these UI instances. Author HUD with `ResetOnSpawn = false`,
+Author these source HUD instances with `ResetOnSpawn = false`,
 safe-area insets, responsive sizing and useful selection/scroll layout in Studio. A missing
 or mistyped node warns once through `libraries/Hud`; that screen returns without throwing.
 Each screen under `controllers/UIController` receives `init(hud)`.
+Expansion.prepare clones the authored Sell shell as HUD.Expansion before screen initialization;
+it reuses Header, Held/Total and SellHeld/SellAll as title, dimensions/price and Buy/Cancel.
+The original Sell window remains its own screen. No additional Studio nodes are required.
 
 ```text
 StarterGui.HUD [ScreenGui]

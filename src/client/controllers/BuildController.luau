@@ -75,35 +75,70 @@ local rotation = 0
 local placement: Placement? = nil
 local action: Action? = nil
 
--- One outline, shared by the ghost and every target: an invisible box wrapped in a
--- SelectionBox. Not a Highlight -- those skip translucent parts, so they can't draw on a
--- ghost, and one with no Adornee lights up its whole parent instead.
-local outline = Instance.new("Part")
-outline.Name = "BuildOutline"
-outline.Anchored = true
-outline.CanCollide = false
-outline.CanQuery = false
-outline.CanTouch = false
-outline.CastShadow = false
-outline.Transparency = 1
-local outlineBox = Instance.new("SelectionBox")
-outlineBox.Adornee = outline
-outlineBox.LineThickness = 0.06
-outlineBox.SurfaceTransparency = 0.85
-outlineBox.Parent = outline
+type Box = { cframe: CFrame, size: Vector3 }
 
-local function showOutline(cframe: CFrame, size: Vector3, color: Color3)
-	-- Sized just outside the box: Build.box shrinks inward for overlap tests, which would
-	-- bury the lines inside an opaque block.
-	outline.CFrame = cframe
-	outline.Size = size + Vector3.one * OUTLINE_MARGIN
-	outlineBox.Color3 = color
-	outlineBox.SurfaceColor3 = color
-	outline.Parent = workspace.CurrentCamera
+-- The outline, shared by the ghost and every target: one invisible box wrapped in a
+-- SelectionBox per box of cells the block fills, so a Randomizer's empty corners stay
+-- unmarked. Not a Highlight -- those skip translucent parts, so they can't draw on a ghost,
+-- and one with no Adornee lights up its whole parent instead. The pool grows as needed.
+local outlines: { Part } = {}
+
+local function outlinePart(index: number): Part
+	local existing = outlines[index]
+	if existing then
+		return existing
+	end
+	local part = Instance.new("Part")
+	part.Name = "BuildOutline"
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Transparency = 1
+	local selection = Instance.new("SelectionBox")
+	selection.Adornee = part
+	selection.LineThickness = 0.06
+	selection.SurfaceTransparency = 0.85
+	selection.Parent = part
+	outlines[index] = part
+	return part
+end
+
+local function showOutline(boxes: { Box }, color: Color3)
+	for index, box in boxes do
+		-- Sized just outside the box: Build.box shrinks inward for overlap tests, which would
+		-- bury the lines inside an opaque block.
+		local part = outlinePart(index)
+		part.CFrame = box.cframe
+		part.Size = box.size + Vector3.one * OUTLINE_MARGIN
+		local selection = part:FindFirstChildOfClass("SelectionBox") :: SelectionBox
+		selection.Color3 = color
+		selection.SurfaceColor3 = color
+		part.Parent = workspace.CurrentCamera
+	end
+	for index = #boxes + 1, #outlines do
+		outlines[index].Parent = nil
+	end
 end
 
 local function hideOutline()
-	outline.Parent = nil
+	showOutline({}, Color3.new())
+end
+
+-- The boxes a placed block or world node fills: its smaller Hitbox parts where its art leaves
+-- cells empty (Build), else its whole hitbox.
+local function boxesOf(hitbox: BasePart): { Box }
+	local boxes = {}
+	for _, child in hitbox:GetChildren() do
+		if child:IsA("BasePart") and child.Name == "Hitbox" then
+			table.insert(boxes, { cframe = child.CFrame, size = child.Size })
+		end
+	end
+	if #boxes == 0 then
+		table.insert(boxes, { cframe = hitbox.CFrame, size = hitbox.Size })
+	end
+	return boxes
 end
 
 -- The work area sheet: a thin, see-through slab with a soft edge, under a placing ghost.
@@ -218,8 +253,12 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	placement = { origin = origin, valid = valid, against = against }
 	model:PivotTo(pivot)
 	model.Parent = workspace.CurrentCamera
-	local centre = Build.box(origin, footprint)
-	showOutline(centre, footprint * Build.GRID, if valid then VALID_COLOR else INVALID_COLOR)
+	-- Build.boxes shrinks each box by its overlap margin; grown back to whole cells.
+	local boxes = {}
+	for _, box in Build.boxes(item.id, origin, rotation) do
+		table.insert(boxes, { cframe = box.cframe, size = (box.size / Build.GRID):Ceil() * Build.GRID })
+	end
+	showOutline(boxes, if valid then VALID_COLOR else INVALID_COLOR)
 	showArea(item.id, origin, footprint, model)
 	return { kind = "Place", model = nil }
 end
@@ -299,7 +338,7 @@ local function update()
 	local hitbox = if target then target.PrimaryPart else nil
 	if chosen and chosen.kind ~= "Place" and hitbox then
 		local useColor = chosen.kind == "Use" or chosen.kind == "Drop"
-		showOutline(hitbox.CFrame, hitbox.Size, if useColor then USE_COLOR else PICK_UP_COLOR)
+		showOutline(boxesOf(hitbox), if useColor then USE_COLOR else PICK_UP_COLOR)
 	elseif not chosen then
 		hideOutline()
 	end

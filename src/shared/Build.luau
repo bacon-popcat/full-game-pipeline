@@ -49,7 +49,8 @@ Build.GRID = GRID
 Build.REACH = 30
 
 -- Ownership covers the entire footprint, including its last cell. The replicated plot
--- owner is the authority on both sides; DataReady gates edits while a profile is loading.
+-- owner and expansion are the authority on both sides; Plot rejects locked land and
+-- DataReady gates edits while a profile is loading.
 function Build.owns(player: Player, origin: Vector3, footprint: Vector3): boolean
 	local index = Plot.at(origin)
 	local plots = workspace:FindFirstChild("Plots")

@@ -53,8 +53,11 @@ export type Source = {
 
 export type Produce = {
 	sources: { [string]: Source },
-	-- Cells out from each side of the block's footprint, at its own level (Factory.area).
-	radius: number?,
+	-- The centres of the cells it reaps, like a planter's `plantArea`: a patch behind it, at its
+	-- own level (Factory.area).
+	area: (ext: Extents) -> { Vector3 },
+	-- That patch in cells, for the panel's words.
+	size: { width: number, depth: number },
 }
 
 export type Face = "-Z" | "+Z"
@@ -194,9 +197,10 @@ local function pickerSources(every: number): { [string]: Source }
 	return sources
 end
 
--- `width` across and `depth` deep, centred on the planter's sowing bar (its conveyor axis) and
--- starting just past its front face, filled row by row away from the planter, middle cell first.
-local function plantPatch(width: number, depth: number): (ext: Extents) -> { Vector3 }
+-- `width` across and `depth` deep, centred on the block's conveyor axis and starting just past
+-- its -Z face (a planter's sowing forks, the back of a harvester, away from its output belt),
+-- filled row by row away from the block, middle cell first.
+local function patch(width: number, depth: number): (ext: Extents) -> { Vector3 }
 	return function(ext)
 		local cells = {}
 		for row = 0, depth - 1 do
@@ -216,13 +220,22 @@ local function planter(width: number, depth: number, every: number): Def
 		input = "+Z",
 		plants = SEEDS,
 		plantEvery = every,
-		plantArea = plantPatch(width, depth),
+		plantArea = patch(width, depth),
 		plantSize = { width = width, depth = depth },
 	}
 end
 
-local function harvester(radius: number, every: number): Def
-	return { kind = "Machine", output = "+Z", produce = { sources = pickerSources(every), radius = radius } }
+-- Reaps a patch `width` across and `depth` deep behind it, on the side away from its output belt.
+local function harvester(width: number, depth: number, every: number): Def
+	return {
+		kind = "Machine",
+		output = "+Z",
+		produce = {
+			sources = pickerSources(every),
+			area = patch(width, depth),
+			size = { width = width, depth = depth },
+		},
+	}
 end
 
 local function sprinkler(radius: number, speed: number, wet: number): Def
@@ -269,8 +282,8 @@ local BLOCKS: { [string]: Def } = {
 	Juicer = processor(productRecipes("Juicer")),
 	Oven = processor(productRecipes("Oven")),
 	CratePacker = processor(productRecipes("CratePacker")),
-	Harvester = harvester(4, 3),
-	HarvesterTier2 = harvester(6, 1.5),
+	Harvester = harvester(5, 3, 3),
+	HarvesterTier2 = harvester(7, 5, 1.5),
 	ShippingBin = { kind = "Machine", input = "-Z", sells = true },
 	StorageChest = { kind = "Machine", input = "-Z", stores = 12 },
 	SeedPlanter = planter(3, 5, 2),

@@ -42,7 +42,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
   the Smelter and Workbench for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
-  Harvester (bigger reach, faster). All are bought in the Machine Shop (economy.md); tier 2
+  Harvester (bigger patch, faster). All are bought in the Machine Shop (economy.md); tier 2
   ones also cost Workbench parts. Tier 2 defs come from the same constructors as tier 1 in
   Blocks, so a tier differs only in its numbers.
 - **Own art.** The conveyors (belts, turns, ramps, sensor), the Seed Planter, Sprinkler,
@@ -66,8 +66,9 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   that rectangle.
 - **Seed Planter** plants the first loaded seed that fits into the first free cell of a patch
   3 wide and 5 deep past its forks (`plantArea` in Blocks), every 2 s.
-- **Harvester** harvests every ripe crop within 4 cells of its footprint (a square), one every
-  3 s, onto its output belt.
+- **Harvester** harvests every ripe crop in a patch 5 wide and 3 deep behind it (the side away
+  from its output belt, centred on its belt line; `produce.area` in Blocks), one every 3 s,
+  onto its output belt. The tier 2 patch is 7 wide and 5 deep.
   A single crop restarts from a sprout, so it replants itself; a multi crop regrows its fruit.
   Each harvest gives the owner harvest XP, as a hand harvest does.
 - **Sprinkler** has no ports. Crops within 3 cells across on its plot grow

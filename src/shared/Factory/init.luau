@@ -89,22 +89,23 @@ function Factory.extents(itemId: string): Extents?
 end
 
 -- The cells a planter, harvester or sprinkler works on, as the lowest and highest corner of a
--- one-cell-high rectangle at the block's own level (its bottom cell row): a planter's patch,
--- or `radius` cells out from every side of a harvester or sprinkler's footprint. Nothing above
--- or below that row counts. `frame` is the block's authored frame (originFrame), which only a
--- planter needs. Nil for every other block.
+-- one-cell-high rectangle at the block's own level (its bottom cell row): a planter's or
+-- harvester's patch, or `radius` cells out from every side of a sprinkler's footprint. Nothing
+-- above or below that row counts. `frame` is the block's authored frame (originFrame), which
+-- the patches need. Nil for every other block.
 function Factory.area(itemId: string, origin: Vector3, footprint: Vector3, frame: CFrame?): (Vector3?, Vector3?)
 	local def = Blocks[itemId]
 	if not def then
 		return nil, nil
 	end
-	if def.plantArea then
+	local cellsOf: ((ext: Extents) -> { Vector3 })? = def.plantArea or (if def.produce then def.produce.area else nil)
+	if cellsOf then
 		local ext = Factory.extents(itemId)
 		if not ext or not frame then
 			return nil, nil
 		end
 		local low, high = nil :: Vector3?, nil :: Vector3?
-		for _, point in def.plantArea(ext) do
+		for _, point in cellsOf(ext) do
 			local scaled = frame:PointToWorldSpace(point) / Build.GRID
 			local cell = Vector3.new(math.floor(scaled.X), origin.Y, math.floor(scaled.Z))
 			low = if low then low:Min(cell) else cell
@@ -112,7 +113,7 @@ function Factory.area(itemId: string, origin: Vector3, footprint: Vector3, frame
 		end
 		return low, high
 	end
-	local radius = if def.produce then def.produce.radius elseif def.sprinkles then def.sprinkles.radius else nil
+	local radius = if def.sprinkles then def.sprinkles.radius else nil
 	if not radius then
 		return nil, nil
 	end

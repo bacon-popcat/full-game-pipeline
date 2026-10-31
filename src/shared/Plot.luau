@@ -1,9 +1,16 @@
 --!strict
--- Plot: the map's six horizontal cell bounds and lossless plot-relative coordinates.
+-- Plot: expansion prices, the map's six owned bounds and lossless plot-relative coordinates.
 -- Origins are minimum cells; all plots face -Z so a saved layout has the same orientation
 -- and farmland underneath it in either row. Height does not change which plot a cell is in.
+-- Growth is only +X/+Z: saved cells never shift within the garden. Owner and Expansion
+-- attributes are server-written; missing replication fails closed, including for machines.
 
-local SIZE = 24
+local SIZE = 30
+local EXPANSIONS = {
+	{ size = 36, price = 2500 },
+	{ size = 42, price = 25000 },
+	{ size = 48, price = 125000 },
+}
 export type Cell = { number }
 export type SavedCrop = {
 	cropId: string,
@@ -30,14 +37,17 @@ export type Contents = {
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }
 local ORIGINS: { Vector3 } = {}
-for _, z in { -40, 17 } do
-	for _, x in { -30, 0, 30 } do
-		table.insert(ORIGINS, Vector3.new(x - SIZE / 2, 0, z))
+for _, z in { -74, 24 } do
+	for _, x in { -78, -24, 30 } do
+		table.insert(ORIGINS, Vector3.new(x, 0, z))
 	end
 end
 
 local Plot = {}
 Plot.SIZE = SIZE
+Plot.EXPANSIONS = EXPANSIONS
+Plot.MAX_SIZE = EXPANSIONS[#EXPANSIONS].size
+Plot.REACH = 12
 Plot.COUNT = #ORIGINS
 Plot.HEIGHT = 80
 
@@ -46,9 +56,59 @@ function Plot.origin(index: number): Vector3
 	return ORIGINS[index]
 end
 
+function Plot.sanitize(value: unknown): number
+	if typeof(value) ~= "number" or value ~= value or math.abs(value) == math.huge then
+		return 0
+	end
+	return math.clamp(math.floor(value), 0, #EXPANSIONS)
+end
+
+function Plot.size(tier: number): number
+	local expansion = EXPANSIONS[Plot.sanitize(tier)]
+	return if expansion then expansion.size else SIZE
+end
+
+function Plot.model(index: number): Model?
+	local plots = workspace:FindFirstChild("Plots")
+	local model = if plots then plots:FindFirstChild(tostring(index)) else nil
+	return if model and model:IsA("Model") then model else nil
+end
+
+function Plot.tier(index: number): number
+	local model = Plot.model(index)
+	return Plot.sanitize(if model then model:GetAttribute("Expansion") else nil)
+end
+
+function Plot.inReach(player: Player, index: number): boolean
+	local model = Plot.model(index)
+	local anchor = if model then model:FindFirstChild("ExpansionSign") else nil
+	local character = player.Character
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+	return model ~= nil
+		and model:GetAttribute("Owner") == player.UserId
+		and anchor ~= nil
+		and anchor:IsA("BasePart")
+		and root ~= nil
+		and root:IsA("BasePart")
+		and humanoid ~= nil
+		and humanoid.Health > 0
+		and (root.Position - anchor.Position).Magnitude <= Plot.REACH
+end
+
 function Plot.at(cell: Vector3): number?
 	for index, origin in ORIGINS do
-		if cell.X >= origin.X and cell.X < origin.X + SIZE and cell.Z >= origin.Z and cell.Z < origin.Z + SIZE then
+		local model = Plot.model(index)
+		local owner = if model then model:GetAttribute("Owner") else nil
+		local size = Plot.size(if model then Plot.sanitize(model:GetAttribute("Expansion")) else 0)
+		if
+			typeof(owner) == "number"
+			and owner ~= 0
+			and cell.X >= origin.X
+			and cell.X < origin.X + size
+			and cell.Z >= origin.Z
+			and cell.Z < origin.Z + size
+		then
 			return index
 		end
 	end

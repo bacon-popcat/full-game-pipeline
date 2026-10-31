@@ -20,6 +20,8 @@ local GardenEvents = {
 	Sold = Signal.new(),
 	-- (player, itemId: string, count: number) a purchase at a hub stall
 	Bought = Signal.new(),
+	-- (player, tier: number) more plot space bought at the garden sign
+	Expanded = Signal.new(),
 	-- (player, level: number) the player's level went up
 	LevelUp = Signal.new(),
 	-- (player, cell: Vector3) a growing crop splashed with the watering can
