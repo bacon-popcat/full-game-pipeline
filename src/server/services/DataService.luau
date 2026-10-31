@@ -29,7 +29,10 @@ type Data = {
 	coins: number,
 	xp: number,
 	inventory: Inventory.Slots,
-	plot: { expansion: number, blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
+	plot: { sections: { string }, blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
+	-- 2 once the plot is laid out in sections (migrate). Not in the template, so Reconcile
+	-- never fills it in for an old save.
+	plotLayout: number?,
 	seedStock: { [string]: number },
 	restockAt: number,
 	discovered: { [string]: boolean },
@@ -50,7 +53,7 @@ local PROFILE_TEMPLATE: Data = {
 	coins = 50,
 	xp = 0,
 	inventory = starter,
-	plot = { expansion = 0, blocks = {}, crops = {} },
+	plot = { sections = {}, blocks = {}, crops = {} },
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
@@ -155,7 +158,42 @@ local function renameCounts(counts: any)
 	end
 end
 
+-- The garden size each old expansion tier had (the sign tiers, before sections).
+local OLD_TIER_SIZES = { 36, 42, 48 }
+
+-- Moves a save from before sections into the section grid, once. The old garden was a square
+-- measured from its corner; that corner is now the start block's (Plot.START_OFFSET), so every
+-- saved cell shifts by it, and an old expansion becomes the sections that cover what it had.
+local function migrateLayout(data: any)
+	if data.plotLayout == 2 then
+		return
+	end
+	local plot = if typeof(data.plot) == "table" then data.plot else {}
+	local shift = Plot.START_OFFSET
+	for _, list in { plot.blocks, plot.crops } do
+		for _, entry in if typeof(list) == "table" then list else {} do
+			local cell = if typeof(entry) == "table" then Plot.unpack(entry.cell) else nil
+			if cell then
+				entry.cell = Plot.pack(cell + shift)
+			end
+		end
+	end
+	local size = OLD_TIER_SIZES[if typeof(plot.expansion) == "number" then plot.expansion else 0]
+	if size then
+		local bought = {}
+		for x = Plot.START.x0, (shift.X + size - 1) // Plot.SECTION do
+			for z = Plot.START.z0, (shift.Z + size - 1) // Plot.SECTION do
+				bought[Plot.key(x, z)] = true
+			end
+		end
+		plot.sections = Plot.encode(bought)
+	end
+	plot.expansion = nil
+	data.plotLayout = 2
+end
+
 local function migrate(data: any)
+	migrateLayout(data)
 	for _, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
 		if typeof(stack) == "table" and RENAMED[stack.itemId] then
 			stack.itemId = RENAMED[stack.itemId]
@@ -191,7 +229,7 @@ local function sanitize(player: Player, data: any)
 		typeof(data.plot) == "table" and typeof(data.plot.blocks) == "table" and typeof(data.plot.crops) == "table",
 		"Invalid plot"
 	)
-	data.plot.expansion = Plot.sanitize(data.plot.expansion)
+	data.plot.sections = Plot.encode(Plot.decode(data.plot.sections))
 	for index, stack in data.inventory do
 		local item = if typeof(stack) == "table" then knownItems[stack.itemId] else nil
 		if stack ~= false and not (item and integer(stack.count) and stack.count > 0 and stack.count <= item.stack) then
@@ -243,7 +281,7 @@ local function snapshot(player: Player, session: Session)
 	assert(onboarding, "DataService: loaded session lost onboarding state")
 	data.onboarding = onboarding
 	data.plot = {
-		expansion = Plot.tier(index),
+		sections = PlotService.sections(index),
 		blocks = BuildService.snapshot(player, index),
 		crops = WorldService.snapshot(index),
 	}
@@ -319,7 +357,7 @@ local function onPlayer(player: Player)
 	end)
 	local ok, message = pcall(function()
 		sanitize(player, profile.Data)
-		local index = PlotService.assign(player, profile.Data.plot.expansion)
+		local index = PlotService.assign(player, profile.Data.plot.sections)
 		assert(index, "All six gardens are occupied")
 		for _, block in profile.Data.plot.blocks do
 			if not BuildService.restore(player, index, block) then

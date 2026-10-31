@@ -9,7 +9,7 @@ header owns its rules; this page maps initialization, permissions and persistenc
 DataService -> ProfileStore.StartSessionAsync -> reconcile/validate
                  | failure / session lost -> kick, release runtime state
                  v
-PlotService.assign -> first free plot, saved Expansion + Owner attributes, display-name sign
+PlotService.assign -> first free plot, saved Sections + Owner attributes, display-name sign
                  v
 BuildService.restore -> FactoryService.register/restore -> lanes and machines
 WorldService.restore -> crops, elapsed wall-clock growth
@@ -20,7 +20,7 @@ OnboardingService.load -> restored conditions + Objective sync
              DataReady = true
 
 ProfileStore OnSave / two-minute snapshot / leave
-    <- inventory slots + economy + garden stock/discoveries + onboarding + expansion + relative blocks, factory contents, crops
+    <- inventory slots + economy + garden stock/discoveries + onboarding + sections + relative blocks, factory contents, crops
 leave -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
       -> release plot -> ProfileStore.EndSession
 ```
@@ -31,18 +31,19 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
 
 ## Layout and ownership
 
-- `Shared/Plot` owns expansion tiers/prices, bounds, origins and cell conversions. All plots face -Z so saved
-  crops still have Farmland beneath them when moved between map rows. PlotService owns
-  the runtime grass, soft non-colliding fences, signs and farm dimensions.
+- `Shared/Plot` owns the section grid and prices, origins and cell conversions. All plots face
+  -Z so saved crops still have Farmland beneath them when moved between map rows. PlotService
+  owns the runtime ground tiles, price labels, soft non-colliding fences, signs and farm.
 - Models are `Workspace.Plots["1"]` through `["6"]`; `Owner` is a user id or zero when
-  free. `Expansion` is the saved tier, 0..3, replicated to every client. A full server
-  rejects a seventh loaded profile without changing its save.
-- Every garden starts at 30 x 30 cells (90 x 90 studs), up from 24 x 24. The maximum is
-  48 x 48 cells (144 x 144 studs). Origins are x = -78, -24, 30 and z = -74, 24 cells,
-  indexed left-to-right across the north row, then the south row. At maximum the plots
-  span x [-78,-30), [-24,24), [30,78), z [-74,-26), [24,72): six-cell column gaps,
-  a fifty-cell hub corridor, and all edges inside the existing +/-256-stud baseplate.
-- Farms contain twelve by eight Farmland nodes at relative x 6..17, z 2..9, y 0.
+  free, and `Sections` lists the bought sections ("x,z;x,z"), replicated to every client. A
+  full server rejects a seventh loaded profile without changing its save.
+- Each garden is 7 x 6 sections of 10 x 10 cells: 70 x 60 cells (210 x 180 studs). Section
+  column x, row z covers relative cells from x*10, z*10; row 0 is the front (-Z). The start
+  block, columns 2..4 and rows 0..2 (30 x 30 cells, relative x 20..49, z 0..29), is everyone's
+  from the start. Origins are x = -115, -35, 45 and z = -76, 16 cells (10-cell gaps), indexed
+  across the south row, then the north row; the hub and quarry sit between the rows.
+  PlotService widens the place's Baseplate (its top unchanged) to cover them all plus 36 studs.
+- Farms contain twelve by eight Farmland nodes at relative x 26..37, z 2..9, y 0 (in the start block).
   Crops plant above them; the rest is open grass. Players spawn at the hub. The hub
   quarry contains shared Stone, Coal, Iron and Copper rocks.
 - `Build.owns` checks the complete footprint and height; `Build.canEdit` additionally
@@ -50,8 +51,10 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   controls and belt pickup are owner-only, on the server and client.
 - Machines, lane connections and sensor pulses stay inside their own plot. Drops keep
   their owner's id and cannot be picked up or absorbed by another player's plot.
-- `Plot.at` returns only occupied, purchased bounds; `contains` and `same` use that same
-  check. Missing plot/owner replication fails closed. `Build.owns`/`canEdit`, crop restoration
+- `Plot.at` returns a plot only for a cell in a section that an owned plot owns; `contains`
+  checks every cell of a footprint (sections can leave notches) and `same` uses `at`. It reads
+  Owner and Sections every call and re-parses Sections only when it changes, so a purchase or
+  an assignment counts in the same frame. Missing plot/owner replication fails closed. `Build.owns`/`canEdit`, crop restoration
   and machine area/connection checks therefore reject locked cells on both server and client.
 - Plot indices and owners never come from client requests. Placement uses the held slot;
   interactions validate target ancestry, reach, ownership and supplied item ids.
@@ -59,27 +62,23 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
 
 ## Buying space
 
-`Plot.EXPANSIONS` owns the three sequential coin purchases; the price/area table and balance
-rationale are in [economy.md](economy.md#plot-expansions). No level gate or inventory item is
-required. Extra space is grass for building or player-placed soil; the starter farm stays
-twelve by eight. The muted grey-green ground beyond the fence is locked; the bright grass
-and fence grow toward +X/+Z with each purchase. Maximum plots have no locked ground left.
+A locked section can be bought once it shares an edge with owned land, for the price of its
+ring, its distance in sections from the start block: 2,500, 20,000 or 100,000 coins
+([economy.md](economy.md#garden-sections)). No level gate or item is required. Every locked
+section shows its price lying on its ground, turned to read upright from the hub; the ones
+that can be bought now are bright, the rest dimmed. Locked ground is a muted grey-green, owned
+ground bright grass, and the fence follows the owned land's outline, whatever its shape, with
+the two-cell gate at the start block's front.
 
-The plot sign's `ExpansionSign.ExpandPlot` ProximityPrompt opens `HUD.Expansion`, a runtime
-clone of the existing Sell shell. UIController prepares the clone before any screens start,
-preserving authored styling. It displays current/next dimensions, added cells and coin price,
-with Buy expansion and Cancel. HubWindow supplies close/B, modal exclusivity, reduced motion,
-gamepad focus and close-on-death/walking-away. No new Studio UI or prop authoring is required
-when the existing Sell HUD contract is present; missing nodes warn and skip the window.
-
-`PlotExpand(nextTier)` sends only the expected next tier. PlotService derives ownership from
-its assignment, requires DataReady and a living owner within 12 studs of the sign, enforces
-a 0.5-second cooldown, rejects stale/skipped/non-number tiers and checks coins through
-EconomyService.trySpend. Spending and publishing the tier do not yield. Repeated requests for
-the same tier cannot spend twice. Success sends Notify and GardenEvents.Expanded (the normal
-purchase sound); restored tiers never fire purchase effects or onboarding rewards. A response
-or two-second timeout releases the UI's pending state. Scenery refresh leaves soil, crops,
-machine contents and existing builds intact. Release resets the free plot to tier zero.
+Each buyable section has a `BuySection` ProximityPrompt at its centre (hold 0.6 s) carrying
+its SectionX and SectionZ. PlotService builds them disabled and `PlotController` enables the
+ones on the local player's own garden, so nobody else sees them; holding one sends
+`PlotBuySection(x, z)`. PlotService derives the plot from its assignment and requires
+DataReady, a 0.5-second cooldown, whole in-grid coordinates, a locked section touching owned
+land, the character within 30 studs of its centre and coins through EconomyService.trySpend.
+Spending and publishing the section do not yield, so a repeated request cannot buy twice.
+Success sends Notify and GardenEvents.SectionBought (the purchase sound), then rebuilds only
+the scenery, never soil, crops or machines. Release clears the sections of the freed plot.
 
 ## Economy
 
@@ -108,7 +107,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 |---|---|
 | coins, xp | Live balances; level is derived |
 | inventory | Dense slots, including `false` for empty slots |
-| plot.expansion | Purchased tier 0..3; applied before restoring any blocks/crops |
+| plot.sections | Bought sections as "x,z" (the start block is implicit); applied before restoring blocks/crops |
 | plot.blocks | Item id, relative cell, rotation, Against, factory contents |
 | factory contents | Separate input/output counts, counts per lane, remaining coal burn time, Sold, filter (items sent left), optional filterRight (items sent right) and filterMutations ("Left:Golden"), manual Split switch |
 | plot.crops | Crop id, relative cell, current cycle wall-clock plantedAt, harvestCount, optional mutation, mutationRolled and growthBonus |
@@ -116,6 +115,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
+| plotLayout | 2 once the save's cells are laid out in sections (below); not in the template |
 
 Vectors serialize as three-number arrays. Rotation and Against keep world axes because
 all plots have the same orientation. Blocks restore before crops so placed soil exists
@@ -124,13 +124,14 @@ renamed or cut since it was saved, a missing template) is skipped with a warning
 change never locks a player out. Only bad balances, a broken save shape or a full server fail
 loading, and those keep the original profile.
 
-The larger layout keeps `GardenFoundation_v1`. Reconcile defaults old `plot.expansion` to
-zero; `Plot.sanitize` floors/clamps finite values to 0..3 and resets missing/non-numeric,
-NaN and infinite values to zero. Snapshots store the live tier together with spent coins.
-No coordinate migration is needed: relative (0,0,0) is still the minimum corner, expansion
-never moves that corner, and Farmland remains at relative x 6..17, z 2..9, y 0. Every old
-24 x 24 saved cell fits the new 30 x 30 starter area. Moving a whole garden to a new map
-origin translates its saved blocks, crops and starter soil together, with no rotation.
+The section layout keeps `GardenFoundation_v1`. A save without `plotLayout = 2` was laid out
+from the corner of the old square garden, which is now the start block's corner, so
+DataService moves every saved block and crop cell by `Plot.START_OFFSET` (+20 relative X)
+once, turns an old sign tier (36/42/48 cells) into the sections that covered it, drops
+`plot.expansion` and sets `plotLayout`. The key is kept out of the template on purpose:
+Reconcile would otherwise fill it in on old saves and skip the move. Sections load through
+`Plot.decode`, which drops anything that is not a whole, in-grid, non-start section. Moving a
+whole garden to a new map origin translates its blocks, crops and starter soil together.
 
 Active recipe ingredients are refunded into saved input counts and processing restarts
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,
@@ -174,24 +175,20 @@ the same server but do not survive Studio Stop.
 7. With API access enabled in a test place, verify persistence across Stop/new server,
    shutdown during processing, and session locking from a second server. A deliberately
    invalid saved item should fail loading without replacing the original layout.
-8. At each tier, test the last owned cell, the first locked cell, a rotated footprint crossing
-   the fence, planting on placed soil and planter/harvester/sprinkler reach across the edge.
-   The next tier must become usable immediately by both ghost and server. Max plots must
-   remain separated and clear of stalls, quarry and spawn.
-9. Buy all three tiers from the sign: insufficient funds, exact funds, stale/double requests,
-   skipped/negative/fractional/NaN/infinite/string tiers, remote spam, another owner's sign,
-   out-of-range, dead and pre-DataReady requests. Only one correct price is charged per tier.
-   Inspect the panel on desktop/mobile/gamepad, Cancel/B, walking away, max tier and late HUD.
-10. Load an old save with crops on every starter-soil edge, then buy, build/plant at relative
-    (47,47), and rejoin on the opposite row. Check unchanged farm alignment, expanded contents,
-    saved coins/tier, release/reassignment and malformed/missing tier defaults.
+8. Buy sections in several directions: the last owned cell, the first locked cell, a rotated
+   footprint across a notch, planting on placed soil, and planter/harvester/sprinkler areas
+   across a section edge. A bought section must be usable at once by ghost and server, its
+   fence and prompts must move, and another player must see no prompts. Try a non-adjacent,
+   owned, out-of-range and fractional section, too few coins and remote spam.
+9. Load an old (pre-section) save: blocks and crops must land in the start block on the same
+   farmland, once; rejoin and check they do not move again.
 
 Local formatter, lint and type checks do not substitute for these runtime checks.
 
 ## Plot and hub props
 
-PlotService fences each plot with one `PlotFence` prop per edge cell, a `PlotFencePost` at each
-corner and either side of the fixed two-cell gate at the starter front, and stands the
+PlotService fences the owned land with one `PlotFence` prop per edge cell and a `PlotFencePost`
+at every corner of the fence, leaving the two-cell gate at the start block's front, and stands the
 `PlotSign` outside the fence beside the gate; the owner's name is a SurfaceGui on the sign's
 `Board` part. HubService stands each stall prop (named for its stall) turned to face the
 spawn, parents its ProximityPrompt to the stall's `Counter` part, and lays a paved plaza with

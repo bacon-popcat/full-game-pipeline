@@ -18,7 +18,7 @@
         "Objective": { "$className": "RemoteEvent" },
         "ShopSync": { "$className": "RemoteEvent" },
         "ShopBuy": { "$className": "RemoteEvent" },
-        "PlotExpand": { "$className": "RemoteEvent" },
+        "PlotBuySection": { "$className": "RemoteEvent" },
         "Sell": { "$className": "RemoteEvent" },
         "Notify": { "$className": "RemoteEvent" },
         "InventoryMove": { "$className": "RemoteEvent" },

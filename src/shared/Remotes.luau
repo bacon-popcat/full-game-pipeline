@@ -22,10 +22,10 @@ return {
 	-- (SeedShop, GearShop, MachineShop) in reach; count is a positive integer, within your own
 	-- stock for seeds, and the server checks level, coins and room. Answered with Notify.
 	ShopBuy = get("ShopBuy"),
-	-- client -> server: (nextTier: number). The server finds the player's plot, checks
-	-- DataReady, sign reach, the exact next tier and coins. Answered with Notify;
-	-- Workspace.Plots[index].Expansion replicates the purchased tier to every client.
-	PlotExpand = get("PlotExpand"),
+	-- client -> server: (x: number, z: number), a section of your own garden to buy. The server
+	-- checks DataReady, that it is locked and touches owned land, your reach to its centre and
+	-- coins; Workspace.Plots[index].Sections replicates it to every client.
+	PlotBuySection = get("PlotBuySection"),
 	-- client -> server: (mode: "Held" | "All"), checked against server inventory and stall reach.
 	Sell = get("Sell"),
 	-- server -> client: (message: string), a short transaction or rare-harvest toast.
