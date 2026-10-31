@@ -1,7 +1,11 @@
 --!strict
 -- Plot: the map's six gardens, their sections, and lossless plot-relative coordinates.
--- Origins are minimum cells; all plots face -Z so a saved layout has the same orientation
--- and farmland underneath it in either row. Height does not change which plot a cell is in.
+-- Origins are each garden's minimum world cell. The two rows face each other across the hub:
+-- the north row's front is its -Z edge, and the south row is the same garden turned half a turn
+-- (`flipped`), its front on its +Z edge. Saves are plot-relative and always laid out as an
+-- unturned garden (front at relative z = 0), so a layout loads the same way into either row:
+-- toWorld/toRelative turn cells, and blockToWorld, turn and axis turn a block's origin,
+-- rotation and Against with it. Height does not change which plot a cell is in.
 --
 -- A garden is a grid of SECTIONS_X by SECTIONS_Z square sections of SECTION cells each.
 -- Section column x, row z (row 0 is the front, the -Z edge) covers relative cells from
@@ -202,33 +206,76 @@ function Plot.canBuy(index: number, x: number, z: number): boolean
 		or Plot.owns(index, x, z + 1)
 end
 
+-- Whether a garden is turned half a turn: the south row, so its front faces the hub (+Z).
+function Plot.flipped(index: number): boolean
+	return Plot.origin(index).Z < 0
+end
+
+-- A plot-relative point (in cells, not snapped to a cell) in world cells: for corners and
+-- centres, where a cell index would be off by one when turned.
+function Plot.pointToWorld(index: number, point: Vector3): Vector3
+	if Plot.flipped(index) then
+		point = Vector3.new(WIDTH - point.X, point.Y, DEPTH - point.Z)
+	end
+	return Plot.origin(index) + point
+end
+
+function Plot.toWorld(index: number, cell: Vector3): Vector3
+	if Plot.flipped(index) then
+		cell = Vector3.new(WIDTH - 1 - cell.X, cell.Y, DEPTH - 1 - cell.Z)
+	end
+	return Plot.origin(index) + cell
+end
+
+function Plot.toRelative(index: number, cell: Vector3): Vector3
+	local relative = cell - Plot.origin(index)
+	if Plot.flipped(index) then
+		relative = Vector3.new(WIDTH - 1 - relative.X, relative.Y, DEPTH - 1 - relative.Z)
+	end
+	return relative
+end
+
+-- A block's minimum cell, between relative and world: turning a box half a turn moves its
+-- minimum corner to the far corner. The footprint is the same either way round.
+function Plot.blockToWorld(index: number, relative: Vector3, footprint: Vector3): Vector3
+	local flat = Vector3.new(footprint.X - 1, 0, footprint.Z - 1)
+	return if Plot.flipped(index) then Plot.toWorld(index, relative + flat) else Plot.toWorld(index, relative)
+end
+
+function Plot.blockToRelative(index: number, origin: Vector3, footprint: Vector3): Vector3
+	local flat = Vector3.new(footprint.X - 1, 0, footprint.Z - 1)
+	return if Plot.flipped(index) then Plot.toRelative(index, origin + flat) else Plot.toRelative(index, origin)
+end
+
+-- A block's quarter turns, between relative and world (the same both ways).
+function Plot.turn(index: number, rotation: number): number
+	return if Plot.flipped(index) then (rotation + 2) % 4 else rotation
+end
+
+-- An axis direction such as a block's Against, between relative and world.
+function Plot.axis(index: number, direction: Vector3): Vector3
+	return if Plot.flipped(index) then Vector3.new(-direction.X, direction.Y, -direction.Z) else direction
+end
+
 -- A section's centre at ground level, in studs (`grid` studs per cell).
 function Plot.sectionCentre(index: number, x: number, z: number, grid: number): Vector3
-	local corner = Plot.origin(index) + Vector3.new(x * SECTION, 0, z * SECTION)
-	return (corner + Vector3.new(SECTION / 2, 0, SECTION / 2)) * grid
+	local centre = Vector3.new((x + 0.5) * SECTION, 0, (z + 0.5) * SECTION)
+	return Plot.pointToWorld(index, centre) * grid
 end
 
 function Plot.at(cell: Vector3): number?
 	for index, origin in ORIGINS do
-		local relative = cell - origin
-		if relative.X >= 0 and relative.X < WIDTH and relative.Z >= 0 and relative.Z < DEPTH then
+		local offset = cell - origin
+		if offset.X >= 0 and offset.X < WIDTH and offset.Z >= 0 and offset.Z < DEPTH then
 			local state = stateOf(index)
 			if not state or state.owner == 0 then
 				return nil
 			end
-			local x, z = Plot.sectionOf(relative)
+			local x, z = Plot.sectionOf(Plot.toRelative(index, cell))
 			return if Plot.owns(index, x, z) then index else nil
 		end
 	end
 	return nil
-end
-
-function Plot.toRelative(index: number, cell: Vector3): Vector3
-	return cell - Plot.origin(index)
-end
-
-function Plot.toWorld(index: number, cell: Vector3): Vector3
-	return Plot.origin(index) + cell
 end
 
 -- Every cell of a footprint must be on the plot: bought sections can leave notches, so its

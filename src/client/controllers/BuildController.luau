@@ -3,13 +3,13 @@
 -- press would do where the player aims, and outlines it:
 --   * a placeable shows a grid-snapped ghost -- green when the shared Build rules say the
 --     server will accept it, red when not -- and asks to place it;
---   * any item aimed at a filter conveyor toggles it in the filter. Machines are only
---     worked through their panel (UIController/MachinePanel), so a press never feeds or
---     empties one;
+--   * machines and filter conveyors are only set through their panel
+--     (UIController/MachinePanel), so a press never feeds, empties or changes one, and a
+--     Hammer picks them up like any block;
 --   * the Hammer picks up the player's own placed block; a Pickaxe breaks their own
 --     cubes it fits and mines the world nodes it fits;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
---   * an empty hand takes from a conveyor (its belt items) or switches a router, or harvests a crop (a ripe one for its produce, a growing one for its seed);
+--   * an empty hand takes from a conveyor (its belt items) or switches a split conveyor, or harvests a crop (a ripe one for its produce, a growing one for its seed);
 --   * a seed's ghost is only green over soil (Shared/World/Soil);
 --   * a planter, harvester or sprinkler's ghost also lays a soft sheet over the cells it
 --     will work (Factory.area), at its own level.
@@ -53,8 +53,6 @@ local VALID_COLOR = Color3.fromRGB(90, 230, 120)
 local INVALID_COLOR = Color3.fromRGB(255, 80, 90)
 local PICK_UP_COLOR = Color3.fromRGB(255, 255, 255)
 local USE_COLOR = Color3.fromRGB(255, 200, 60)
--- Studs the outline stands proud of the box it marks.
-local OUTLINE_MARGIN = 0.15
 -- The work area sheet: a pale wash, and studs it floats over the floor of its cells.
 local AREA_COLOR = Color3.fromRGB(255, 222, 130)
 local AREA_LIFT = 0.08
@@ -77,49 +75,104 @@ local action: Action? = nil
 
 type Box = { cframe: CFrame, size: Vector3 }
 
--- The outline, shared by the ghost and every target: one invisible box wrapped in a
--- SelectionBox per box of cells the block fills, so a Randomizer's empty corners stay
--- unmarked. Not a Highlight -- those skip translucent parts, so they can't draw on a ghost,
--- and one with no Adornee lights up its whole parent instead. The pool grows as needed.
-local outlines: { Part } = {}
+-- The outline, shared by the ghost and every target, traces only the outer edges of the cells
+-- a block fills: the boxes are split into whole cells, and a cell edge is drawn where the
+-- shape turns a corner there (one or three of the four cells round it filled, or two filled
+-- diagonally), so the seams between a Randomizer's boxes and its empty corners stay unmarked.
+-- Each edge is a thin BoxHandleAdornment; unlike a Highlight these draw on a translucent
+-- ghost too. The pool grows as needed and keeps its spares hidden.
+local outlineAnchor = Instance.new("Part")
+outlineAnchor.Name = "BuildOutline"
+outlineAnchor.Anchored = true
+outlineAnchor.CanCollide = false
+outlineAnchor.CanQuery = false
+outlineAnchor.CanTouch = false
+outlineAnchor.CastShadow = false
+outlineAnchor.Transparency = 1
+outlineAnchor.Size = Vector3.one
+outlineAnchor.CFrame = CFrame.identity
+local outlines: { BoxHandleAdornment } = {}
+local OUTLINE_THICKNESS = 0.12
+local AXES = { Vector3.xAxis, Vector3.yAxis, Vector3.zAxis }
 
-local function outlinePart(index: number): Part
-	local existing = outlines[index]
-	if existing then
-		return existing
+local function cellKey(cell: Vector3): string
+	return `{cell.X},{cell.Y},{cell.Z}`
+end
+
+-- The whole cells a set of boxes covers, in world cell coordinates.
+local function cellsOf(boxes: { Box }): { [string]: boolean }
+	local cells = {}
+	for _, box in boxes do
+		local extent = box.cframe:VectorToWorldSpace(box.size)
+		extent = Vector3.new(math.abs(extent.X), math.abs(extent.Y), math.abs(extent.Z))
+		local low = ((box.cframe.Position - extent / 2) / Build.GRID + Vector3.one * 0.5):Floor()
+		local count = (extent / Build.GRID + Vector3.one * 0.5):Floor()
+		for x = 0, count.X - 1 do
+			for y = 0, count.Y - 1 do
+				for z = 0, count.Z - 1 do
+					cells[cellKey(low + Vector3.new(x, y, z))] = true
+				end
+			end
+		end
 	end
-	local part = Instance.new("Part")
-	part.Name = "BuildOutline"
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.CastShadow = false
-	part.Transparency = 1
-	local selection = Instance.new("SelectionBox")
-	selection.Adornee = part
-	selection.LineThickness = 0.06
-	selection.SurfaceTransparency = 0.85
-	selection.Parent = part
-	outlines[index] = part
-	return part
+	return cells
+end
+
+-- Every outer edge of a set of cells, as a world centre and the axis it runs along.
+local function edgesOf(cells: { [string]: boolean }): { { centre: Vector3, axis: Vector3 } }
+	local edges = {}
+	local seen = {}
+	for key in cells do
+		local x, y, z = string.match(key, "^(-?%d+),(-?%d+),(-?%d+)$")
+		local cell = Vector3.new(tonumber(x) :: number, tonumber(y) :: number, tonumber(z) :: number)
+		for _, axis in AXES do
+			-- The two axes across this one; the edge's four neighbouring cells step along them.
+			local u = if axis == Vector3.xAxis then Vector3.yAxis else Vector3.xAxis
+			local v = if axis == Vector3.zAxis then Vector3.yAxis else Vector3.zAxis
+			for _, corner in { Vector3.zero, u, v, u + v } do
+				-- The edge through `cell + corner`, running along `axis`.
+				local at = cell + corner
+				local id = `{cellKey(at)}|{axis.X}{axis.Y}{axis.Z}`
+				if not seen[id] then
+					seen[id] = true
+					local a = cells[cellKey(at - u - v)] == true
+					local b = cells[cellKey(at - v)] == true
+					local c = cells[cellKey(at - u)] == true
+					local d = cells[cellKey(at)] == true
+					local filled = (if a then 1 else 0)
+						+ (if b then 1 else 0)
+						+ (if c then 1 else 0)
+						+ (if d then 1 else 0)
+					if filled == 1 or filled == 3 or (filled == 2 and a == d) then
+						table.insert(edges, { centre = (at + axis * 0.5) * Build.GRID, axis = axis })
+					end
+				end
+			end
+		end
+	end
+	return edges
 end
 
 local function showOutline(boxes: { Box }, color: Color3)
-	for index, box in boxes do
-		-- Sized just outside the box: Build.box shrinks inward for overlap tests, which would
-		-- bury the lines inside an opaque block.
-		local part = outlinePart(index)
-		part.CFrame = box.cframe
-		part.Size = box.size + Vector3.one * OUTLINE_MARGIN
-		local selection = part:FindFirstChildOfClass("SelectionBox") :: SelectionBox
-		selection.Color3 = color
-		selection.SurfaceColor3 = color
-		part.Parent = workspace.CurrentCamera
+	local edges = edgesOf(cellsOf(boxes))
+	for index, edge in edges do
+		local line = outlines[index]
+		if not line then
+			line = Instance.new("BoxHandleAdornment")
+			line.Adornee = outlineAnchor
+			line.ZIndex = 1
+			line.Parent = outlineAnchor
+			outlines[index] = line
+		end
+		line.CFrame = CFrame.new(edge.centre)
+		line.Size = Vector3.one * OUTLINE_THICKNESS + edge.axis * Build.GRID
+		line.Color3 = color
+		line.Visible = true
 	end
-	for index = #boxes + 1, #outlines do
-		outlines[index].Parent = nil
+	for index = #edges + 1, #outlines do
+		outlines[index].Visible = false
 	end
+	outlineAnchor.Parent = if #edges > 0 then workspace.CurrentCamera else nil
 end
 
 local function hideOutline()
@@ -285,7 +338,8 @@ local function decide(): Action?
 	end
 
 	if not item then
-		if placed and placedId and Factory.get(placedId) and not isMachine(placedId) then
+		local placedDef = if placedId then Factory.get(placedId) else nil
+		if placed and placedDef and not isMachine(placedId) and placedDef.route ~= "Filter" then
 			return { kind = "Take", model = placed }
 		end
 		local def = if node then nodeDef(node) else nil

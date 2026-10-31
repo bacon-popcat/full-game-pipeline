@@ -31,9 +31,14 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
 
 ## Layout and ownership
 
-- `Shared/Plot` owns the section grid and prices, origins and cell conversions. All plots face
-  -Z so saved crops still have Farmland beneath them when moved between map rows. PlotService
-  owns the runtime ground tiles, price labels, soft non-colliding fences, signs and farm.
+- `Shared/Plot` owns the section grid and prices, origins and cell conversions. The two rows
+  face each other across the hub: the north row's front is its -Z edge, and the south row is
+  the same garden turned half a turn (`Plot.flipped`), its front on its +Z edge. Saves are
+  always laid out as an unturned garden, so a layout loads the same into either row:
+  `toWorld`/`toRelative` turn cells, and `blockToWorld`, `turn` and `axis` turn a block's
+  origin (its minimum corner moves to the far corner), rotation (+2) and Against with it.
+  PlotService owns the runtime ground tiles, soft non-colliding fences, signs and farm, all
+  laid out in relative cells and turned the same way.
 - Models are `Workspace.Plots["1"]` through `["6"]`; `Owner` is a user id or zero when
   free, and `Sections` lists the bought sections ("x,z;x,z"), replicated to every client. A
   full server rejects a seventh loaded profile without changing its save.
@@ -44,7 +49,9 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   across the south row, then the north row; the hub and quarry sit between the rows.
   PlotService widens the place's Baseplate (its top unchanged) to cover them all plus 36 studs.
 - Farms contain twelve by eight Farmland nodes at relative x 26..37, z 2..9, y 0 (in the start block).
-  Crops plant above them; the rest is open grass. Players spawn at the hub. The hub
+  Crops plant above them; the rest is open grass. Players spawn at the hub, then PlotService
+  sends them to stand in front of their own gate, facing in, as soon as their garden is
+  assigned and again after every respawn. The hub
   quarry contains shared Stone, Coal, Iron and Copper rocks.
 - `Build.owns` checks the complete footprint and height; `Build.canEdit` additionally
   requires `DataReady`. Block cells must remain at y 0..79. Placement, harvest, machine
@@ -65,8 +72,10 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
 A locked section can be bought once it shares an edge with owned land, for the price of its
 ring, its distance in sections from the start block: 2,500, 20,000 or 100,000 coins
 ([economy.md](economy.md#garden-sections)). No level gate or item is required. Every locked
-section shows its price lying on its ground, turned to read upright from the hub; the ones
-that can be bought now are bright, the rest dimmed. Locked ground is a muted grey-green, owned
+section's tile carries its Price and whether it is Buyable now; `PlotController` writes the
+price on the tiles of the local player's own garden only, lying on the ground and turned to
+read upright from the hub, so nobody sees another garden's prices. The ones that can be bought
+now are bright, the rest dimmed. Locked ground is a muted grey-green, owned
 ground bright grass, and the fence follows the owned land's outline, whatever its shape, with
 the two-cell gate at the start block's front.
 
@@ -117,8 +126,8 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
 | plotLayout | 2 once the save's cells are laid out in sections (below); not in the template |
 
-Vectors serialize as three-number arrays. Rotation and Against keep world axes because
-all plots have the same orientation. Blocks restore before crops so placed soil exists
+Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an
+unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn`/`axis`). Blocks restore before crops so placed soil exists
 first. A saved stack, block, crop or machine's contents that no longer checks out (an item
 renamed or cut since it was saved, a missing template) is skipped with a warning, so a content
 change never locks a player out. Only bad balances, a broken save shape or a full server fail

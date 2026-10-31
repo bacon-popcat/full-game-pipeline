@@ -63,7 +63,9 @@ leaves empty. `IslandsMachines/build/studio_cells.luau` makes the cell boxes fro
 a cell is filled when the art reaches more than 0.5 studs into it. Run it again after every
 run of `studio_blocks.luau`. The routers' art stays under 3 studs tall, so they fill one level
 and blocks can stand on top of them. BuildController outlines a ghost or target by those same
-boxes (one outline per box), so the outline shows the cells the block really takes.
+boxes, tracing only the outer edges of the cells they cover (a thin BoxHandleAdornment per
+cell edge where the shape turns a corner), so seams between boxes and empty corners stay
+unmarked and the outline shows the cells the block really takes.
 
 A placement must fit entirely inside the loaded player's own plot; the ghost uses the same
 check as the server and is red elsewhere. A placement is blocked by anything but a character (or a loose drop) inside its cells, and

@@ -72,9 +72,7 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 			info.hint = `It doesn't take {held.name}.`
 		end
 	elseif def.route == "Filter" then
-		info.hint = if held
-			then `Click to send {held.name} left, then right, then straight on.`
-			else "Click to clear the filter."
+		info.hint = "Its controls set what it sends left and right."
 	elseif held and held.kind == "Resource" and hasLanes then
 		info.hint = `Click to drop a {held.name} onto it.`
 	elseif not held then

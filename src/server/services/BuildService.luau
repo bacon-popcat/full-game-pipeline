@@ -208,12 +208,21 @@ function BuildService.snapshot(player: Player, index: number): { Plot.SavedBlock
 		local itemId = model:GetAttribute("ItemId")
 		local rotation = model:GetAttribute("Rotation")
 		local against = model:GetAttribute("Against")
-		if typeof(origin) == "Vector3" and typeof(itemId) == "string" and typeof(rotation) == "number" then
+		local footprint = if typeof(itemId) == "string" and typeof(rotation) == "number"
+			then Build.footprint(itemId, rotation)
+			else nil
+		if
+			typeof(origin) == "Vector3"
+			and typeof(itemId) == "string"
+			and typeof(rotation) == "number"
+			and footprint
+		then
+			-- Saved as if in an unturned garden (Plot), so it loads the same way into either row.
 			table.insert(saved, {
 				itemId = itemId,
-				cell = Plot.pack(Plot.toRelative(index, origin)),
-				rotation = rotation,
-				against = if typeof(against) == "Vector3" then Plot.pack(against) else nil,
+				cell = Plot.pack(Plot.blockToRelative(index, origin, footprint)),
+				rotation = Plot.turn(index, rotation),
+				against = if typeof(against) == "Vector3" then Plot.pack(Plot.axis(index, against)) else nil,
 				contents = FactoryService.snapshot(model),
 			})
 		end
@@ -226,12 +235,15 @@ function BuildService.restore(player: Player, index: number, saved: Plot.SavedBl
 	if not relative or not Build.isRotation(saved.rotation) then
 		return false
 	end
-	local origin = Plot.toWorld(index, relative)
-	local footprint = Build.footprint(saved.itemId, saved.rotation)
+	local rotation = Plot.turn(index, saved.rotation)
+	local footprint = Build.footprint(saved.itemId, rotation)
+	if not footprint then
+		return false
+	end
+	local origin = Plot.blockToWorld(index, relative, footprint)
 	if
-		not footprint
-		or not Build.owns(player, origin, footprint)
-		or not Build.isFree(origin, footprint, overlapParams, saved.itemId, saved.rotation)
+		not Build.owns(player, origin, footprint)
+		or not Build.isFree(origin, footprint, overlapParams, saved.itemId, rotation)
 	then
 		return false
 	end
@@ -239,7 +251,8 @@ function BuildService.restore(player: Player, index: number, saved: Plot.SavedBl
 	if against and against.Magnitude ~= 1 then
 		return false
 	end
-	local model = BuildService.place(player, saved.itemId, origin, saved.rotation, against)
+	against = if against then Plot.axis(index, against) else nil
+	local model = BuildService.place(player, saved.itemId, origin, rotation, against)
 	if not model then
 		return false
 	end

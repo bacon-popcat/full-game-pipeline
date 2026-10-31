@@ -53,8 +53,8 @@ return {
 	-- Hammer or break with the tool its item names
 	PickUpBlock = get("PickUpBlock"),
 	-- client -> server: (target: Model, action: string, itemId: string?) a placed factory
-	-- block or a world node. "Use" applies the held item (feed a machine, set a filter, mine
-	-- a rock); "Take" is an empty hand (collect output, pick berries, switch a split
+	-- block or a world node. "Use" applies the held item to a world node (mine a rock, water
+	-- a crop); "Take" is an empty hand (take belt items, pick berries, switch a split
 	-- conveyor). The machine panel sends the rest, whatever is held: "Load" (itemId, from
 	-- anywhere in the inventory), "Collect", "TakeBack", "Switch", "Filter" (itemId: moves it
 	-- on from straight to left to right and back), "Mutation" (not an item id but

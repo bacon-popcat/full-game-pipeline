@@ -33,8 +33,8 @@ Cells are `Build` cells (3 studs). The baseplate is ±256 studs, so everything s
 ```
 
 - **Plots.** Six gardens, each a grid of 7 x 6 sections of 10 x 10 cells (70 x 60 cells), in two
-  rows of three with the hub and quarry between them. All plots face -Z. A player who joins takes
-  the first free garden; it is released when they leave. The 3 x 3 start block at the front centre
+  rows of three with the hub and quarry between them, each row's front facing the hub. A player
+  who joins takes the first free garden and is sent to its gate; it is released when they leave. The 3 x 3 start block at the front centre
   is free and holds the sign, the gate and a farm of Farmland. Any other section is bought once it
   touches owned land, its price lying on its ground like a factory tycoon's plot: 2,500 coins next
   to the start block, then 20,000, then 100,000 for the back rows. The fence follows the owned
@@ -301,9 +301,9 @@ Git history keeps all of it.
 
 ### Foundation implementation decisions
 
-- All plots face -Z and use identical relative farmland coordinates, so moving between rows
-  preserves soil under saved crops without rotating blocks or Against. Runtime fences are soft
-  (non-colliding); player spawn is in the hub. Builds occupy y 0..79. A seventh player is rejected
+- Both rows face the hub; the south row is turned half a turn and saves are turned with it
+  (Plot), so a layout moves between rows with soil still under its crops. Runtime fences are
+  soft (non-colliding); players join at the hub and are sent to their gate. Builds occupy y 0..79. A seventh player is rejected
   when no plot is available. Exact runtime layout and rules are mapped in [plots.md](plots.md).
 - XP is cumulative: level one starts at zero and advancing from level n costs the rounded
   formula above. Foundation supplies the API, sync and leaderstats; harvest/sales awards, item

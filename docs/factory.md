@@ -31,8 +31,9 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   belong to the same plot. Hitbox PortDepthBack / PortDepthFront defines short belts between
   machine faces and ports. All conveyor variants and Split, Merger, Filter, Randomizer and
   Sensor routing remain supported. A Filter sends each item it is set for to its left or
-  right arm (up to 4 items a side) and everything else straight on; holding an item and
-  clicking the filter moves that item through the same left, right, straight cycle.
+  right arm (up to 4 items a side) and everything else straight on. It is set only in its
+  panel: a click with an item or an empty hand does nothing to it, so a Hammer picks it up
+  like any other block.
 - **Items move on the server.** Clients receive changed lane lists through FactorySync and
   interpolate with Lane. A machine starts a job only when its outputs fit.
 - **Queued input can bypass an unwanted item.** A machine checks up to twelve queued items,

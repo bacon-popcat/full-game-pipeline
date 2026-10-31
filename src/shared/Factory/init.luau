@@ -224,9 +224,6 @@ function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	if not def then
 		return false
 	end
-	if def.route == "Filter" then
-		return true
-	end
 	if def.kind ~= "Machine" then
 		return false
 	end

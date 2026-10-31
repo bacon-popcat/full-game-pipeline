@@ -1,14 +1,16 @@
 -- PlotService: builds the six gardens with runtime parts and WorldService soil nodes, and sells
 -- their sections (Shared/Plot). The first free garden is assigned by DataService after a profile
--- opens, with its bought sections; release follows saving and clearing the old world. All
--- plots face -Z, keeping saved coordinates and farms aligned. Decorative fences never obstruct
--- placement queries. The hub spawn is shared, and the place's Baseplate is widened so every
--- garden stands on ground.
+-- opens, with its bought sections; release follows saving and clearing the old world. The two
+-- rows face each other across the hub (Plot.flipped turns the south row), and everything here
+-- is laid out in plot-relative cells and turned with it. Decorative fences never obstruct
+-- placement queries. A player joins at the hub spawn, then is sent to stand at their garden's
+-- gate, and comes back there every respawn. The place's Baseplate is widened so every garden
+-- stands on ground.
 --
 -- A garden's scenery (its Boundary model) is rebuilt whenever its owner or sections change,
 -- never its soil, crops or machines: one ground tile per section (grass where owned, a darker
--- tone where locked), each locked section's price lying on its ground (dimmed until it touches
--- owned land), a BuySection prompt on each section that can be bought, and a fence round the
+-- tone where locked; each carries its Price and whether it is Buyable now, which PlotController
+-- writes on the owner's ground only), a BuySection prompt on each section that can be bought, and a fence round the
 -- owned land, whatever its shape: one PlotFence prop per cell edge between owned and unowned
 -- land, a PlotFencePost at every corner of it, and a two-cell gate in the middle of the start
 -- block's front. The PlotSign stands outside the gate with the owner's name on its board. A
@@ -28,11 +30,13 @@ local WorldService = require(script.Parent.WorldService)
 local GRID = Build.GRID
 -- Relative cells along the start block's front edge left open as the gate.
 local GATE_X = { [Plot.START_OFFSET.X + 14] = true, [Plot.START_OFFSET.X + 15] = true }
+-- The gate's middle, and how far in front of it (in cells) a player is sent to stand.
+local GATE_CENTRE = Plot.START_OFFSET.X + 15
+local GATE_STEP = 3
 local COOLDOWN = 0.5
 local GRASS = Color3.fromRGB(153, 191, 126)
 local LOCKED = Color3.fromRGB(119, 132, 105)
 local FENCE = Color3.fromRGB(225, 211, 178)
-local PRICE_TEXT = Color3.fromRGB(246, 238, 214)
 -- Studs of ground round the gardens on every side.
 local GROUND_MARGIN = 36
 
@@ -41,6 +45,7 @@ local assigned: { [Player]: number } = {}
 local models: { Model } = {}
 local signs: { TextLabel } = {}
 local lastAction: { [Player]: number } = {}
+local respawns: { [Player]: RBXScriptConnection } = {}
 local plots = Instance.new("Folder")
 plots.Name = "Plots"
 plots.Parent = workspace
@@ -112,15 +117,14 @@ end
 
 -- The fence round owned land: every cell edge with owned land on one side only.
 local function fence(parent: Instance, index: number)
-	local origin = Plot.origin(index) * GRID
 	local posts: { [string]: Vector3 } = {}
 	local function owned(cx: number, cz: number): boolean
 		local x, z = cx // Plot.SECTION, cz // Plot.SECTION
 		return cx >= 0 and cz >= 0 and Plot.owns(index, x, z)
 	end
 	local function edge(ax: number, az: number, bx: number, bz: number)
-		local a = origin + Vector3.new(ax, 0, az) * GRID
-		local b = origin + Vector3.new(bx, 0, bz) * GRID
+		local a = Plot.pointToWorld(index, Vector3.new(ax, 0, az)) * GRID
+		local b = Plot.pointToWorld(index, Vector3.new(bx, 0, bz)) * GRID
 		rail(parent, a, b)
 		posts[`{ax},{az}`] = a
 		posts[`{bx},{bz}`] = b
@@ -160,43 +164,6 @@ local function commas(amount: number): string
 	end
 end
 
--- A locked section's price, lying face up on its ground tile.
-local function price(tile: BasePart, coins: number, buyable: boolean)
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Price"
-	gui.Face = Enum.NormalId.Top
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 12
-	gui.LightInfluence = 0.6
-	gui.MaxDistance = 400
-	local fade = if buyable then 0.05 else 0.6
-	local amount = Instance.new("TextLabel")
-	amount.Name = "Amount"
-	amount.AnchorPoint = Vector2.new(0.5, 1)
-	amount.Position = UDim2.fromScale(0.5, 0.58)
-	amount.Size = UDim2.fromScale(0.9, 0.28)
-	amount.BackgroundTransparency = 1
-	amount.Font = Enum.Font.GothamBold
-	amount.TextScaled = true
-	amount.TextColor3 = PRICE_TEXT
-	amount.TextTransparency = fade
-	amount.Text = commas(coins)
-	amount.Parent = gui
-	local unit = Instance.new("TextLabel")
-	unit.Name = "Unit"
-	unit.AnchorPoint = Vector2.new(0.5, 0)
-	unit.Position = UDim2.fromScale(0.5, 0.6)
-	unit.Size = UDim2.fromScale(0.5, 0.11)
-	unit.BackgroundTransparency = 1
-	unit.Font = Enum.Font.GothamMedium
-	unit.TextScaled = true
-	unit.TextColor3 = PRICE_TEXT
-	unit.TextTransparency = fade
-	unit.Text = "coins"
-	unit.Parent = gui
-	gui.Parent = tile
-end
-
 -- The prompt that buys a section, hidden until PlotController shows it to the owner.
 local function buyPrompt(parent: Instance, index: number, x: number, z: number, coins: number)
 	local anchor = part(
@@ -232,7 +199,8 @@ local function landscape(index: number)
 	boundary.Name = "Boundary"
 	local owned = model:GetAttribute("Owner") ~= 0
 	local size = Vector3.new(Plot.SECTION * GRID, 0.4, Plot.SECTION * GRID)
-	-- Locked tiles turn (they are square) so their price reads upright from the hub side.
+	-- Locked tiles turn (they are square) so the price PlotController writes on them reads
+	-- upright from the hub side.
 	local facing = CFrame.Angles(0, if Plot.origin(index).Z < 0 then -math.pi / 2 else math.pi / 2, 0)
 	for x = 0, Plot.SECTIONS_X - 1 do
 		for z = 0, Plot.SECTIONS_Z - 1 do
@@ -251,7 +219,8 @@ local function landscape(index: number)
 				tile.CFrame = CFrame.new(centre) * facing
 				local coins = Plot.price(x, z)
 				local buyable = owned and Plot.canBuy(index, x, z)
-				price(tile, coins, buyable)
+				tile:SetAttribute("Price", coins)
+				tile:SetAttribute("Buyable", buyable)
 				if buyable then
 					buyPrompt(boundary, index, x, z, coins)
 				end
@@ -263,7 +232,7 @@ local function landscape(index: number)
 end
 
 -- The sign's name label: on the PlotSign's board, or a floating one over a plain part.
-local function sign(model: Model, at: Vector3): TextLabel
+local function sign(model: Model, at: CFrame): TextLabel
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
@@ -271,7 +240,7 @@ local function sign(model: Model, at: Vector3): TextLabel
 	label.Font = Enum.Font.GothamMedium
 	label.TextScaled = true
 	label.Text = "Available garden"
-	local prop = Props.place("PlotSign", CFrame.new(at), model)
+	local prop = Props.place("PlotSign", at, model)
 	local board = if prop then Props.part(prop, "Board") else nil
 	if board then
 		local gui = Instance.new("SurfaceGui")
@@ -290,7 +259,7 @@ local function sign(model: Model, at: Vector3): TextLabel
 		gui.Parent = board
 		return label
 	end
-	local plain = part(model, "Sign", Vector3.new(9, 3, 0.4), at + Vector3.new(0, 4, 0), FENCE, false)
+	local plain = part(model, "Sign", Vector3.new(9, 3, 0.4), at.Position + Vector3.new(0, 4, 0), FENCE, false)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(210, 50)
 	gui.Adornee = plain
@@ -314,9 +283,10 @@ local function build()
 		model.Parent = plots
 		models[index] = model
 		landscape(index)
-		-- Beside the gate, just outside the front fence.
-		local gate = Plot.START_OFFSET.X + 15
-		signs[index] = sign(model, (Plot.origin(index) + Vector3.new(gate + 3, 0, 0)) * GRID + Vector3.new(0, 0, -1.5))
+		-- Beside the gate, just outside the front fence, facing out of the garden.
+		local at = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE + 3, 0, -0.5)) * GRID
+		local turn = if Plot.flipped(index) then CFrame.Angles(0, math.pi, 0) else CFrame.identity
+		signs[index] = sign(model, CFrame.new(at) * turn)
 		local farm = Plot.START_OFFSET
 		for x = 6, 17 do
 			for z = 2, 9 do
@@ -335,6 +305,29 @@ local function build()
 	spawn.Parent = plots
 end
 
+-- In front of a garden's gate, facing in.
+local function gateFrame(index: number): CFrame
+	local outside = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE, 0, -GATE_STEP)) * GRID
+	local inside = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE, 0, GATE_STEP)) * GRID
+	local lift = Vector3.new(0, 4, 0)
+	return CFrame.lookAt(outside + lift, inside + lift)
+end
+
+-- Sends a character to stand at its owner's gate, once it has a root to move.
+local function sendToGate(player: Player, character: Model)
+	local index = assigned[player]
+	if not index then
+		return
+	end
+	character:WaitForChild("HumanoidRootPart", 5)
+	-- After the spawn location has placed it.
+	task.defer(function()
+		if assigned[player] == index and character.Parent then
+			character:PivotTo(gateFrame(index))
+		end
+	end)
+end
+
 -- Assigns the first free garden with the sections the player bought ("x,z" strings).
 function PlotService.assign(player: Player, sections: { string }?): number?
 	build()
@@ -348,6 +341,12 @@ function PlotService.assign(player: Player, sections: { string }?): number?
 			model:SetAttribute("Owner", player.UserId)
 			landscape(index)
 			signs[index].Text = player.DisplayName .. "'s garden"
+			respawns[player] = player.CharacterAdded:Connect(function(character)
+				sendToGate(player, character)
+			end)
+			if player.Character then
+				task.spawn(sendToGate, player, player.Character)
+			end
 			return index
 		end
 	end
@@ -365,6 +364,11 @@ end
 
 function PlotService.release(player: Player)
 	lastAction[player] = nil
+	local respawn = respawns[player]
+	if respawn then
+		respawn:Disconnect()
+		respawns[player] = nil
+	end
 	local index = assigned[player]
 	if not index then
 		return

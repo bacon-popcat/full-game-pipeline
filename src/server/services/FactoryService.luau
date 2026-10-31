@@ -1308,27 +1308,15 @@ local function collect(player: Player, machine: Machine.State)
 	end
 end
 
--- Toggles the held item in a filter. Machines are only worked through their panel
--- (`control`), never by hand.
-local function use(player: Player, block: Block)
-	local held = InventoryService.getHeldItemId(player)
-	if held and block.def.route == "Filter" then
-		toggleFilter(block, held)
-		refreshStatus(block)
-	end
-end
-
--- An empty hand: take a conveyor's items, or switch a router. Machines are only worked
--- through their panel.
+-- An empty hand: take a conveyor's items, or switch a split conveyor. Machines and filters
+-- are only set through their panel (`control`), so a hand never changes them and a Hammer can
+-- pick a filter up.
 local function take(player: Player, block: Block)
 	if InventoryService.getHeldItemId(player) or block.machine then
 		return
 	end
 	if block.def.route == "Split" then
 		block.powered = not block.powered
-	elseif block.def.route == "Filter" then
-		table.clear(block.filter)
-		table.clear(block.mutations)
 	elseif block.def.kind == "Conveyor" then
 		for _, lane in block.lanes do
 			for index = #lane.items, 1, -1 do
@@ -1408,9 +1396,7 @@ local function onInteract(player: Player, target: unknown, action: unknown, item
 	end
 	-- An item id must name a real item; anything else is a malformed request.
 	local item = if typeof(itemId) == "string" and pcall(Inventory.getItem, itemId) then itemId else nil
-	if action == "Use" then
-		use(player, block)
-	elseif action == "Take" then
+	if action == "Take" then
 		take(player, block)
 	elseif action == "Mutation" then
 		-- Not an item id: "ItemId:Mutation", which toggleMutation checks.
