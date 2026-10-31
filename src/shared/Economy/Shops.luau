@@ -39,6 +39,7 @@ local SHOPS: { [string]: Shop } = {
 		title = "Gear Shop",
 		offers = {
 			offer("WateringCan", 150, 1, "Tool"),
+			offer("Hoe", 25, 1, "Tool"),
 			offer("Pickaxe", 50, 1, "Tool"),
 			offer("Hammer", 50, 1, "Tool"),
 			offer("Grass", 5, 1, "Block"),

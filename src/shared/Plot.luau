@@ -49,6 +49,9 @@ export type Contents = {
 	powered: boolean,
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }
+-- A garden's ground where it differs from untouched (Shared/World/Ground): plot-relative cells
+-- as "x,y,z", dug out or tilled into Farmland.
+export type SavedGround = { dug: { string }, tilled: { string } }
 
 local WIDTH, DEPTH = SECTIONS_X * SECTION, SECTIONS_Z * SECTION
 -- The front-left corners of the six gardens, in cells: three across, 10 cells apart, one row
@@ -73,9 +76,12 @@ Plot.DEPTH = DEPTH
 Plot.START_OFFSET = Vector3.new(START.x0 * SECTION, 0, START.z0 * SECTION)
 Plot.COUNT = #ORIGINS
 Plot.HEIGHT = 80
--- The starter farm: Farmland at these plot-relative cells (FARM_LOW..FARM_HIGH, inclusive),
--- one level under the ground (y = -1), so its top is flush with the grass and its crops grow
--- at ground level, the same level as machines standing on the grass beside it.
+-- The lowest level a garden can be dug down to and built in. The ground (Shared/World/Ground)
+-- fills every level from -1 down to here; below it lies bedrock nobody can dig.
+Plot.FLOOR = -8
+-- The starter farm: Farmland at these plot-relative cells (FARM_LOW..FARM_HIGH, inclusive), in
+-- the ground's top level (y = -1) in place of its grass, so its crops grow at ground level, the
+-- same level as machines standing on the grass beside it.
 Plot.FARM_LOW = Vector3.new(START.x0 * SECTION + 6, -1, START.z0 * SECTION + 2)
 Plot.FARM_HIGH = Vector3.new(START.x0 * SECTION + 17, -1, START.z0 * SECTION + 9)
 -- Studs from the character to a section's centre within which it can be bought.

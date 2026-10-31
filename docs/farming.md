@@ -1,7 +1,8 @@
 # Farming
 
-Crops are WorldService nodes in their owner's plot. [plots.md](plots.md) covers ownership
-and saving; [economy.md](economy.md) covers stock, sales, XP and the authored HUD.
+Crops are WorldService nodes in their owner's plot, and grow only on Farmland: the starter
+farm's, or grass and dirt tilled with the Hoe (§ Ground and Farmland). [plots.md](plots.md) covers
+ownership and saving; [economy.md](economy.md) covers stock, sales, XP and the authored HUD.
 
 ## Content ownership
 
@@ -18,7 +19,7 @@ same table. WheatSeeds, CarrotSeeds, PotatoSeeds and their produce ids remain co
 ## Growth and harvesting
 
 ```text
-PlaceBlock -> BuildService (held seed, soil, reach, ownership, overlap)
+PlaceBlock -> BuildService (held seed, Farmland under it, reach, ownership, overlap)
               -> WorldService.plant -> crop node in Workspace.World
                  -> grow -> stage art + replicated attributes
 Interact Take -> capacity check -> yield -> harvest XP/discovery
@@ -30,7 +31,8 @@ DataService -> snapshot/restore crop cycle and rain credit
   removed. A machine restarts a single crop at Sprout without spending a seed.
 - Ripe multi crops give their fruit and return to Mature. Each subsequent fruit cycle
   takes `regrow` seconds; harvesting never removes the plant. Hand digging while unripe
-  removes it and returns its seed. Removing its soil still uproots it into owned drops.
+  removes it and returns its seed. Mining the Farmland under any crop uproots it into owned
+  drops (`WorldService.uproot`).
 - A full inventory leaves the entire hand harvest intact, with a toast. Harvester output
   capacity is checked for the entire yield before changing the plant.
 - Harvest XP is awarded once per harvest to the plot owner, including machine harvests;
@@ -58,6 +60,37 @@ Replicated crop attributes are `NodeType`, `Cell`, `PlantedAt`, `HarvestCount`, 
 `Regrowing`, `Ripening` and `GrowsAt`. `GrowsAt` is the next quarter/regrow deadline in
 `workspace:GetServerTimeNow()` seconds, adjusted for the current speed. BlockInfo reads
 these for the crop/mutation name, stage, status, countdown and whole-harvest sale value.
+
+## Ground and Farmland
+
+Every garden's owned land is ground (`Shared/World/Ground`): grass at y = -1, its top flush with
+y = 0, two levels of dirt under it, then stone down to `Plot.FLOOR` (-8), with bedrock below. The
+starter farm (`Plot.FARM_LOW`/`FARM_HIGH`) is Farmland in place of the grass. Each cell is a
+WorldService node marked `ground` (GrassGround, DirtGround, StoneGround, Farmland), but only
+exposed cells, those with a face open to the air, stand as nodes, so an untouched garden is one
+layer of blocks and digging uncovers the cells round the hole. `GroundService` owns it:
+
+- **Digging.** The owner's Pickaxe mines a ground cell for the block it is: Grass, Dirt or Stone,
+  and Farmland gives the Dirt it was tilled from. A crop on it is uprooted. A full inventory
+  leaves the cell, with a toast. Blocks can be built in the holes, down to the floor.
+- **Tilling.** The owner's Hoe turns grass or dirt into Farmland in the same cell: ground, or a
+  placed Grass or Dirt block (`World.TILLABLE_BLOCKS`), which stops being a placed block and
+  becomes Farmland ground in its cell. Stone does not till. Seeds, by hand or Seed Planter,
+  plant only on Farmland (`Soil.isUnder` finds a `soil` node under the cell); grass, dirt and
+  placed blocks no longer take seeds. The Hoe is in the starter kit and the Gear Shop.
+- **Wet Farmland.** Farmland is wet while a sprinkler covers the crop cell above it (the
+  sprinkler's own level, `WorldService.speedAt`) or it is raining (Rain or Thunderstorm), checked
+  every second, and dries `Ground.WET_FOR` (120) seconds after neither reaches it. Wet is a darker
+  look and a `Wet` attribute that the hover panel names ("Wet Farmland"); it changes nothing else
+  and is not saved.
+- **Art.** Grass, dirt and stone ground are copies of the Grass, Dirt and Stone blocks
+  (`Assets.Blocks`, the node's `art`). Farmland is built in code by `server/libraries/GroundArt`:
+  a furrow-brown cube with three raised ridges in the Dirt block's own colour (read from its
+  template), darkened when wet. `Assets.World.Farmland`, the old dark art, is no longer used.
+- **Saving.** Only where a garden differs from untouched is kept: dug cells and tilled cells, plot
+  relative ([plots.md](plots.md#profile-contents)). Building and restoring stand the exposed
+  cells round each change; BuildService refuses any placement that takes solid ground
+  (`GroundService.isClear`), even one a client aims into buried cells.
 
 ## Farming machines and the watering can
 

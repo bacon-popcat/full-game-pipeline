@@ -27,6 +27,8 @@ export type Item = {
 	color: Color3?,
 	-- Tools only: swinging it at one of your placed blocks picks the block back up.
 	picksUp: boolean?,
+	-- Tools only: swinging it at your grass or dirt, ground or placed, tills it into Farmland.
+	tills: boolean?,
 	-- Blocks only: the tool that breaks a placed one back into your inventory.
 	breaksWith: string?,
 }
@@ -36,8 +38,16 @@ local CONVEYOR_STACK = 99
 local MACHINE_STACK = 10
 local RESOURCE_STACK = 99
 
-local function tool(id: string, name: string, description: string, picksUp: boolean?): Item
-	return { id = id, name = name, kind = "Tool", stack = 1, description = description, picksUp = picksUp }
+local function tool(id: string, name: string, description: string, picksUp: boolean?, tills: boolean?): Item
+	return {
+		id = id,
+		name = name,
+		kind = "Tool",
+		stack = 1,
+		description = description,
+		picksUp = picksUp,
+		tills = tills,
+	}
 end
 
 local function block(id: string, name: string, description: string, breaksWith: string): Item
@@ -74,7 +84,8 @@ end
 
 local ITEMS: { Item } = {
 	tool("Hammer", "Hammer", "Swing at a block you placed to pick it back up, contents and all.", true),
-	tool("Pickaxe", "Pickaxe", "Mines rocks, and breaks stone, glass and earth blocks you placed."),
+	tool("Pickaxe", "Pickaxe", "Mines rocks and your garden's ground, and breaks the blocks you placed."),
+	tool("Hoe", "Hoe", "Tills grass and dirt on your plot into Farmland, ready for seeds.", nil, true),
 	tool(
 		"WateringCan",
 		"Watering Can",
@@ -182,7 +193,10 @@ end
 table.sort(mutationNames)
 for _, cropId in cropIds do
 	local crop = World.CROPS[cropId]
-	table.insert(ITEMS, seed(crop.seed, crop.name .. " Seeds", "Plant on grass, dirt or farmland."))
+	table.insert(
+		ITEMS,
+		seed(crop.seed, crop.name .. " Seeds", "Plant on Farmland. Till grass or dirt with a Hoe to make more.")
+	)
 	local produce = resource(crop.produce, crop.name, "Harvested from your garden.")
 	produce.value = crop.value
 	table.insert(ITEMS, produce)

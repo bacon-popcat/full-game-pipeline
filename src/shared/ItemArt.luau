@@ -1,7 +1,8 @@
 --!strict
 -- ItemArt: where every item's art lives, and display copies of it for item icons, the
 -- hand and items riding conveyors. Blocks and machines draw their template from
--- Assets.Blocks (without its hitbox), tools their Tool from Assets.Tools, and resources a
+-- Assets.Blocks (without its hitbox), tools their Tool from Assets.Tools (a plain built one
+-- for the Hoe until it has its own), and resources a
 -- Model from Assets.Items. Build delegates template lookup here. Missing crop/seed art
 -- borrows the crop table's base art and tint; mutations tint their base produce. Expected
 -- fallbacks are silent; other missing resources draw a grey cube and warn once.
@@ -13,6 +14,8 @@ local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 
 local PLACEHOLDER_COLOR = Color3.fromRGB(160, 160, 160)
+local WOOD_COLOR = Color3.fromRGB(176, 128, 86)
+local BLADE_COLOR = Color3.fromRGB(196, 202, 206)
 -- How much bigger than one item a stack draws, at most, and the count it is reached at.
 local STACK_GROWTH = 0.6
 local STACK_FULL = 100
@@ -67,6 +70,54 @@ function ItemArt.blockTemplate(itemId: string): Model?
 	return nil
 end
 
+local function toolPart(parent: Instance, name: string, size: Vector3, at: CFrame, color: Color3): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = at
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	part.CanCollide = false
+	part.Massless = true
+	part.Parent = parent
+	return part
+end
+
+-- A plain Hoe, until Assets.Tools has one: a wooden shaft (the Handle, pointing ahead of the
+-- hand along its Y) with a blade hanging from its tip.
+local function buildHoe(): Tool
+	local tool = Instance.new("Tool")
+	tool.Name = "Hoe"
+	tool.RequiresHandle = true
+	tool.Grip = CFrame.new(0, -1.2, 0)
+	local length = 3.6
+	local handle = toolPart(tool, "Handle", Vector3.new(0.22, length, 0.22), CFrame.new(), WOOD_COLOR)
+	local blade =
+		toolPart(tool, "Blade", Vector3.new(0.9, 0.14, 0.7), CFrame.new(0, length / 2 - 0.07, -0.3), BLADE_COLOR)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = handle
+	weld.Part1 = blade
+	weld.Parent = blade
+	return tool
+end
+
+local builtTools: { [string]: Tool } = {}
+
+-- A tool item's Tool: its own in Assets.Tools, or a plain built one for a tool whose art is
+-- still to come.
+function ItemArt.toolTemplate(itemId: string): Tool?
+	local found = asset("Tools", itemId)
+	if found and found:IsA("Tool") then
+		return found
+	end
+	if itemId == "Hoe" then
+		local hoe = builtTools.Hoe or buildHoe()
+		builtTools.Hoe = hoe
+		return hoe
+	end
+	return nil
+end
+
 function ItemArt.tint(model: Model, color: Color3)
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") and part.Name ~= "Hitbox" then
@@ -110,8 +161,8 @@ function ItemArt.copy(itemId: string): Model?
 		return ItemArt.blockArt(itemId)
 	end
 	if item.kind == "Tool" then
-		local template = asset("Tools", itemId)
-		if not template or not template:IsA("Tool") then
+		local template = ItemArt.toolTemplate(itemId)
+		if not template then
 			return nil
 		end
 		local model = Instance.new("Model")

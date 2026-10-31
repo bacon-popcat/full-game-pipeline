@@ -25,7 +25,8 @@ conveyors play, never for their models.
 ## The map
 
 Cells are `Build` cells (3 studs). The gardens reach x -115 ... 114 cells, past the place's
-Baseplate, so PlotService widens it to cover them all (plots.md).
+Baseplate, so PlotService cuts it into pieces round them and widens it to cover them all
+(plots.md); the gardens themselves are diggable ground, 8 levels deep (farming.md).
 
 ```text
           z = -76 ... -17      [Plot 1] [Plot 2] [Plot 3]  (maximum footprints)
@@ -112,7 +113,8 @@ The server rolls an event every 8 to 12 minutes, shown as a banner for everyone:
   stock of each seed: Common 5 to 15, Uncommon 3 to 8, Rare 1 to 4 (60%), Epic 1 to 2 (25%),
   Legendary 1 (8%), Mythic 1 (2%); otherwise none. The screen shows the countdown.
 - **Gear Shop.** Watering Can (a tool: one splash takes 20% off what's left of a crop's stage),
-  Pickaxe, Hammer, and decorative blocks (Grass, Dirt, Stone, Wood Planks, Bricks, Glass).
+  Hoe (tills grass and dirt into Farmland, the only soil seeds take), Pickaxe, Hammer, and
+  decorative blocks (Grass, Dirt, Stone, Wood Planks, Bricks, Glass).
 - **Machine Shop.** Every machine, with its level, coin price and, for tier 2, the parts it needs.
 
 ## Machines
@@ -163,7 +165,8 @@ ProfileStore (`ServerPackages.ProfileStore`) keeps, per player: coins, XP, inven
 stock and the time of the restock it belongs to, discovered crops, and the plot including its
 bought sections. Saves from before sections move once into the start block (+20 relative X,
 `plotLayout`, plots.md), in the same GardenFoundation_v1 store; starter Farmland sits at
-x 26..37, z 2..9, sunk to y = -1 so it is flush with the grass. The plot is saved
+x 26..37, z 2..9, in the ground's top level at y = -1. Owned land is diggable ground (grass,
+dirt, then stone, 8 levels deep; farming.md), saved as just its dug and tilled cells. The plot is saved
 relative to its own origin, so it loads into whichever plot is free: each placed block's item id,
 cell, rotation and `Against`, and each crop's type, plant time, mutation and harvest count. Machine
 contents are saved as their item counts. A profile autosaves every 2 minutes and on leave.
@@ -304,7 +307,7 @@ Git history keeps all of it.
 
 - Both rows face the hub; the south row is turned half a turn and saves are turned with it
   (Plot), so a layout moves between rows with soil still under its crops. Runtime fences are
-  soft (non-colliding); players join at the hub and are sent to their gate. Builds occupy y 0..79. A seventh player is rejected
+  soft (non-colliding); players join at the hub and are sent to their gate. Builds occupy y -8..79, below 0 only where the ground is dug. A seventh player is rejected
   when no plot is available. Exact runtime layout and rules are mapped in [plots.md](plots.md).
 - XP is cumulative: level one starts at zero and advancing from level n costs the rounded
   formula above. Foundation supplies the API, sync and leaderstats; harvest/sales awards, item

@@ -15,7 +15,9 @@ BuildService.place -> Workspace.Placed -> FactoryService.register
                                        WorldService -> crops on this machine's plot
 
 World/Layout -> WorldService -> Workspace.World (quarry rocks)
+GroundService -> WorldService -> Workspace.World (garden ground, farming.md)
 Interact -> WorldService -> Pickaxe drops -> InventoryService
+Interact -> GroundService -> dig (Pickaxe) or till (Hoe) the owner's ground
 Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 ```
 
@@ -157,7 +159,8 @@ on the server, including item ids from the panel.
 | Split | Switch side / straight |
 | Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; an item with mutations has an arrow under it that opens its coloured mutation checklist; Clear filter (also unticks every mutation) |
 
-Hammer picks up owned blocks; Pickaxe breaks matching cubes or mines quarry rocks. An empty
+Hammer picks up owned blocks; Pickaxe breaks matching cubes, mines quarry rocks and digs the
+owner's ground; Hoe tills the owner's grass and dirt into Farmland. An empty
 hand takes belt items, switches routers or harvests owned crops. Machines are worked through
 their panel. Picking up a machine refunds active recipe ingredients with its contents; partial
 processing progress is discarded. Inventory overflow on block pickup retains the existing

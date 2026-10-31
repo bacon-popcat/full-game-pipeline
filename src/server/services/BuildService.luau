@@ -3,7 +3,8 @@
 -- always comes from the player's own held slot (never from the request), and reach and
 -- overlap are re-checked against the server's world with the shared Build rules.
 --
--- Whole footprints must belong to the player's plot. Seeds go directly to WorldService;
+-- Whole footprints must belong to the player's plot, and take no solid ground (GroundService:
+-- blocks go into dug holes, never into buried cells). Seeds go directly to WorldService;
 -- blocks carry ItemId, Owner, Origin, Rotation and Against attributes. Profile restoration
 -- uses the same placement and synchronous factory registration path without consuming items.
 
@@ -20,6 +21,7 @@ local WorldService = require(script.Parent.WorldService)
 local Soil = require(ReplicatedStorage.Shared.World.Soil)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local FactoryService = require(script.Parent.FactoryService)
+local GroundService = require(script.Parent.GroundService)
 local InventoryService = require(script.Parent.InventoryService)
 
 -- Seconds between one player's build actions; caps how fast a client can spam remotes.
@@ -130,6 +132,7 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 		not Build.canEdit(player, origin, footprint)
 		or not Build.inReach(root.Position, origin, footprint)
 		or not Build.isFree(origin, footprint, overlapParams, itemId, rotation)
+		or not GroundService.isClear(origin, footprint)
 	then
 		return
 	end
@@ -244,6 +247,7 @@ function BuildService.restore(player: Player, index: number, saved: Plot.SavedBl
 	if
 		not Build.owns(player, origin, footprint)
 		or not Build.isFree(origin, footprint, overlapParams, saved.itemId, rotation)
+		or not GroundService.isClear(origin, footprint)
 	then
 		return false
 	end

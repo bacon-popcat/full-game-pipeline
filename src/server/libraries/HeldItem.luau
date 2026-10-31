@@ -1,6 +1,6 @@
 --!strict
 -- HeldItem: builds the Tool a character holds for an item. Tool items clone their
--- authored Tool from Assets.Tools; blocks, machines and resources get a generated Tool
+-- Tool (ItemArt.toolTemplate: authored in Assets.Tools, or built); blocks, machines and resources get a generated Tool
 -- carrying a shrunken copy of their art (ItemArt), so whatever the hotbar has selected is
 -- visibly in hand.
 --
@@ -58,10 +58,8 @@ function HeldItem.create(itemId: string): Tool?
 	local item = Inventory.getItem(itemId)
 	local tool: Tool
 	if item.kind == "Tool" then
-		local assets = ReplicatedStorage:FindFirstChild("Assets")
-		local tools = if assets then assets:FindFirstChild("Tools") else nil
-		local template = if tools then tools:FindFirstChild(itemId) else nil
-		if not template or not template:IsA("Tool") then
+		local template = ItemArt.toolTemplate(itemId)
+		if not template then
 			warn(`HeldItem: no Tool named "{itemId}" in ReplicatedStorage.Assets.Tools`)
 			return nil
 		end

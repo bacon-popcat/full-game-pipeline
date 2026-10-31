@@ -1,16 +1,22 @@
--- PlotService: builds the six gardens with runtime parts and WorldService soil nodes, and sells
+-- PlotService: builds the six gardens with runtime parts and GroundService ground, and sells
 -- their sections (Shared/Plot). The first free garden is assigned by DataService after a profile
 -- opens, with its bought sections; release follows saving and clearing the old world. The two
 -- rows face each other across the hub (Plot.flipped turns the south row), and everything here
 -- is laid out in plot-relative cells and turned with it. Decorative fences never obstruct
 -- placement queries. A player joins at the hub spawn, then is sent to stand at their garden's
--- gate, and comes back there every respawn. The place's Baseplate is widened so every garden
--- stands on ground.
+-- gate, and comes back there every respawn.
+--
+-- Owned land is GroundService's diggable ground, Plot.FLOOR levels deep. So the place's
+-- Baseplate is cut into pieces round the gardens (widened to reach past them all, and deepened
+-- to the floor so a hole dug at a garden's edge meets a wall), and every garden has bedrock under
+-- its floor. A purchase stands the new section's ground (GroundService.extend); a freed garden's
+-- ground goes back to untouched (GroundService.reset).
 --
 -- A garden's scenery (its Boundary model) is rebuilt whenever its owner or sections change,
--- never its soil, crops or machines: one ground tile per section (grass where owned, a darker
--- tone where locked; each carries its Price and whether it is Buyable now, which PlotController
--- writes on the owner's ground only), a BuySection prompt on each section that can be bought, and a fence round the
+-- never its ground, crops or machines: a solid slab for each locked section, as deep as the
+-- ground, in a darker tone (each carries its Price and whether it is Buyable now, which
+-- PlotController writes on the owner's ground only), a BuySection prompt on each section that
+-- can be bought, and a fence round the
 -- owned land, whatever its shape: one PlotFence prop per cell edge between owned and unowned
 -- land, a PlotFencePost at every corner of it, and a two-cell gate in the middle of the start
 -- block's front. The PlotSign stands outside the gate with the owner's name on its board. A
@@ -25,7 +31,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local Props = require(ServerScriptService.Libraries.Props)
 local EconomyService = require(script.Parent.EconomyService)
-local WorldService = require(script.Parent.WorldService)
+local GroundService = require(script.Parent.GroundService)
 
 local GRID = Build.GRID
 -- Relative cells along the start block's front edge left open as the gate.
@@ -37,8 +43,13 @@ local COOLDOWN = 0.5
 local GRASS = Color3.fromRGB(153, 191, 126)
 local LOCKED = Color3.fromRGB(119, 132, 105)
 local FENCE = Color3.fromRGB(225, 211, 178)
+local BEDROCK = Color3.fromRGB(74, 70, 76)
 -- Studs of ground round the gardens on every side.
 local GROUND_MARGIN = 36
+-- Studs from the top of the ground (y = 0) to the bottom of its lowest level, and the bedrock
+-- under that.
+local GROUND_DEPTH = -Plot.FLOOR * GRID
+local BEDROCK_DEPTH = 4
 
 local PlotService = {}
 local assigned: { [Player]: number } = {}
@@ -73,27 +84,88 @@ local function part(
 	return block
 end
 
--- Widens the place's Baseplate (top kept where it is) to reach past every garden, or lays a
--- ground part where there is none.
+-- A garden's footprint in studs, as its lowest and highest X and Z.
+local function footprint(index: number): (Vector2, Vector2)
+	local a = Plot.pointToWorld(index, Vector3.zero) * GRID
+	local b = Plot.pointToWorld(index, Vector3.new(Plot.WIDTH, 0, Plot.DEPTH)) * GRID
+	return Vector2.new(math.min(a.X, b.X), math.min(a.Z, b.Z)), Vector2.new(math.max(a.X, b.X), math.max(a.Z, b.Z))
+end
+
+-- Lays the ground round the gardens: the place's Baseplate (or a plain grass part) cut into
+-- pieces that leave a hole for every garden, reaching past them all and as deep as their
+-- ground with its bedrock. Bands are cut at every garden edge; each band's runs of cells
+-- outside the gardens become one piece.
 local function ground()
-	local low, high = Vector3.one * math.huge, -Vector3.one * math.huge
+	local lows, highs = {}, {}
+	local reach = Vector2.zero
 	for index = 1, Plot.COUNT do
-		local origin = Plot.origin(index) * GRID
-		low = low:Min(origin)
-		high = high:Max(origin + Vector3.new(Plot.WIDTH, 0, Plot.DEPTH) * GRID)
+		local low, high = footprint(index)
+		lows[index], highs[index] = low, high
+		reach = reach:Max(Vector2.new(math.max(-low.X, high.X), math.max(-low.Y, high.Y)))
 	end
-	local half = Vector3.new(
-		math.max(math.abs(low.X), math.abs(high.X)) + GROUND_MARGIN,
-		0,
-		math.max(math.abs(low.Z), math.abs(high.Z)) + GROUND_MARGIN
-	)
+	local half = reach + Vector2.one * GROUND_MARGIN
+	local xs, zs = { -half.X, half.X }, { -half.Y, half.Y }
+	for index = 1, Plot.COUNT do
+		table.insert(xs, lows[index].X)
+		table.insert(xs, highs[index].X)
+		table.insert(zs, lows[index].Y)
+		table.insert(zs, highs[index].Y)
+	end
+	table.sort(xs)
+	table.sort(zs)
 	local baseplate = workspace:FindFirstChild("Baseplate")
-	if baseplate and baseplate:IsA("BasePart") then
-		local top = baseplate.Position.Y + baseplate.Size.Y / 2
-		baseplate.Size = Vector3.new(half.X * 2, baseplate.Size.Y, half.Z * 2)
-		baseplate.Position = Vector3.new(0, top - baseplate.Size.Y / 2, 0)
-	else
-		part(workspace, "Ground", Vector3.new(half.X * 2, 20, half.Z * 2), Vector3.new(0, -10, 0), GRASS, true)
+	local source = if baseplate and baseplate:IsA("BasePart") then baseplate else nil
+	local top = if source then source.Position.Y + source.Size.Y / 2 else 0
+	local depth = GROUND_DEPTH + BEDROCK_DEPTH
+	local folder = Instance.new("Folder")
+	folder.Name = "Ground"
+	local function piece(x0: number, x1: number, z0: number, z1: number)
+		local size = Vector3.new(x1 - x0, depth, z1 - z0)
+		local centre = Vector3.new((x0 + x1) / 2, top - depth / 2, (z0 + z1) / 2)
+		if source then
+			local copy = source:Clone()
+			copy.Size = size
+			copy.CFrame = CFrame.new(centre)
+			copy.Parent = folder
+		else
+			part(folder, "Ground", size, centre, GRASS, true)
+		end
+	end
+	local function inGarden(x: number, z: number): boolean
+		for index = 1, Plot.COUNT do
+			local low, high = lows[index], highs[index]
+			if x > low.X and x < high.X and z > low.Y and z < high.Y then
+				return true
+			end
+		end
+		return false
+	end
+	for j = 1, #zs - 1 do
+		local z0, z1 = zs[j], zs[j + 1]
+		local from: number? = nil
+		for i = 1, #xs - 1 do
+			local x0, x1 = xs[i], xs[i + 1]
+			local open = x1 > x0 and z1 > z0 and not inGarden((x0 + x1) / 2, (z0 + z1) / 2)
+			if open and not from then
+				from = x0
+			elseif not open and from then
+				piece(from, x0, z0, z1)
+				from = nil
+			end
+		end
+		if from then
+			piece(from, xs[#xs], z0, z1)
+		end
+	end
+	for index = 1, Plot.COUNT do
+		local low, high = lows[index], highs[index]
+		local size = Vector3.new(high.X - low.X, BEDROCK_DEPTH, high.Y - low.Y)
+		local centre = Vector3.new((low.X + high.X) / 2, -GROUND_DEPTH - BEDROCK_DEPTH / 2, (low.Y + high.Y) / 2)
+		part(folder, "Bedrock", size, centre, BEDROCK, true)
+	end
+	folder.Parent = workspace
+	if source then
+		source:Destroy()
 	end
 end
 
@@ -198,32 +270,25 @@ local function landscape(index: number)
 	local boundary = Instance.new("Model")
 	boundary.Name = "Boundary"
 	local owned = model:GetAttribute("Owner") ~= 0
-	local size = Vector3.new(Plot.SECTION * GRID, 0.4, Plot.SECTION * GRID)
+	local size = Vector3.new(Plot.SECTION * GRID, GROUND_DEPTH, Plot.SECTION * GRID)
 	-- Locked tiles turn (they are square) so the price PlotController writes on them reads
 	-- upright from the hub side.
 	local facing = CFrame.Angles(0, if Plot.origin(index).Z < 0 then -math.pi / 2 else math.pi / 2, 0)
 	for x = 0, Plot.SECTIONS_X - 1 do
 		for z = 0, Plot.SECTIONS_Z - 1 do
-			local mine = Plot.owns(index, x, z)
-			-- 0.05 proud of the baseplate so its texture cannot flicker through.
-			local centre = Plot.sectionCentre(index, x, z, GRID) - Vector3.new(0, 0.15, 0)
-			local tile = part(
-				boundary,
-				if mine then "Grass" else "LockedLand",
-				size,
-				centre,
-				if mine then GRASS else LOCKED,
-				true
-			)
-			if not mine then
-				tile.CFrame = CFrame.new(centre) * facing
-				local coins = Plot.price(x, z)
-				local buyable = owned and Plot.canBuy(index, x, z)
-				tile:SetAttribute("Price", coins)
-				tile:SetAttribute("Buyable", buyable)
-				if buyable then
-					buyPrompt(boundary, index, x, z, coins)
-				end
+			-- Owned land is ground (GroundService).
+			if Plot.owns(index, x, z) then
+				continue
+			end
+			local centre = Plot.sectionCentre(index, x, z, GRID) - Vector3.new(0, GROUND_DEPTH / 2, 0)
+			local tile = part(boundary, "LockedLand", size, centre, LOCKED, true)
+			tile.CFrame = CFrame.new(centre) * facing
+			local coins = Plot.price(x, z)
+			local buyable = owned and Plot.canBuy(index, x, z)
+			tile:SetAttribute("Price", coins)
+			tile:SetAttribute("Buyable", buyable)
+			if buyable then
+				buyPrompt(boundary, index, x, z, coins)
 			end
 		end
 	end
@@ -287,11 +352,7 @@ local function build()
 		local at = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE + 3, 0, -0.5)) * GRID
 		local turn = if Plot.flipped(index) then CFrame.Angles(0, math.pi, 0) else CFrame.identity
 		signs[index] = sign(model, CFrame.new(at) * turn)
-		for x = Plot.FARM_LOW.X, Plot.FARM_HIGH.X do
-			for z = Plot.FARM_LOW.Z, Plot.FARM_HIGH.Z do
-				WorldService.farmland(Plot.toWorld(index, Vector3.new(x, Plot.FARM_LOW.Y, z)))
-			end
-		end
+		GroundService.build(index)
 	end
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "HubSpawn"
@@ -375,6 +436,7 @@ function PlotService.release(player: Player)
 	models[index]:SetAttribute("Owner", 0)
 	models[index]:SetAttribute("Sections", "")
 	landscape(index)
+	GroundService.reset(index)
 	signs[index].Text = "Available garden"
 	assigned[player] = nil
 end
@@ -415,6 +477,7 @@ local function purchase(player: Player, x: unknown, z: unknown)
 	bought[Plot.key(x, z)] = true
 	model:SetAttribute("Sections", table.concat(Plot.encode(bought), ";"))
 	landscape(index)
+	GroundService.extend(index)
 	Remotes.Notify:FireClient(player, "New garden section unlocked!")
 	GardenEvents.SectionBought:Fire(player, x, z)
 end

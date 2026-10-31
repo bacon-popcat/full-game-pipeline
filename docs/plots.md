@@ -11,6 +11,8 @@ DataService -> ProfileStore.StartSessionAsync -> reconcile/validate
                  v
 PlotService.assign -> first free plot, saved Sections + Owner attributes, display-name sign
                  v
+GroundService.restore -> dug and tilled cells, exposed ground in owned sections
+                 v
 BuildService.restore -> FactoryService.register/restore -> lanes and machines
 WorldService.restore -> crops, elapsed wall-clock growth
 InventoryService.load + EconomyService.load + GardenService.load -> sync + leaderstats
@@ -20,9 +22,9 @@ OnboardingService.load -> restored conditions + Objective sync
              DataReady = true
 
 ProfileStore OnSave / two-minute snapshot / leave
-    <- inventory slots + economy + garden stock/discoveries + onboarding + sections + relative blocks, factory contents, crops
+    <- inventory slots + economy + garden stock/discoveries + onboarding + sections + dug/tilled ground + relative blocks, factory contents, crops
 leave -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
-      -> release plot -> ProfileStore.EndSession
+      -> release plot (ground back to untouched) -> ProfileStore.EndSession
 ```
 
 State is established at require time. Assignment builds plots idempotently even if
@@ -37,8 +39,9 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   always laid out as an unturned garden, so a layout loads the same into either row:
   `toWorld`/`toRelative` turn cells, and `blockToWorld`, `turn` and `axis` turn a block's
   origin (its minimum corner moves to the far corner), rotation (+2) and Against with it.
-  PlotService owns the runtime ground tiles, soft non-colliding fences, signs and farm, all
-  laid out in relative cells and turned the same way.
+  PlotService owns the locked-section slabs, soft non-colliding fences and signs, and
+  GroundService the owned land's ground (farming.md § Ground and Farmland), all laid out in
+  relative cells and turned the same way.
 - Models are `Workspace.Plots["1"]` through `["6"]`; `Owner` is a user id or zero when
   free, and `Sections` lists the bought sections ("x,z;x,z"), replicated to every client. A
   full server rejects a seventh loaded profile without changing its save.
@@ -47,17 +50,20 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   block, columns 2..4 and rows 0..2 (30 x 30 cells, relative x 20..49, z 0..29), is everyone's
   from the start. Origins are x = -115, -35, 45 and z = -76, 16 cells (10-cell gaps), indexed
   across the south row, then the north row; the hub and quarry sit between the rows.
-  PlotService widens the place's Baseplate (its top unchanged) to cover them all plus 36 studs.
-- Farms contain twelve by eight Farmland nodes at relative x 26..37, z 2..9 (`Plot.FARM_LOW`/
-  `FARM_HIGH`, in the start block), sunk one level under the ground at y = -1. Its art sits
-  0.1 stud up (the node's `lift`), just proud of the grass, so the farm is flush with the
-  ground and its crops grow at y = 0, the level of machines standing on the grass beside it.
-  Crops plant above them; the rest is open grass. Players spawn at the hub, then PlotService
+  PlotService cuts the place's Baseplate (its top unchanged) into pieces round the gardens,
+  reaching 36 studs past them all and as deep as the ground plus 4 studs of bedrock, so a hole
+  dug at a garden's edge meets a wall; each garden has a bedrock slab under `Plot.FLOOR`. Owned
+  sections are diggable ground, grass on top; each locked section is one solid slab as deep.
+- Farms contain twelve by eight Farmland cells at relative x 26..37, z 2..9 (`Plot.FARM_LOW`/
+  `FARM_HIGH`, in the start block), in the ground's top level at y = -1 in place of its grass,
+  so the farm is flush with the ground and its crops grow at y = 0, the level of machines
+  standing on the grass beside it. The rest is grass, which the Hoe tills into more Farmland. Players spawn at the hub, then PlotService
   sends them to stand in front of their own gate, facing in, as soon as their garden is
   assigned and again after every respawn. The hub
   quarry contains shared Stone, Coal, Iron and Copper rocks.
 - `Build.owns` checks the complete footprint and height; `Build.canEdit` additionally
-  requires `DataReady`. Block cells must remain at y 0..79. Placement, harvest, machine
+  requires `DataReady`. Block cells must remain at y -8..79 (`Plot.FLOOR`..`HEIGHT` - 1); below
+  y = 0 they can only go where the ground has been dug. Placement, harvest, machine
   controls and belt pickup are owner-only, on the server and client.
 - Machines, lane connections and sensor pulses stay inside their own plot. Drops keep
   their owner's id and cannot be picked up or absorbed by another player's plot.
@@ -90,7 +96,8 @@ DataReady, a 0.5-second cooldown, whole in-grid coordinates, a locked section to
 land, the character within 30 studs of its centre and coins through EconomyService.trySpend.
 Spending and publishing the section do not yield, so a repeated request cannot buy twice.
 Success sends Notify and GardenEvents.SectionBought (the purchase sound), then rebuilds only
-the scenery, never soil, crops or machines. Release clears the sections of the freed plot.
+the scenery and stands the new section's ground (`GroundService.extend`), never touching crops or
+machines. Release clears the sections of the freed plot and puts its ground back to untouched.
 
 ## Economy
 
@@ -105,7 +112,7 @@ into that level and its cost. Level is derived, not independently saved. GardenS
 awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClient.
 See [economy.md](economy.md).
 
-DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, ten Carrot
+DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, Hoe, ten Carrot
 Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub
 and machines at the Machine Shop; playtests can still grant items through the server's
 InventoryService.give API. Selected hotbar slot resets to one on load.
@@ -120,6 +127,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | coins, xp | Live balances; level is derived |
 | inventory | Dense slots, including `false` for empty slots |
 | plot.sections | Bought sections as "x,z" (the start block is implicit); applied before restoring blocks/crops |
+| plot.ground | `dug` and `tilled`: relative cells as "x,y,z" where the ground differs from untouched (farming.md § Ground and Farmland); applied after sections, before blocks and crops |
 | plot.blocks | Item id, relative cell, rotation, Against, factory contents |
 | factory contents | Separate input/output counts, counts per lane, remaining coal burn time, Sold, filter (items sent left), optional filterRight (items sent right) and filterMutations ("Left:Golden"), manual Split switch |
 | plot.crops | Crop id, relative cell, current cycle wall-clock plantedAt, harvestCount, optional mutation, mutationRolled and growthBonus |
@@ -127,11 +135,12 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
-| plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk (below); not in the template |
+| plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below); not in the template |
 
 Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an
-unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn`/`axis`). Blocks restore before crops so placed soil exists
-first. A saved stack, block, crop or machine's contents that no longer checks out (an item
+unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn`/`axis`). Ground restores first, so blocks
+can stand in its holes, then blocks, then crops, so their Farmland exists first. A dug or tilled
+cell off the garden's land, out of range, or tilled where it can't be (stone) is skipped. A saved stack, block, crop or machine's contents that no longer checks out (an item
 renamed or cut since it was saved, a missing template) is skipped with a warning, so a content
 change never locks a player out. Only bad balances, a broken save shape or a full server fail
 loading, and those keep the original profile.
@@ -148,6 +157,10 @@ whole garden to a new map origin translates its blocks, crops and starter soil t
 A save below `plotLayout = 3` had its Farmland at y = 0 and the crops on it at y = 1. Once,
 crops at y = 1 over the farm move down to y = 0, and every block whose footprint stands over
 the farm at y >= 1 moves down one (so a stack keeps its shape), then `plotLayout` becomes 3.
+
+Below `plotLayout = 4`, crops could grow on placed Grass and Dirt blocks. Once, each such block
+under a saved crop is removed from the blocks and its cell saved as tilled ground, so the crop
+keeps its soil; a save without a Hoe is given one if it has room; then `plotLayout` becomes 4.
 
 Active recipe ingredients are refunded into saved input counts and processing restarts
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,
@@ -173,9 +186,10 @@ the same server but do not survive Studio Stop.
 
 ## Studio playtest
 
-1. Join fresh: check the starter kit, 50 Coins, Level 1, a hub spawn followed by
-   arrival at your own gate, owner sign and 96
-   Farmland cells per plot. With API access off, expect the mock-store warning.
+1. Join fresh: check the starter kit (with the Hoe), 50 Coins, Level 1, a hub spawn followed
+   by arrival at your own gate, owner sign, 96 Farmland cells per plot flush with the grass
+   blocks round them, and no gap or seam showing baseplate between the garden and the ground
+   round it. With API access off, expect the mock-store warning.
 2. Use two players: test full-footprint boundary ghosts, planting, Hammer/Pickaxe pickup,
    harvest, machine panels, belt pickup and aimed drops on another plot. All writes must
    fail there; both players can mine every quarry rock, including Copper.
@@ -198,7 +212,15 @@ the same server but do not survive Studio Stop.
    fence and prompts must move, and another player must see no prompts. Try a non-adjacent,
    owned, out-of-range and fractional section, too few coins and remote spam.
 9. Load an old (pre-section) save: blocks and crops must land in the start block on the same
-   farmland, once; rejoin and check they do not move again.
+   farmland, once; rejoin and check they do not move again. A save with crops on placed Grass or
+   Dirt must keep them, now on Farmland, and gain a Hoe.
+10. Ground: dig grass, dirt and stone down to the floor (bedrock stops it) and at a section and
+    garden edge (a wall, never a view into the void); mine starter Farmland for Dirt with a crop
+    on it (uprooted); till grass, dirt and a placed Dirt block; seeds must refuse plain grass.
+    Stand a sprinkler by Farmland and wait out a rain: it darkens, and dries two minutes after.
+    Build a block back into a hole, buy a section next to a dug hole, rejoin and check every
+    hole, tilled cell and block, then leave and check the garden is untouched for the next
+    player. Watch server memory and join time with all six gardens loaded.
 
 Local formatter, lint and type checks do not substitute for these runtime checks.
 

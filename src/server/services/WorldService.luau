@@ -1,8 +1,10 @@
--- WorldService: owns quarry and soil nodes and planted crops. Quarry rocks respawn; crops
--- are confined to their owner's plot. Every crop keeps its wall-clock planting time across
--- stages and saves. GrowsAt stays a server-time deadline for the existing hover UI.
--- Plot farms and profile restoration call the same node spawning path as normal planting.
--- Removing placed soil uproots its crop; plot cleanup removes crops before their soil.
+-- WorldService: owns world nodes: quarry rocks, planted crops, and the cells of the gardens'
+-- ground, which GroundService decides (spawn/remove) and answers the hand for. Quarry rocks
+-- respawn; crops are confined to their owner's plot. Every crop keeps its wall-clock planting
+-- time across stages and saves. GrowsAt stays a server-time deadline for the existing hover UI.
+-- Profile restoration calls the same node spawning path as normal planting. Digging a crop's
+-- soil uproots it (uproot); plot cleanup removes crops before their soil. Ground can run to
+-- thousands of nodes, so everything that walks nodes walks only the rest (`living`).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +16,7 @@ local World = require(ReplicatedStorage.Shared.World)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
+local GroundArt = require(game:GetService("ServerScriptService").Libraries.GroundArt)
 local GardenService = require(script.Parent.GardenService)
 local WeatherService = require(script.Parent.WeatherService)
 local Layout = require(ReplicatedStorage.Shared.World.Layout)
@@ -48,7 +51,9 @@ local PLACEHOLDER_COLORS: { [string]: Color3 } = {
 	StoneRock = Color3.fromRGB(150, 150, 150),
 	CoalRock = Color3.fromRGB(70, 70, 70),
 	IronRock = Color3.fromRGB(190, 160, 140),
-	Farmland = Color3.fromRGB(110, 82, 54),
+	GrassGround = Color3.fromRGB(120, 178, 92),
+	DirtGround = Color3.fromRGB(150, 108, 72),
+	StoneGround = Color3.fromRGB(150, 150, 150),
 }
 -- Studs per second a crop's harvest is tossed out at when its soil is taken away.
 local UPROOT_SPEED = 8
@@ -74,6 +79,8 @@ local worldFolder = folder(workspace, "World")
 
 local nodesByCell: { [string]: Node } = {}
 local nodesByModel: { [Model]: Node } = {}
+-- Every node that isn't ground.
+local living: { [Model]: Node } = {}
 local lastAction: { [Player]: number } = {}
 local lastWatered: { [Player]: number } = {}
 local warned: { [string]: boolean } = {}
@@ -113,14 +120,17 @@ local function placeholder(name: string, size: Vector3): Model
 end
 
 local function copyArt(name: string, placeholderSize: Vector3): Model
-	local found = template(name)
 	local def = World.NODES[name]
+	local found = if def and def.ground then GroundArt.copy(name) else template(name)
 	local crop = if def and def.crop then World.CROPS[def.crop] else nil
 	local fallback = not found and crop ~= nil
 	if not found and crop and def and def.stage then
 		found = template(crop.art .. World.STAGES[def.stage])
 	end
-	local model = if found then found:Clone() else placeholder(name, placeholderSize)
+	local model = if not found
+		then placeholder(name, placeholderSize)
+		elseif def and def.ground then found
+		else found:Clone()
 	if fallback and crop then
 		ItemArt.tint(model, crop.color)
 	end
@@ -169,16 +179,14 @@ local function spawnNode(
 	local footprint = footprintOf(model)
 	local centre = Build.box(cell, footprint)
 	-- A stable quarter turn per cell; only square
-	-- footprints can turn without changing the cells they cover. Soil never turns, so a
+	-- footprints can turn without changing the cells they cover. Ground never turns, so a
 	-- field's rows run straight across it.
-	local turns = if footprint.X == footprint.Z and not World.getNode(nodeType).soil
-		then (cell.X * 7 + cell.Z * 13) % 4
-		else 0
+	local def = World.getNode(nodeType)
+	local turns = if footprint.X == footprint.Z and not def.ground then (cell.X * 7 + cell.Z * 13) % 4 else 0
 	local hitbox = model.PrimaryPart
 	assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
 	local pivotOffset = hitbox.CFrame:ToObjectSpace(model:GetPivot())
-	local lift = Vector3.new(0, World.getNode(nodeType).lift or 0, 0)
-	model:PivotTo(CFrame.new(centre.Position + lift) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
+	model:PivotTo(CFrame.new(centre.Position) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
 	model:SetAttribute("NodeType", nodeType)
 	model:SetAttribute("Cell", cell)
 	local node: Node = {
@@ -199,6 +207,9 @@ local function spawnNode(
 		nodesByCell[cellKey(each)] = node
 	end)
 	nodesByModel[model] = node
+	if not def.ground then
+		living[model] = node
+	end
 	model.Parent = worldFolder
 	return node
 end
@@ -240,6 +251,7 @@ local function removeNode(node: Node)
 		end
 	end)
 	nodesByModel[node.model] = nil
+	living[node.model] = nil
 	node.model:Destroy()
 	local respawn = World.getNode(node.nodeType).respawn
 	if node.natural and respawn then
@@ -263,6 +275,11 @@ end
 
 function WorldService.setSpeedModifier(provider: (Vector3) -> number)
 	cellSpeed = provider
+end
+
+-- How many times as fast a crop in `cell` would grow for the sprinklers over it.
+function WorldService.speedAt(cell: Vector3): number
+	return cellSpeed(cell)
 end
 
 function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutations.Chances
@@ -384,7 +401,7 @@ end
 -- Nodes of the given types within `radius` studs of `position`.
 function WorldService.nodesNear(position: Vector3, radius: number, types: { [string]: any }): { Node }
 	local found = {}
-	for _, node in nodesByModel do
+	for _, node in living do
 		if types[node.nodeType] and (node.model:GetPivot().Position - position).Magnitude <= radius then
 			table.insert(found, node)
 		end
@@ -503,7 +520,8 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		return
 	end
 	local def = World.getNode(node.nodeType)
-	if def.crop and not Build.canEdit(player, node.cell, node.footprint) then
+	-- Ground answers to GroundService.
+	if def.ground or (def.crop and not Build.canEdit(player, node.cell, node.footprint)) then
 		return
 	end
 	local held = InventoryService.getHeldItemId(player)
@@ -542,20 +560,11 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 	end
 end
 
--- A crop whose soil block is picked up or broken is uprooted, its harvest tossed out as drops.
-local function onUnplaced(model: Instance)
-	local itemId = model:GetAttribute("ItemId")
-	local origin = model:GetAttribute("Origin")
-	if typeof(itemId) ~= "string" or not World.SOIL_BLOCKS[itemId] or typeof(origin) ~= "Vector3" then
-		return
-	end
-	local node = nodesByCell[cellKey(origin + Vector3.yAxis)]
-	local def = if node then World.getNode(node.nodeType) else nil
-	if not node or not def or not def.crop then
-		return
-	end
-	-- Deferred ChildRemoved can arrive after a profile has restored new soil in this cell.
-	if Soil.isUnder(node.cell) then
+-- A crop whose soil is dug away is uprooted, its harvest tossed out as drops: its seed back, or
+-- when ripe its produce.
+function WorldService.uproot(cell: Vector3)
+	local node = nodesByCell[cellKey(cell)]
+	if not node or not World.getNode(node.nodeType).crop then
 		return
 	end
 	local at = node.model:GetPivot().Position + Vector3.yAxis
@@ -566,16 +575,20 @@ local function onUnplaced(model: Instance)
 	end
 end
 
--- PlotService calls this before assigning owners; soil has no harvesting action.
-function WorldService.farmland(cell: Vector3)
-	if not WorldService.nodeAt(cell) then
-		spawnNode("Farmland", cell, false)
-	end
+-- A ground node, for GroundService, which owns where ground stands.
+function WorldService.spawnGround(nodeType: string, cell: Vector3): Node
+	assert(World.getNode(nodeType).ground, `WorldService.spawnGround: "{nodeType}" is not ground`)
+	return spawnNode(nodeType, cell, false)
+end
+
+function WorldService.removeGround(node: Node)
+	assert(World.getNode(node.nodeType).ground, "WorldService.removeGround: not a ground node")
+	removeNode(node)
 end
 
 function WorldService.snapshot(index: number): { Plot.SavedCrop }
 	local crops: { Plot.SavedCrop } = {}
-	for _, node in nodesByModel do
+	for _, node in living do
 		local def = World.getNode(node.nodeType)
 		if def.crop and Plot.at(node.cell) == index then
 			bankGrowth(node)
@@ -605,7 +618,7 @@ function WorldService.restore(index: number, saved: Plot.SavedCrop): boolean
 		return false
 	end
 	local cell = Plot.toWorld(index, relative)
-	if cell.Y < 0 or cell.Y >= Plot.HEIGHT then
+	if cell.Y <= Plot.FLOOR or cell.Y >= Plot.HEIGHT then
 		return false
 	end
 	if not WorldService.canPlant(cell, crop.seed) then
@@ -647,7 +660,7 @@ end
 
 function WorldService.clearPlot(index: number)
 	local remove = {}
-	for _, node in nodesByModel do
+	for _, node in living do
 		if World.getNode(node.nodeType).crop and Plot.at(node.cell) == index then
 			table.insert(remove, node)
 		end
@@ -662,7 +675,7 @@ function WorldService.init()
 		while true do
 			task.wait(0.5)
 			local growing = {}
-			for _, node in nodesByModel do
+			for _, node in living do
 				if World.getNode(node.nodeType).crop and not World.isRipe(World.getNode(node.nodeType)) then
 					table.insert(growing, node)
 				end
@@ -676,8 +689,6 @@ function WorldService.init()
 		spawnNode(spot.node, spot.cell, true)
 	end
 	Remotes.Interact.OnServerEvent:Connect(onInteract)
-	local placed = workspace:WaitForChild("Placed")
-	placed.ChildRemoved:Connect(onUnplaced)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
 		lastWatered[player] = nil

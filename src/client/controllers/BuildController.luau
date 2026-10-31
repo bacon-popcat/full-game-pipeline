@@ -7,10 +7,11 @@
 --     (UIController/MachinePanel), so a press never feeds, empties or changes one, and a
 --     Hammer picks them up like any block;
 --   * the Hammer picks up the player's own placed block; a Pickaxe breaks their own
---     cubes it fits and mines the world nodes it fits;
+--     cubes it fits and mines the world nodes it fits, their own garden's ground included;
+--   * a Hoe tills their own grass and dirt, ground or placed cubes, into Farmland;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
 --   * an empty hand takes from a conveyor (its belt items) or switches a split conveyor, or harvests a crop (a ripe one for its produce, a growing one for its seed);
---   * a seed's ghost is only green over soil (Shared/World/Soil);
+--   * a seed's ghost is only green over Farmland (Shared/World/Soil);
 --   * a planter, harvester or sprinkler's ghost also lays a soft sheet over the cells it
 --     will work (Factory.area), at its own level.
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
@@ -332,7 +333,8 @@ local function decide(): Action?
 	if node then
 		local def = nodeDef(node)
 		local cell = node:GetAttribute("Cell")
-		if def and def.crop and (typeof(cell) ~= "Vector3" or not Build.canEdit(player, cell, Vector3.one)) then
+		local ownerOnly = def ~= nil and (def.crop ~= nil or def.ground == true)
+		if ownerOnly and (typeof(cell) ~= "Vector3" or not Build.canEdit(player, cell, Vector3.one)) then
 			node = nil
 		end
 	end
@@ -362,6 +364,11 @@ local function decide(): Action?
 			return { kind = "PickUp", model = placed }
 		end
 		local def = if node then nodeDef(node) else nil
+		if item.tills then
+			local tillsPlaced = placed and placedId and isOwn(placed) and World.TILLABLE_BLOCKS[placedId]
+			local target = if tillsPlaced then placed elseif node and def and def.tills then node else nil
+			return if target then { kind = "Use", model = target } else nil
+		end
 		if node and def and def.tool == item.id then
 			return { kind = "Use", model = node }
 		end

@@ -10,6 +10,9 @@
 -- Crops are nodes too: one node type per growth stage (<Crop><Stage>, WheatSprout ...
 -- WheatRipe), each growing into the next, built from CROPS below. PLANTS says which node an
 -- item plants as and whether it needs soil under it (World/Soil); docs/farming.md has the flow.
+--
+-- So is a garden's ground (World/Ground): one node per cell of grass, dirt, stone or Farmland,
+-- marked `ground`, which GroundService alone spawns, digs and tills.
 
 export type Node = {
 	name: string,
@@ -27,9 +30,12 @@ export type Node = {
 	stage: number?,
 	-- Crops can be planted on top of it.
 	soil: boolean?,
-	-- Studs its art sits above its cell: the starter Farmland lies one level under the ground,
-	-- and this keeps its top just proud of the grass.
-	lift: number?,
+	-- A cell of a garden's ground (GroundService): only its owner digs or tills it.
+	ground: boolean?,
+	-- A Hoe turns it into Farmland.
+	tills: boolean?,
+	-- The block (Assets.Blocks) its art is, for ground that looks like the block it digs into.
+	art: string?,
 }
 
 export type Crop = {
@@ -136,12 +142,25 @@ local CROPS: { [string]: Crop } = {
 	Starfruit = defineCrop("Starfruit", "Mythic", 30000, 1800, 720, 2, 150, "Carrot", Color3.fromRGB(247, 228, 141)),
 }
 
-NODES.Farmland = {
-	name = "Farmland",
-	hint = "Tilled soil. Plant seeds on it, as on grass or dirt.",
-	soil = true,
-	lift = 0.1,
-}
+local function ground(name: string, hint: string, drop: string, tills: boolean?, art: string?): Node
+	return {
+		name = name,
+		hint = hint,
+		tool = "Pickaxe",
+		drops = { [drop] = 1 },
+		ground = true,
+		tills = tills,
+		art = art,
+	}
+end
+
+NODES.GrassGround =
+	ground("Grass", "Till it with a Hoe to plant on it, or mine it with a Pickaxe.", "Grass", true, "Grass")
+NODES.DirtGround = ground("Dirt", "Till it with a Hoe to plant on it, or mine it with a Pickaxe.", "Dirt", true, "Dirt")
+NODES.StoneGround = ground("Stone", "Mine it with a Pickaxe.", "Stone", nil, "Stone")
+-- Mining Farmland gives the Dirt it was tilled from.
+NODES.Farmland = ground("Farmland", "Tilled soil. Plant seeds on it. Rain and sprinklers keep it wet.", "Dirt")
+NODES.Farmland.soil = true
 
 local PLANTS: { [string]: Plant } = {}
 
@@ -167,8 +186,8 @@ World.NODES = NODES
 World.CROPS = CROPS
 World.STAGES = STAGES
 World.PLANTS = PLANTS
--- Placed blocks a crop can grow on, as well as nodes marked `soil`.
-World.SOIL_BLOCKS = { Grass = true, Dirt = true }
+-- Placed blocks a Hoe turns into Farmland, like the ground nodes marked `tills`.
+World.TILLABLE_BLOCKS = { Grass = true, Dirt = true }
 
 function World.getNode(nodeType: string): Node
 	local node = NODES[nodeType]

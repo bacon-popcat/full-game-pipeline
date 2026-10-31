@@ -58,7 +58,7 @@ function Build.owns(player: Player, origin: Vector3, footprint: Vector3): boolea
 	return index ~= nil
 		and model ~= nil
 		and model:GetAttribute("Owner") == player.UserId
-		and origin.Y >= 0
+		and origin.Y >= Plot.FLOOR
 		and origin.Y + footprint.Y <= Plot.HEIGHT
 		and Plot.contains(index, origin, footprint)
 end

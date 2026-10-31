@@ -97,12 +97,17 @@ local function nodeInfo(model: Model, nodeType: string): Info?
 	local held = heldItem()
 	local hint = node.hint
 	local ripe = World.isRipe(node)
-	if held and node.tool == held.id then
+	if held and held.tills and node.tills then
+		hint = "Click to till it into Farmland."
+	elseif held and node.tool == held.id then
 		hint = "Click to mine it."
 	elseif not held and node.harvest then
 		hint = if ripe then "Click to harvest it." else "Click to dig it up for its seed."
 	end
 	local info: Info = { title = node.name, status = nil, working = false, rows = {}, hint = hint }
+	if node.soil and model:GetAttribute("Wet") then
+		info.title = `Wet {node.name}`
+	end
 	local stage = node.stage
 	if node.crop and stage then
 		local crop = World.CROPS[node.crop]

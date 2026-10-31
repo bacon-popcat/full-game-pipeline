@@ -23,6 +23,7 @@ local InventoryService = require(script.Parent.InventoryService)
 local OnboardingService = require(script.Parent.OnboardingService)
 local PlotService = require(script.Parent.PlotService)
 local GardenService = require(script.Parent.GardenService)
+local GroundService = require(script.Parent.GroundService)
 local WorldService = require(script.Parent.WorldService)
 
 local SNAPSHOT_EVERY = 120
@@ -30,9 +31,15 @@ type Data = {
 	coins: number,
 	xp: number,
 	inventory: Inventory.Slots,
-	plot: { sections: { string }, blocks: { Plot.SavedBlock }, crops: { Plot.SavedCrop } },
-	-- 2 once the plot is laid out in sections, 3 once its starter farm is sunk (migrate). Not
-	-- in the template, so Reconcile never fills it in for an old save.
+	plot: {
+		sections: { string },
+		ground: Plot.SavedGround,
+		blocks: { Plot.SavedBlock },
+		crops: { Plot.SavedCrop },
+	},
+	-- 2 once the plot is laid out in sections, 3 once its starter farm is sunk, 4 once crops on
+	-- placed soil stand on Farmland and it has a Hoe (migrate). Not in the template, so Reconcile
+	-- never fills it in for an old save.
 	plotLayout: number?,
 	seedStock: { [string]: number },
 	restockAt: number,
@@ -44,6 +51,7 @@ for _, stack in
 	{
 		{ itemId = "Hammer", count = 1 },
 		{ itemId = "Pickaxe", count = 1 },
+		{ itemId = "Hoe", count = 1 },
 		{ itemId = "CarrotSeeds", count = 10 },
 		{ itemId = "WheatSeeds", count = 5 },
 	}
@@ -54,7 +62,7 @@ local PROFILE_TEMPLATE: Data = {
 	coins = 50,
 	xp = 0,
 	inventory = starter,
-	plot = { sections = {}, blocks = {}, crops = {} },
+	plot = { sections = {}, ground = { dug = {}, tilled = {} }, blocks = {}, crops = {} },
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
@@ -230,9 +238,48 @@ local function sinkFarm(data: any)
 	data.plotLayout = 3
 end
 
-local function migrate(data: any)
+-- Crops used to grow on placed Grass and Dirt blocks too; now only on Farmland, which a Hoe
+-- makes. Once, a placed Grass or Dirt block under a saved crop becomes tilled ground in its cell
+-- (GroundService), so the crop keeps its soil. Returns whether it ran, so sanitize can give an
+-- old save the Hoe the starter kit now has.
+local function tillPlacedSoil(data: any): boolean
+	if typeof(data.plotLayout) == "number" and data.plotLayout >= 4 then
+		return false
+	end
+	local plot = if typeof(data.plot) == "table" then data.plot else {}
+	local ground = if typeof(plot.ground) == "table" then plot.ground else { dug = {}, tilled = {} }
+	plot.ground = ground
+	ground.tilled = if typeof(ground.tilled) == "table" then ground.tilled else {}
+	local under: { [string]: boolean } = {}
+	for _, crop in if typeof(plot.crops) == "table" then plot.crops else {} do
+		local cell = if typeof(crop) == "table" then Plot.unpack(crop.cell) else nil
+		if cell then
+			local below = cell - Vector3.yAxis
+			under[`{below.X},{below.Y},{below.Z}`] = true
+		end
+	end
+	local blocks = {}
+	for _, block in if typeof(plot.blocks) == "table" then plot.blocks else {} do
+		local cell = if typeof(block) == "table" then Plot.unpack(block.cell) else nil
+		local cellKey = if cell then `{cell.X},{cell.Y},{cell.Z}` else nil
+		if cellKey and under[cellKey] and World.TILLABLE_BLOCKS[block.itemId] then
+			table.insert(ground.tilled, cellKey)
+		else
+			table.insert(blocks, block)
+		end
+	end
+	if typeof(plot.blocks) == "table" then
+		plot.blocks = blocks
+	end
+	data.plotLayout = 4
+	return true
+end
+
+-- Returns whether the save predates the Hoe.
+local function migrate(data: any): boolean
 	migrateLayout(data)
 	sinkFarm(data)
+	local owesHoe = tillPlacedSoil(data)
 	for _, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
 		if typeof(stack) == "table" and RENAMED[stack.itemId] then
 			stack.itemId = RENAMED[stack.itemId]
@@ -253,10 +300,11 @@ local function migrate(data: any)
 			end
 		end
 	end
+	return owesHoe
 end
 
 local function sanitize(player: Player, data: any)
-	migrate(data)
+	local owesHoe = migrate(data)
 	data.onboarding = Onboarding.sanitize(data.onboarding)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
 	assert(
@@ -269,12 +317,26 @@ local function sanitize(player: Player, data: any)
 		"Invalid plot"
 	)
 	data.plot.sections = Plot.encode(Plot.decode(data.plot.sections))
+	local ground = data.plot.ground
+	if typeof(ground) ~= "table" or typeof(ground.dug) ~= "table" or typeof(ground.tilled) ~= "table" then
+		warn(`DataService: reset {player.UserId}'s dug and tilled ground, which was not a valid save`)
+		data.plot.ground = { dug = {}, tilled = {} }
+	end
 	for index, stack in data.inventory do
 		local item = if typeof(stack) == "table" then knownItems[stack.itemId] else nil
 		if stack ~= false and not (item and integer(stack.count) and stack.count > 0 and stack.count <= item.stack) then
 			warn(`DataService: dropped an invalid stack from {player.UserId}'s inventory`)
 			data.inventory[index] = false
 		end
+	end
+	-- A fresh profile runs every migration too, and its starter kit has a Hoe already.
+	for _, stack in data.inventory do
+		if stack and stack.itemId == "Hoe" then
+			owesHoe = false
+		end
+	end
+	if owesHoe and Inventory.add(data.inventory, "Hoe", 1) > 0 then
+		warn(`DataService: no room for {player.UserId}'s Hoe; the Gear Shop sells one`)
 	end
 	local blocks = {}
 	for _, block in data.plot.blocks do
@@ -321,6 +383,7 @@ local function snapshot(player: Player, session: Session)
 	data.onboarding = onboarding
 	data.plot = {
 		sections = PlotService.sections(index),
+		ground = GroundService.snapshot(index),
 		blocks = BuildService.snapshot(player, index),
 		crops = WorldService.snapshot(index),
 	}
@@ -398,6 +461,8 @@ local function onPlayer(player: Player)
 		sanitize(player, profile.Data)
 		local index = PlotService.assign(player, profile.Data.plot.sections)
 		assert(index, "All six gardens are occupied")
+		-- Ground first, so blocks can stand in the holes dug in it and crops find their Farmland.
+		GroundService.restore(index, profile.Data.plot.ground)
 		for _, block in profile.Data.plot.blocks do
 			if not BuildService.restore(player, index, block) then
 				warn(`DataService: could not restore {player.UserId}'s {block.itemId}`)
