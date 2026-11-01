@@ -157,6 +157,7 @@ local function target(): Info?
 end
 
 function BlockInfo.init(hud: ScreenGui)
+	local PopupMotion = require(game.Players.LocalPlayer.PlayerScripts.Libraries.PopupMotion)
 	local panel = hud:FindFirstChild("BlockInfo")
 	local assets = ReplicatedStorage:FindFirstChild("Assets")
 	local ui = if assets then assets:FindFirstChild("UI") else nil
@@ -184,6 +185,8 @@ function BlockInfo.init(hud: ScreenGui)
 		return
 	end
 	local successColor = panel:GetAttribute("SuccessColor")
+	local animate, cleanup = PopupMotion.bind(panel)
+	hud.Destroying:Once(cleanup)
 	local warningColor = panel:GetAttribute("WarningColor")
 	local cursorOffset = panel:GetAttribute("CursorOffset")
 	local working = if typeof(successColor) == "Color3" then successColor else status.TextColor3
@@ -215,7 +218,7 @@ function BlockInfo.init(hud: ScreenGui)
 	end
 
 	local windows = {}
-	for _, name in { "Backpack", "MachinePanel", "Shop", "Sell" } do
+	for _, name in { "Backpack", "MachinePanel", "Shop", "Sell", "Settings" } do
 		local window = hud:FindFirstChild(name)
 		if window and window:IsA("GuiObject") then
 			table.insert(windows, window)
@@ -231,7 +234,7 @@ function BlockInfo.init(hud: ScreenGui)
 				covered = covered or window.Visible
 			end
 			local info = if covered then nil else target()
-			panel.Visible = info ~= nil
+			animate(info ~= nil)
 			if info then
 				title.Text = `[ {info.title} ]`
 				status.Visible = info.status ~= nil

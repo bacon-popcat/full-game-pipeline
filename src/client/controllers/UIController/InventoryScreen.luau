@@ -38,6 +38,7 @@ local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
+local PopupMotion = require(Libraries.PopupMotion)
 local Screens = require(Libraries.Screens)
 
 type Cell = {
@@ -60,8 +61,6 @@ type View = {
 local TOGGLE_ACTION = "ToggleBackpack"
 local BACK_ACTION = "BackpackBack"
 local HOTBAR_ACTION = "HotbarSelect"
-local OPEN_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local OPEN_FROM_SCALE = 0.94
 local NAME_HOLD_SECONDS = 1.5
 local NAME_FADE = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 -- Hotbar slots shrink toward this on narrow screens before the strip would overflow.
@@ -85,7 +84,7 @@ local pointer = Vector2.zero
 local lastSelectedItem: string? = nil
 local nameThread: thread? = nil
 local nameTweens: { Tween } = {}
-local openTween: Tween? = nil
+local animateWindow: ((boolean) -> ())? = nil
 local priorSelection: GuiObject? = nil
 
 -- Every authored node this screen touches, found once by `bind`. Nil if the HUD is
@@ -193,7 +192,6 @@ local function captureLook()
 		windowWidth = ui.window.Size.X,
 		nameStroke = nameStroke,
 		nameStrokeTransparency = if nameStroke then nameStroke.Transparency else 0,
-		windowScale = ui.windowScale.Scale,
 		mainPosition = ui.main.Position,
 		mainSize = ui.main.Size,
 		previewNone = ui.previewName.Text,
@@ -508,19 +506,8 @@ function InventoryScreen.open()
 	priorSelection = if current and not current:IsDescendantOf(ui.window) then current else nil
 
 	render()
-	ui.window.Visible = true
-	if openTween then
-		openTween:Cancel()
-		openTween = nil
-	end
-	if GuiService.ReducedMotionEnabled then
-		ui.windowScale.Scale = look.windowScale
-	else
-		ui.windowScale.Scale = look.windowScale * OPEN_FROM_SCALE
-		local tween = TweenService:Create(ui.windowScale, OPEN_TWEEN, { Scale = look.windowScale })
-		tween:Play()
-		openTween = tween
-	end
+	assert(animateWindow)
+	animateWindow(true)
 	ContextActionService:BindActionAtPriority(
 		BACK_ACTION,
 		onBackAction,
@@ -538,10 +525,6 @@ function InventoryScreen.close()
 	view.open = false
 	view.held = nil
 	view.dragging = false
-	if openTween then
-		openTween:Cancel()
-		openTween = nil
-	end
 	ContextActionService:UnbindAction(BACK_ACTION)
 
 	local current = GuiService.SelectedObject
@@ -550,8 +533,8 @@ function InventoryScreen.close()
 		GuiService.SelectedObject = if prior and prior.Parent and prior.Visible then prior else nil
 	end
 	priorSelection = nil
-	ui.windowScale.Scale = look.windowScale
-	ui.window.Visible = false
+	assert(animateWindow)
+	animateWindow(false)
 	render()
 end
 
@@ -561,6 +544,9 @@ function InventoryScreen.init(hud: ScreenGui)
 		return
 	end
 	captureLook()
+	local cleanup
+	animateWindow, cleanup = PopupMotion.bind(ui.window)
+	trove:Add(cleanup)
 	-- This screen replaces Roblox's backpack and its 1-9 keys.
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 	-- Item icons are mostly MeshParts; fetch them now so the first backpack open isn't

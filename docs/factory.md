@@ -148,7 +148,7 @@ Golden Carrots to its side. A pick with none ticked takes every variant. Ticks a
 
 ## Machine panel and hand
 
-E / D-pad up (Open on touch) opens an owned machine, Split or Filter within reach. The panel
+The interaction binding in `client/libraries/Controls` (Open on touch) opens an owned machine, Split or Filter within reach. The panel
 closes when ownership/reach is lost or the block disappears. Every request is checked again
 on the server, including item ids from the panel.
 

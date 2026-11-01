@@ -25,7 +25,6 @@ local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
@@ -42,6 +41,7 @@ local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
+local PopupMotion = require(Libraries.PopupMotion)
 local Screens = require(Libraries.Screens)
 
 type Cell = {
@@ -65,8 +65,6 @@ local BACK_ACTION = "MachinePanelBack"
 local AIM_DISTANCE = 150
 -- Seconds between checks of what is aimed at (for the touch button) and of reach.
 local CHECK_EVERY = 0.2
-local OPEN_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local OPEN_FROM_SCALE = 0.94
 -- Pixels across a filter strip's slots, and between them.
 local STRIP_SLOT = 44
 local STRIP_GAP = 6
@@ -102,7 +100,7 @@ local expanded: string? = nil
 local rerender: () -> () = function() end
 local model: Model? = nil
 local blockItemId: string? = nil
-local openTween: Tween? = nil
+local animateWindow: ((boolean) -> ())? = nil
 -- The grid cell under the pointer or focus, whose item the hint names.
 local hovered: Cell? = nil
 local touchShown = false
@@ -191,7 +189,6 @@ local function bind(hud: ScreenGui): boolean
 	local slotBars = bracketBars(slot)
 	look = {
 		bracket = if slotBars[1] then slotBars[1].BackgroundColor3 else Color3.new(1, 1, 1),
-		windowScale = nodes.windowScale.Scale,
 		working = nodes.blockInfo:GetAttribute("SuccessColor") or nodes.status.TextColor3,
 		idle = nodes.blockInfo:GetAttribute("WarningColor") or nodes.status.TextColor3,
 		infoSize = nodes.info.Size,
@@ -810,21 +807,10 @@ function MachinePanel.open(target: Model, itemId: string)
 	end)
 
 	matchBackpack()
-	ui.window.Visible = true
 	render()
 	showHint(nil)
-	if openTween then
-		openTween:Cancel()
-		openTween = nil
-	end
-	if GuiService.ReducedMotionEnabled then
-		ui.windowScale.Scale = look.windowScale
-	else
-		ui.windowScale.Scale = look.windowScale * OPEN_FROM_SCALE
-		local tween = TweenService:Create(ui.windowScale, OPEN_TWEEN, { Scale = look.windowScale })
-		tween:Play()
-		openTween = tween
-	end
+	assert(animateWindow)
+	animateWindow(true)
 	focusPanel()
 end
 
@@ -836,18 +822,14 @@ function MachinePanel.close()
 	blockItemId = nil
 	hovered = nil
 	openTrove:Clean()
-	if openTween then
-		openTween:Cancel()
-		openTween = nil
-	end
 	local current = GuiService.SelectedObject
 	if current and current:IsDescendantOf(ui.window) then
 		local prior = priorSelection
 		GuiService.SelectedObject = if prior and prior.Parent and prior.Visible then prior else nil
 	end
 	priorSelection = nil
-	ui.windowScale.Scale = look.windowScale
-	ui.window.Visible = false
+	assert(animateWindow)
+	animateWindow(false)
 end
 
 local function toggle()
@@ -891,6 +873,9 @@ function MachinePanel.init(hud: ScreenGui)
 	if not bind(hud) then
 		return
 	end
+	local cleanup
+	animateWindow, cleanup = PopupMotion.bind(ui.window)
+	trove:Add(cleanup)
 	trove:Add(UI.bindButton(ui.close, { hoverScale = 1.15, onActivate = MachinePanel.close }))
 	ui.close.SelectionImageObject = ui.selectionImage
 	for _, name in BUTTONS do

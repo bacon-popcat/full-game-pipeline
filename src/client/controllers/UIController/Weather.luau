@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Hud = require(Players.LocalPlayer.PlayerScripts.Libraries.Hud)
+local PopupMotion = require(Players.LocalPlayer.PlayerScripts.Libraries.PopupMotion)
 local Weather = {}
 function Weather.init(hud: ScreenGui)
 	local frame = Hud.find(hud, "Weather", "Frame")
@@ -19,6 +20,7 @@ function Weather.init(hud: ScreenGui)
 		return
 	end
 	local state = ReplicatedStorage:WaitForChild("Weather")
+	local animate, cleanup = PopupMotion.bind(frame)
 	local elapsed = 1
 	local connection = RunService.Heartbeat:Connect(function(dt: number)
 		elapsed += dt
@@ -29,7 +31,7 @@ function Weather.init(hud: ScreenGui)
 		local event = state:GetAttribute("Event")
 		local endsAt = state:GetAttribute("EndsAt")
 		local left = if typeof(endsAt) == "number" then endsAt - workspace:GetServerTimeNow() else 0
-		frame.Visible = typeof(event) == "string" and event ~= "" and left > 0
+		animate(typeof(event) == "string" and event ~= "" and left > 0)
 		if frame.Visible and typeof(event) == "string" then
 			title.Text = event
 			time.Text = Hud.time(left)
@@ -37,6 +39,7 @@ function Weather.init(hud: ScreenGui)
 	end)
 	hud.Destroying:Once(function()
 		connection:Disconnect()
+		cleanup()
 	end)
 end
 return Weather

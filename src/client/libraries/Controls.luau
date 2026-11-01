@@ -4,7 +4,7 @@
 
 local Controls = {}
 
-Controls.TOGGLE_BACKPACK = { Enum.KeyCode.B, Enum.KeyCode.ButtonY }
+Controls.TOGGLE_BACKPACK = { Enum.KeyCode.E, Enum.KeyCode.ButtonY }
 -- Puts a lifted stack back first; closes the backpack on the next press.
 Controls.BACK = { Enum.KeyCode.ButtonB }
 Controls.ROTATE = { Enum.KeyCode.R, Enum.KeyCode.ButtonX }
@@ -12,7 +12,7 @@ Controls.ROTATE = { Enum.KeyCode.R, Enum.KeyCode.ButtonX }
 Controls.DROP = { Enum.KeyCode.Q, Enum.KeyCode.Backspace, Enum.KeyCode.DPadDown }
 -- Opens (and closes) the panel of the machine or router aimed at. Touch gets an on-screen
 -- button instead, shown while one is aimed at.
-Controls.INTERACT = { Enum.KeyCode.E, Enum.KeyCode.DPadUp }
+Controls.INTERACT = { Enum.KeyCode.F, Enum.KeyCode.DPadUp }
 Controls.HOTBAR_PREVIOUS = { Enum.KeyCode.ButtonL1 }
 Controls.HOTBAR_NEXT = { Enum.KeyCode.ButtonR1 }
 -- Key i selects hotbar slot i.
@@ -34,14 +34,14 @@ end
 
 local HINTS: { [Enum.PreferredInput]: string } = {
 	[Enum.PreferredInput.KeyboardAndMouse] = `{key("Click")} a slot, then another, or {key("drag")} to move.\n`
-		.. `{key("1-9")} hold  ·  {key("R")} rotate  ·  {key("Q")} drop  ·  {key("B")} close`,
+		.. `{key("1-9")} hold  ·  {key("R")} rotate  ·  {key("Q")} drop  ·  {key(Controls.TOGGLE_BACKPACK[1].Name)} close`,
 	[Enum.PreferredInput.Touch] = `{key("Tap")} a slot, then tap where it goes.\nTap the hotbar to hold an item.`,
 	[Enum.PreferredInput.Gamepad] = `{key("A")} lift / put down  ·  {key("B")} back\n`
 		.. `{key("LB RB")} hold  ·  {key("X")} rotate  ·  {key("D-pad down")} drop  ·  {key("Y")} close`,
 }
 
 local INTERACT_HINTS: { [Enum.PreferredInput]: string } = {
-	[Enum.PreferredInput.KeyboardAndMouse] = "Press E to open its controls.",
+	[Enum.PreferredInput.KeyboardAndMouse] = `Press {Controls.INTERACT[1].Name} to open its controls.`,
 	[Enum.PreferredInput.Touch] = "Tap Open to see its controls.",
 	[Enum.PreferredInput.Gamepad] = "Press D-pad up to open its controls.",
 }

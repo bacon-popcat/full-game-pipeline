@@ -86,8 +86,8 @@ allows twelve studs from the stall's interaction point to tolerate movement duri
 The client checks the same reach, closes out of range/on death, and treats the server reply
 as authoritative.
 
-`libraries/Screens` arbitrates Backpack, MachinePanel, Shop and Sell. `HubWindow` owns
-stall prompt binding, UIScale pop, Close, gamepad B, selection trapping/restoration and reach
+`libraries/Screens` arbitrates Backpack, MachinePanel, Shop, Sell and Settings. `HubWindow` owns
+stall prompt binding, Close, gamepad B, selection trapping/restoration and reach
 closing. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
 text feedback as well as a muted appearance. Reduced motion skips spatial pops/XP animation.
 
@@ -110,6 +110,25 @@ Author these source HUD instances with `ResetOnSpawn = false`,
 safe-area insets, responsive sizing and useful selection/scroll layout in Studio. A missing
 or mistyped node warns once through `libraries/Hud`; that screen returns without throwing.
 Each screen under `controllers/UIController` receives `init(hud)`.
+
+`SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
+`Header.Title`, `Body.Music.Label` (inside a TextButton), `Body.Note` and `Body.ControlsHint`.
+Settings is centered with an audio section and input-specific quick controls. The five main
+windows share authored header subtitles, dividers and a garden-green top accent.
+`libraries/PopupMotion` owns their scale-and-content entrance and shrink exit, plus the
+scale transitions for Weather and BlockInfo. Each popup requires an authored UIScale.
+Closing disables interaction immediately; rapid reopen cancels the old exit. Reduced motion
+settles immediately, including when enabled during a transition. Notification templates also
+carry a UIScale for an entrance pop and a shrinking fade on expiry.
+The Settings controller binds these nodes; `libraries/AudioSettings` owns the session-only
+music toggle through a SoundGroup, preserving MusicController's track fades.
+Side buttons use centered white icons and authored `Tooltip` frames to their right;
+`libraries/UI.bindButton` shows those labels on mouse hover or gamepad focus, hiding them
+on exit or touch input. Labels expand right and fade in, then retract left and fade out;
+interrupted tweens reverse from their current state, and reduced motion skips the transition.
+Settings uses an authored geometric gear rather than an emoji.
+`PromptController` maps world proximity prompts to `Controls.INTERACT`, reserving the
+inventory binding for inventory even beside shops and section purchases.
 
 ```text
 StarterGui.HUD [ScreenGui]

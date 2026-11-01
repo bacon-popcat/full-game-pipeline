@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Hud = require(Players.LocalPlayer.PlayerScripts.Libraries.Hud)
 local Toasts = {}
@@ -26,6 +27,12 @@ function Toasts.init(hud: ScreenGui)
 		label.Text = message
 		label.Visible = true
 		label.Parent = holder
+		local scale = label:FindFirstChildOfClass("UIScale")
+		local baseline = if scale then scale.Scale else 1
+		if scale and not GuiService.ReducedMotionEnabled then
+			scale.Scale = baseline * 0.9
+			TweenService:Create(scale, TweenInfo.new(0.24, Enum.EasingStyle.Back), { Scale = baseline }):Play()
+		end
 		table.insert(active, label)
 		task.delay(2.5, function()
 			if not label.Parent then
@@ -36,6 +43,10 @@ function Toasts.init(hud: ScreenGui)
 				TweenInfo.new(0.25, Enum.EasingStyle.Quad),
 				{ TextTransparency = 1, TextStrokeTransparency = 1, BackgroundTransparency = 1 }
 			)
+			if scale and not GuiService.ReducedMotionEnabled then
+				TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Scale = baseline * 0.94 })
+					:Play()
+			end
 			tween:Play()
 			tween.Completed:Once(function()
 				local index = table.find(active, label)

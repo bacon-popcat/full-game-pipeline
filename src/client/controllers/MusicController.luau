@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 local Music = require(ReplicatedStorage.Shared.Music)
+local AudioSettings = require(script.Parent.Parent.Libraries.AudioSettings)
 
 local MusicController = {}
 
@@ -49,6 +50,7 @@ function MusicController.init()
 	local sound = Instance.new("Sound")
 	sound.Name = "Music"
 	sound.Looped = false
+	AudioSettings.attachMusic(sound)
 	sound.Parent = SoundService
 	task.spawn(function()
 		-- a short breath after joining before the first track

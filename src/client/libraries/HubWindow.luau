@@ -6,7 +6,6 @@ local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Hub = require(ReplicatedStorage.Shared.Hub)
 local Trove = require(ReplicatedStorage.Packages.Trove)
@@ -14,9 +13,9 @@ local Controls = require(script.Parent.Controls)
 local Hud = require(script.Parent.Hud)
 local Screens = require(script.Parent.Screens)
 local UI = require(script.Parent.UI)
+local PopupMotion = require(script.Parent.PopupMotion)
 local HubWindow = {}
 export type Window = { open: () -> (), close: () -> (), frame: Frame }
-local OPEN_TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 -- `stalls` are the hub stalls whose prompts open this window; `onOpen` hears which one did,
 -- before `render`, and the window closes when you walk away from that stall.
@@ -41,8 +40,9 @@ function HubWindow.bind(
 		return nil
 	end
 	local trove = Trove.new()
-	local baseline = scale.Scale
-	local tween: Tween? = nil
+	local animateWindow, cleanup = PopupMotion.bind(frame)
+	trove:Add(cleanup)
+	local opened = false
 	local prior: GuiObject? = nil
 	local action = name .. "Back"
 	local stall = stalls[1]
@@ -53,15 +53,12 @@ function HubWindow.bind(
 	frame.SelectionBehaviorLeft = Enum.SelectionBehavior.Stop
 	frame.SelectionBehaviorRight = Enum.SelectionBehavior.Stop
 	local function close()
-		if not frame.Visible then
+		if not opened then
 			return
 		end
-		frame.Visible = false
+		opened = false
+		animateWindow(false)
 		ContextActionService:UnbindAction(action)
-		if tween then
-			tween:Cancel()
-		end
-		scale.Scale = baseline
 		local current = GuiService.SelectedObject
 		if current and current:IsDescendantOf(frame) then
 			GuiService.SelectedObject = if prior and prior.Parent and prior.Visible then prior else nil
@@ -69,7 +66,7 @@ function HubWindow.bind(
 		prior = nil
 	end
 	local function focus()
-		if frame.Visible and UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then
+		if opened and UserInputService.PreferredInput == Enum.PreferredInput.Gamepad then
 			GuiService.SelectedObject = closeButton
 		end
 	end
@@ -83,26 +80,16 @@ function HubWindow.bind(
 		if onOpen then
 			onOpen(opener)
 		end
-		if frame.Visible then
+		if opened then
 			if switching then
 				render()
 			end
 			return
 		end
 		prior = GuiService.SelectedObject
-		frame.Visible = true
+		opened = true
+		animateWindow(true)
 		render()
-		if tween then
-			tween:Cancel()
-		end
-		if GuiService.ReducedMotionEnabled then
-			scale.Scale = baseline
-		else
-			scale.Scale = baseline * 0.94
-			local nextTween = TweenService:Create(scale, OPEN_TWEEN, { Scale = baseline })
-			tween = nextTween
-			nextTween:Play()
-		end
 		ContextActionService:BindActionAtPriority(action, function(_: string, state: Enum.UserInputState)
 			if state == Enum.UserInputState.Begin then
 				close()
@@ -133,7 +120,7 @@ function HubWindow.bind(
 		end
 		elapsed = 0
 		if
-			frame.Visible
+			opened
 			and (Players.LocalPlayer:GetAttribute("DataReady") ~= true or not Hub.inReach(Players.LocalPlayer, stall))
 		then
 			close()
