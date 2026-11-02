@@ -1,5 +1,7 @@
--- Settings: binds the authored side button and session music toggle. Screens owns window
--- exclusivity; AudioSettings owns audio state independently of this screen's lifecycle.
+-- Settings: binds the authored side button and the session music and sound-effect volumes.
+-- Each volume row (Body.MusicVolume, Body.SfxVolume) has a Track to click or drag and a Value
+-- box to type 0-100 into; both stay in step. Screens owns window exclusivity; AudioSettings
+-- owns audio state independently of this screen's lifecycle.
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
@@ -18,19 +20,67 @@ function Settings.init(hud: ScreenGui)
 	local frame = Hud.find(hud, "Settings", "Frame")
 	local opener = Hud.find(hud, "SideButtons.Settings", "TextButton")
 	local closeButton = Hud.find(hud, "Settings.Header.Close", "TextButton")
-	local music = Hud.find(hud, "Settings.Body.Music", "TextButton")
-	local label = Hud.find(hud, "Settings.Body.Music.Label", "TextLabel")
 	local controlsHint = Hud.find(hud, "Settings.Body.ControlsHint", "TextLabel")
-	if not frame or not opener or not closeButton or not music or not label then
+	if not frame or not opener or not closeButton then
 		return
 	end
+	local volumes = {
+		{
+			path = "Settings.Body.MusicVolume",
+			get = AudioSettings.musicVolume,
+			set = AudioSettings.setMusicVolume,
+		},
+		{
+			path = "Settings.Body.SfxVolume",
+			get = AudioSettings.sfxVolume,
+			set = AudioSettings.setSfxVolume,
+		},
+	}
+	type Slider = {
+		track: GuiButton,
+		fill: GuiObject,
+		knob: GuiObject,
+		box: TextBox,
+		get: () -> number,
+		set: (number) -> (),
+	}
+	local sliders: { Slider } = {}
+	for _, volume in volumes do
+		local track = Hud.find(hud, volume.path .. ".Track", "GuiButton")
+		local fill = Hud.find(hud, volume.path .. ".Track.Fill", "GuiObject")
+		local knob = Hud.find(hud, volume.path .. ".Track.Knob", "GuiObject")
+		local box = Hud.find(hud, volume.path .. ".Value", "TextBox")
+		if
+			track
+			and track:IsA("GuiButton")
+			and fill
+			and fill:IsA("GuiObject")
+			and knob
+			and knob:IsA("GuiObject")
+			and box
+			and box:IsA("TextBox")
+		then
+			table.insert(
+				sliders,
+				{ track = track, fill = fill, knob = knob, box = box, get = volume.get, set = volume.set }
+			)
+		end
+	end
+	local music: GuiObject? = if sliders[1] then sliders[1].track else nil
 	local trove = Trove.new()
 	local prior: GuiObject? = nil
 	local animateWindow, cleanup = PopupMotion.bind(frame, true)
 	trove:Add(cleanup)
 	local opened = false
 	local function render()
-		label.Text = if AudioSettings.musicEnabled() then "Music: On" else "Music: Off"
+		for _, slider in sliders do
+			local value = slider.get()
+			slider.fill.Size = UDim2.fromScale(value, 1)
+			slider.knob.Position = UDim2.fromScale(value, 0.5)
+			if not slider.box:IsFocused() then
+				slider.box.Text = tostring(math.round(value * 100))
+			end
+		end
 		if controlsHint and controlsHint:IsA("TextLabel") then
 			local input = UserInputService.PreferredInput
 			controlsHint.Text = if input == Enum.PreferredInput.Touch
@@ -78,12 +128,55 @@ function Settings.init(hud: ScreenGui)
 		end,
 	}))
 	trove:Add(UI.bindButton(closeButton, { onActivate = close }))
-	trove:Add(UI.bindButton(music, {
-		onActivate = function()
-			AudioSettings.setMusicEnabled(not AudioSettings.musicEnabled())
+	local dragging: Slider? = nil
+	local function slideTo(slider: Slider, x: number)
+		local width = slider.track.AbsoluteSize.X
+		if width > 0 then
+			slider.set(math.clamp((x - slider.track.AbsolutePosition.X) / width, 0, 1))
 			render()
-		end,
-	}))
+		end
+	end
+	for _, slider in sliders do
+		trove:Connect(slider.track.InputBegan, function(input: InputObject)
+			if
+				input.UserInputType == Enum.UserInputType.MouseButton1
+				or input.UserInputType == Enum.UserInputType.Touch
+			then
+				dragging = slider
+				slideTo(slider, input.Position.X)
+			elseif input.KeyCode == Enum.KeyCode.DPadLeft or input.KeyCode == Enum.KeyCode.DPadRight then
+				local step = if input.KeyCode == Enum.KeyCode.DPadLeft then -0.1 else 0.1
+				slider.set(slider.get() + step)
+				render()
+			end
+		end)
+		trove:Connect(slider.box.FocusLost, function()
+			local typed = tonumber(string.match(slider.box.Text, "%-?%d+%.?%d*") or "")
+			if typed then
+				slider.set(math.clamp(typed, 0, 100) / 100)
+			end
+			render()
+		end)
+	end
+	trove:Connect(UserInputService.InputChanged, function(input: InputObject)
+		if
+			dragging
+			and (
+				input.UserInputType == Enum.UserInputType.MouseMovement
+				or input.UserInputType == Enum.UserInputType.Touch
+			)
+		then
+			slideTo(dragging, input.Position.X)
+		end
+	end)
+	trove:Connect(UserInputService.InputEnded, function(input: InputObject)
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			dragging = nil
+		end
+	end)
 	trove:Connect(UserInputService:GetPropertyChangedSignal("PreferredInput"), focus)
 	trove:Connect(hud.Destroying, function()
 		close()

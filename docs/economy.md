@@ -114,8 +114,11 @@ or mistyped node warns once through `libraries/Hud`; that screen returns without
 Each screen under `controllers/UIController` receives `init(hud)`.
 
 `SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
-`Header.Title`, `Body.Music.Label` (inside a TextButton), `Body.Note` and `Body.ControlsHint`.
-Settings has an audio section and input-specific quick controls. The five main windows
+`Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
+`Fill` and `Knob`, and a `Value` TextBox), `Body.Note` and `Body.ControlsHint`. Clicking or
+dragging a track, or typing 0-100 in its box, sets that session volume (`libraries/AudioSettings`:
+music and every `Sound.play` effect each play through their own SoundGroup).
+Settings has music and sound volume sliders and input-specific quick controls. The five main windows
 (Backpack, MachinePanel, Shop, Sell, Settings) are centred on the screen (anchor 0.5, 0.5,
 size 0.94 x 0.72 scale, UISizeConstraint caps of 1040x580, 880x500, 700x520, 510x300 and
 530x380), with BackgroundTransparency 0.2, and share authored header subtitles, dividers and a
@@ -130,7 +133,7 @@ Closing disables interaction immediately; rapid reopen cancels the old exit. Red
 settles immediately, including when enabled during a transition. Notification templates also
 carry a UIScale for an entrance pop and a shrinking fade on expiry.
 The Settings controller binds these nodes; `libraries/AudioSettings` owns the session-only
-music toggle through a SoundGroup, preserving MusicController's track fades.
+music and sound volumes through SoundGroups, preserving MusicController's track fades.
 Side buttons use centered white icons and authored `Tooltip` frames to their right;
 `libraries/UI.bindButton` shows those labels on mouse hover or gamepad focus, hiding them
 on exit or touch input. Labels expand right and fade in, then retract left and fade out;
