@@ -1,12 +1,13 @@
 -- IndexScreen: the Index window and the side button that opens it. Every plain item in the
 -- catalogue has a cell (mutated variants show on their plain item's page); the ones the
--- player has had (Remotes.IndexSync, from GardenService) draw their art and describe
--- themselves in the sidebar with ItemDetails, the rest are dark silhouettes named "???".
+-- player has had (Remotes.IndexSync, from GardenService) draw their art, the rest are dark
+-- silhouettes named "???".
 --
--- The window is authored in StarterGui.HUD.Index (place file only) as a sibling of the
--- Backpack with the same Header, Body.Sidebar and Body.Main.GridPanel.Grid; its cells are
--- clones of Assets.UI.Inventory.Slot. Hovering or focusing a cell describes it, pressing one
--- keeps it described. Screens owns window exclusivity.
+-- Three areas, left to right: the item list (Body.Main.GridPanel.Grid, cells cloned from
+-- Assets.UI.Inventory.Slot), the showcase (Body.Showcase: the picked item large on a
+-- Turntable, its name and kind) and the facts (Body.Sidebar.Information, ItemDetails' rows).
+-- Pressing or focusing a cell picks it; the first cell is picked until then. All of it is
+-- authored in StarterGui.HUD.Index (place file only). Screens owns window exclusivity.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -27,15 +28,16 @@ local ItemDetails = require(Libraries.ItemDetails)
 local ItemIcon = require(Libraries.ItemIcon)
 local PopupMotion = require(Libraries.PopupMotion)
 local Screens = require(Libraries.Screens)
+local Turntable = require(Libraries.Turntable)
 local UI = require(Libraries.UI)
 
 local BACK_ACTION = "IndexBack"
 local UNKNOWN = "???"
 local MIN_CELL = 50
-local MIN_COLUMNS = 5
+local MIN_COLUMNS = 4
 local MAX_COLUMNS = 9
 
-type Cell = { item: Inventory.Item, button: TextButton, icon: ViewportFrame }
+type Cell = { item: Inventory.Item, button: TextButton, icon: ViewportFrame, bars: { Frame } }
 
 local IndexScreen = {}
 
@@ -45,9 +47,9 @@ function IndexScreen.init(hud: ScreenGui)
 	local opener = Hud.find(hud, "SideButtons.Index", "TextButton")
 	local closeButton = Hud.find(hud, "Index.Header.Close", "TextButton")
 	local subtitle = Hud.find(hud, "Index.Header.Subtitle", "TextLabel")
-	local previewIcon = Hud.find(hud, "Index.Body.Sidebar.Preview.Icon", "ViewportFrame")
-	local previewName = Hud.find(hud, "Index.Body.Sidebar.Preview.ItemName", "TextLabel")
-	local previewKind = Hud.find(hud, "Index.Body.Sidebar.Preview.Kind", "TextLabel")
+	local view = Hud.find(hud, "Index.Body.Showcase.View", "ViewportFrame")
+	local itemName = Hud.find(hud, "Index.Body.Showcase.ItemName", "TextLabel")
+	local itemKind = Hud.find(hud, "Index.Body.Showcase.Kind", "TextLabel")
 	local rows = Hud.find(hud, "Index.Body.Sidebar.Information.Rows", "Frame")
 	local description = Hud.find(hud, "Index.Body.Sidebar.Information.Rows.Description", "TextLabel")
 	local grid = Hud.find(hud, "Index.Body.Main.GridPanel.Grid", "ScrollingFrame")
@@ -62,9 +64,9 @@ function IndexScreen.init(hud: ScreenGui)
 		or not opener
 		or not closeButton
 		or not subtitle
-		or not previewIcon
-		or not previewName
-		or not previewKind
+		or not view
+		or not itemName
+		or not itemKind
 		or not rows
 		or not description
 		or not grid
@@ -77,8 +79,8 @@ function IndexScreen.init(hud: ScreenGui)
 		return
 	end
 	assert(window:IsA("GuiObject") and scale:IsA("UIScale") and opener:IsA("GuiButton"))
-	assert(closeButton:IsA("GuiButton") and subtitle:IsA("TextLabel") and previewIcon:IsA("ViewportFrame"))
-	assert(previewName:IsA("TextLabel") and previewKind:IsA("TextLabel") and rows:IsA("Frame"))
+	assert(closeButton:IsA("GuiButton") and subtitle:IsA("TextLabel") and view:IsA("ViewportFrame"))
+	assert(itemName:IsA("TextLabel") and itemKind:IsA("TextLabel") and rows:IsA("Frame"))
 	assert(description:IsA("TextLabel") and grid:IsA("ScrollingFrame") and gridLayout:IsA("UIGridLayout"))
 	assert(gridPadding:IsA("UIPadding") and slotTemplate:IsA("TextButton") and rowTemplate:IsA("Frame"))
 	assert(selectionImage:IsA("GuiObject"))
@@ -86,15 +88,34 @@ function IndexScreen.init(hud: ScreenGui)
 	local trove = Trove.new()
 	local animateWindow, cleanup = PopupMotion.bind(window, true)
 	trove:Add(cleanup)
+	local turntable = Turntable.bind(view)
+	trove:Add(turntable.destroy)
 	local opened = false
 	local prior: GuiObject? = nil
 	local had: { [string]: boolean } = {}
 	local cells: { Cell } = {}
-	-- The cell pressed last, and the one under the pointer or focus, which wins while it lasts.
 	local picked: Cell? = nil
-	local hovered: Cell? = nil
+	-- Resting and picked looks, captured from the Slot template (the hotbar's selected look).
 	local iconColor = (slotTemplate:FindFirstChild("Icon") :: ViewportFrame).ImageColor3
-	local noneText = previewName.Text
+	local slotColor, slotTransparency = slotTemplate.BackgroundColor3, slotTemplate.BackgroundTransparency
+	local pickedColor = slotTemplate:GetAttribute("SelectedBackgroundColor") or slotColor
+	local pickedTransparency = slotTemplate:GetAttribute("SelectedBackgroundTransparency") or slotTransparency
+	local pickedBracket = slotTemplate:GetAttribute("SelectedBracketColor") or Color3.new(1, 1, 1)
+	local bracketColor = Color3.new(1, 1, 1)
+
+	local function bracketBars(root: Instance): { Frame }
+		local bars = {}
+		for _, bar in root:GetDescendants() do
+			if bar:IsA("Frame") and (bar.Name == "Horizontal" or bar.Name == "Vertical") then
+				table.insert(bars, bar)
+			end
+		end
+		return bars
+	end
+	local templateBars = bracketBars(slotTemplate)
+	if templateBars[1] then
+		bracketColor = templateBars[1].BackgroundColor3
+	end
 
 	-- Whether the player has had the plain item or any of its mutated variants.
 	local function found(item: Inventory.Item): boolean
@@ -111,29 +132,28 @@ function IndexScreen.init(hud: ScreenGui)
 		return false
 	end
 
-	local function paintSidebar()
-		local cell = hovered or picked
+	local function paintPicked()
+		local cell = picked
 		if not cell then
-			ItemIcon.show(previewIcon, nil)
-			previewName.Text = noneText
-			previewKind.Text = ""
+			turntable.show(nil)
+			itemName.Text = ""
+			itemKind.Text = ""
 			ItemDetails.paint(rows, rowTemplate, {})
 			description.Text = ""
 			return
 		end
 		local item = cell.item
-		previewKind.Text = item.kind
+		turntable.show(item.id)
+		itemKind.Text = item.kind
 		if not found(item) then
-			ItemIcon.show(previewIcon, item.id)
-			previewIcon.ImageColor3 = Color3.new()
-			previewName.Text = UNKNOWN
+			view.ImageColor3 = Color3.new()
+			itemName.Text = UNKNOWN
 			ItemDetails.paint(rows, rowTemplate, {})
 			description.Text = "Get one to learn about it."
 			return
 		end
-		ItemIcon.show(previewIcon, item.id)
-		previewIcon.ImageColor3 = iconColor
-		previewName.Text = item.name
+		view.ImageColor3 = iconColor
+		itemName.Text = item.name
 		local details = ItemDetails.rows(item)
 		local variants = {}
 		if Inventory.hasMutations(item.id) then
@@ -147,7 +167,8 @@ function IndexScreen.init(hud: ScreenGui)
 		ItemDetails.paint(rows, rowTemplate, details)
 		local text = item.description or ""
 		if #variants > 0 then
-			text ..= `\nFound: {table.concat(variants, ", ")}`
+			-- Sarpanch draws a colon as one dot, so the list follows a dash.
+			text ..= `\nFound - {table.concat(variants, ", ")}`
 		end
 		description.Text = text
 	end
@@ -156,12 +177,25 @@ function IndexScreen.init(hud: ScreenGui)
 		local count = 0
 		for _, cell in cells do
 			local known = found(cell.item)
+			local isPicked = cell == picked
 			count += if known then 1 else 0
 			ItemIcon.show(cell.icon, cell.item.id)
 			cell.icon.ImageColor3 = if known then iconColor else Color3.new()
+			cell.button.BackgroundColor3 = if isPicked then pickedColor else slotColor
+			cell.button.BackgroundTransparency = if isPicked then pickedTransparency else slotTransparency
+			for _, bar in cell.bars do
+				bar.BackgroundColor3 = if isPicked then pickedBracket else bracketColor
+			end
 		end
 		subtitle.Text = `Found {count} of {#cells}`
-		paintSidebar()
+		paintPicked()
+	end
+
+	local function pick(cell: Cell)
+		if picked ~= cell then
+			picked = cell
+			render()
+		end
 	end
 
 	local function layoutGrid()
@@ -190,40 +224,35 @@ function IndexScreen.init(hud: ScreenGui)
 				label.Visible = false
 			end
 		end
-		local cell: Cell = { item = item, button = button, icon = button:FindFirstChild("Icon") :: ViewportFrame }
+		local cell: Cell = {
+			item = item,
+			button = button,
+			icon = button:FindFirstChild("Icon") :: ViewportFrame,
+			bars = bracketBars(button),
+		}
 		table.insert(cells, cell)
 		trove:Add(button)
 		trove:Add(UI.bindButton(button, {
 			hoverScale = 1.06,
 			onActivate = function()
-				picked = cell
-				paintSidebar()
+				pick(cell)
 			end,
 		}))
-		local function enter()
-			hovered = cell
-			paintSidebar()
-		end
-		local function leave()
-			if hovered == cell then
-				hovered = nil
-				paintSidebar()
-			end
-		end
-		trove:Connect(button.MouseEnter, enter)
-		trove:Connect(button.SelectionGained, enter)
-		trove:Connect(button.MouseLeave, leave)
-		trove:Connect(button.SelectionLost, leave)
+		trove:Connect(button.SelectionGained, function()
+			pick(cell)
+		end)
 		button.Parent = grid
 	end
+	picked = cells[1]
 
 	local function close()
 		if not opened then
 			return
 		end
 		opened = false
-		hovered = nil
 		animateWindow(false)
+		-- Nothing turns while the window is shut; opening shows the picked item afresh.
+		turntable.show(nil)
 		ContextActionService:UnbindAction(BACK_ACTION)
 		local selected = GuiService.SelectedObject
 		if selected and selected:IsDescendantOf(window) then

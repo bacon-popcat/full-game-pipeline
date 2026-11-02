@@ -37,7 +37,7 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 
 | Instance | What it is |
 |---|---|
-| `StarterGui.HUD` | `Hotbar`, `Backpack` window (its sidebar is Preview and Information; the Controls panel is gone), `Index` window (a copy of the Backpack's layout), `DragGhost`, `ItemName`, `SideButtons.Backpack`, `SideButtons.Index` (a book icon) |
+| `StarterGui.HUD` | `Hotbar`, `Backpack` window (its sidebar is Preview and Information; the Controls panel is gone), `Index` window (item list in `Body.Main`, the `Body.Showcase` with its `View` viewport, `ItemName`, `Kind`, `Glow` and `Hint`, and facts in `Body.Sidebar.Information`), `DragGhost`, `ItemName`, `SideButtons.Backpack`, `SideButtons.Index` (a book icon) |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage`, `InfoRow` (a Key/Value row ItemDetails clones into a panel's `Rows`, ahead of its `Description` at LayoutOrder 100) |
 | `ReplicatedStorage.Assets.UI.Stack` | `Count`, a BillboardGui with a TextLabel `Label` inside, cloned over every stack of more than one item, loose or on a belt, to show "x24"; until it is authored StackLabel draws a plain dark pill, without a warning |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
@@ -114,8 +114,10 @@ The Index side button opens a window of every plain item in the catalogue (Index
 GardenService keeps the item ids each player has had, in their inventory (any
 `InventoryService.give`) or harvested on their plot, and sends them all over `IndexSync` on load
 and on each new one; at load, whatever the inventory already holds counts. Items not yet had are
-dark silhouettes named "???". A found item's page shows ItemDetails' rows, how many of its
-mutation sets have been found, and which. Products a machine sends straight to a Shipping Bin
+dark silhouettes named "???". The window has three areas: the item list, a showcase where the
+picked item turns slowly in a large viewport and can be dragged to look at it from any side
+(`libraries/Turntable`; with reduced motion it only turns when dragged), and the facts:
+ItemDetails' rows, how many of its mutation sets have been found, and which. Products a machine sends straight to a Shipping Bin
 are not counted until one reaches the inventory.
 
 The garden HUD contract is in [economy.md](economy.md#authored-hud-contract-place-file-only).
