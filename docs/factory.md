@@ -39,8 +39,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 - **Items move on the server.** Clients receive changed lane lists through FactorySync and
   interpolate with Lane. A machine starts a job only when its outputs fit.
 - **Players ride belts too.** ConveyorRideController (client only, since characters are
-  client-owned) pushes the local character along the nearest lane of any conveyor or
-  router it stands on, at that lane's speed. Machine belts don't carry players.
+  client-owned) drives the local character with a LinearVelocity along the nearest lane of
+  any conveyor or router it stands on, at that lane's speed, and turns it to face the belt. Machine belts don't carry players.
 - **Queued input can bypass an unwanted item.** A machine checks up to twelve queued items,
   including through a Merger. Other routers decide per item.
 - **Only the Smelter burns fuel.** It consumes coal while working and smelts iron or
