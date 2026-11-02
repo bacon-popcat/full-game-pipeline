@@ -1,5 +1,5 @@
 -- ConveyorRideController: carries the local character along any conveyor or router belt it
--- stands on, at that belt's speed, the way items ride it. Characters are client-owned
+-- stands on, or the hub walkway (HubLoopService), at that belt's speed, the way items ride it. Characters are client-owned
 -- physics, so this runs only here; the server sends nothing. The belt under the feet is
 -- found by a downward ray. The root is moved toward a point just ahead on the nearest lane,
 -- horizontally only so ramps are climbed by the Humanoid; aiming ahead rounds turns and
@@ -62,6 +62,40 @@ local function lanesOf(model: Model): { WorldLane }
 	return result
 end
 
+-- The flat direction and speed to carry a character standing at `hit`, if it is on a belt:
+-- a hub walkway piece (its RideDirection and RideSpeed attributes) or a placed conveyor.
+local function beltPush(hit: RaycastResult): (Vector3?, number?)
+	local ride = hit.Instance:GetAttribute("RideDirection")
+	local rideSpeed = hit.Instance:GetAttribute("RideSpeed")
+	if typeof(ride) == "Vector3" and typeof(rideSpeed) == "number" then
+		return ride, rideSpeed
+	end
+	local model = beltModel(hit.Instance)
+	if not model then
+		return nil, nil
+	end
+	local best: WorldLane?, bestD, bestDistance = nil, 0, math.huge
+	for _, lane in lanesOf(model) do
+		local d, distance = Lane.project(lane.points, hit.Position)
+		if distance < bestDistance then
+			best, bestD, bestDistance = lane, d, distance
+		end
+	end
+	if not best then
+		return nil, nil
+	end
+	-- Steer at a point a little ahead on the lane, so a turn is rounded off instead of
+	-- overshot, and pull back toward the belt's centre line.
+	local here = Lane.pointAt(best.points, bestD)
+	local ahead, travel = Lane.pointAt(best.points, math.min(bestD + LOOKAHEAD, best.length))
+	local target = if bestD + LOOKAHEAD <= best.length then ahead else here + travel * LOOKAHEAD
+	local toward = Vector3.new(target.X - hit.Position.X, 0, target.Z - hit.Position.Z)
+	if toward.Magnitude < 1e-3 then
+		return nil, nil
+	end
+	return toward.Unit, best.speed
+end
+
 local function step(dt: number)
 	local character = Players.LocalPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -78,32 +112,14 @@ local function step(dt: number)
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { character }
 	local hit = workspace:Raycast(root.Position, Vector3.new(0, -RAY_DEPTH, 0), params)
-	local model = if hit then beltModel(hit.Instance) else nil
-	if not model or not hit then
+	if not hit then
 		return
 	end
-
-	local best: WorldLane?, bestD, bestDistance = nil, 0, math.huge
-	for _, lane in lanesOf(model) do
-		local d, distance = Lane.project(lane.points, hit.Position)
-		if distance < bestDistance then
-			best, bestD, bestDistance = lane, d, distance
-		end
-	end
-	if not best then
+	local direction, speed = beltPush(hit)
+	if not direction or not speed then
 		return
 	end
-	-- Steer at a point a little ahead on the lane, so a turn is rounded off instead of
-	-- overshot, and pull back toward the belt's centre line.
-	local here = Lane.pointAt(best.points, bestD)
-	local ahead, travel = Lane.pointAt(best.points, math.min(bestD + LOOKAHEAD, best.length))
-	local target = if bestD + LOOKAHEAD <= best.length then ahead else here + travel * LOOKAHEAD
-	local toward = Vector3.new(target.X - hit.Position.X, 0, target.Z - hit.Position.Z)
-	if toward.Magnitude < 1e-3 then
-		return
-	end
-	local direction = toward.Unit
-	local position = root.Position + direction * best.speed * dt
+	local position = root.Position + direction * speed * dt
 	-- Turn to face the belt while standing; walking leaves turning to the Humanoid.
 	local facing = root.CFrame.LookVector
 	if humanoid.MoveDirection.Magnitude < 0.1 then
