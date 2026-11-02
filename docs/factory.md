@@ -94,9 +94,9 @@ product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice.
 Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
 Mutated inputs are never grouped with plain ones or each other. Each variant has its own
-input room; a batch takes every input in one mutation (plain first, then rising rarity) and
-makes its product in that mutation, `<Product>+<Mutation>` worth the product's value times the
-multiplier (Items makes a variant of every valued product). A recipe with an input that has
+input room; a batch takes every input in one set of mutations (plain first, then rising
+value, `Mutations.KEYS`) and makes its product in that set, `<Product>+<Mutations>` worth the
+product's value times the set's multiplier (Items makes every variant of every valued product). A recipe with an input that has
 no variant (bars, parts) only runs plain, so a Golden Pie needs Golden Flour as well as Golden
 fruit. Rare variants wait inside until a whole batch is in, without blocking plain ones. An
 active job refunds its exact variants when saved or picked up. The Harvester sources the current
@@ -106,8 +106,8 @@ plants regrow (see farming.md).
 A Filter's picks match an item by its exact id, or else by its base crop or product, so a
 pick of a plain crop covers every mutation of it. A pick that comes in mutations
 (`Inventory.hasMutations`) has its own mutation checklist (Plain, Wet, Shocked, Golden,
-Rainbow): with any ticked, the pick takes only those, so Carrot with Golden ticked sends only
-Golden Carrots to its side. A pick with none ticked takes every variant. Ticks are saved as
+Rainbow): with any ticked, the pick takes items carrying any of those, so Carrot with Golden
+ticked sends Golden and Wet Golden Carrots to its side. A pick with none ticked takes every variant. Ticks are saved as
 "Carrot:Golden" and go when the pick goes back to straight on.
 
 ## Loose items (DropService)

@@ -131,8 +131,8 @@ local function show(fx: { [string]: any })
 	elseif kind == "Harvest" and typeof(position) == "Vector3" and near(position) then
 		local itemId = if typeof(fx.itemId) == "string" then fx.itemId else ""
 		local crop = World.CROPS[itemId]
-		local mutation = if typeof(fx.mutation) == "string" then Mutations.ALL[fx.mutation] else nil
-		local color = if mutation then mutation.color elseif crop then crop.color else GLOW
+		local mutation = if typeof(fx.mutation) == "string" then Mutations.parse(fx.mutation) else nil
+		local color = if mutation then Mutations.color(mutation) elseif crop then crop.color else GLOW
 		burst(position, color, if mutation then 22 else 12, 6, 0.3)
 		bob(position, if mutation then `{itemId}+{fx.mutation}` else itemId)
 		Sound.play("Harvest", position)

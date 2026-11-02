@@ -1,5 +1,7 @@
--- GardenService: per-player seed stock, discoveries and stall transactions. DataService
--- loads/snapshots this state. Purchases and sales never yield between validation and mutation.
+-- GardenService: per-player seed stock, discoveries, the Index and stall transactions.
+-- DataService loads/snapshots this state. `discovered` holds crops harvested (onboarding reads
+-- it); `indexed` holds every item id the player has had in their inventory or harvested, which
+-- the client's Index shows (IndexSync). Purchases and sales never yield between validation and mutation.
 -- Values in Items already include mutation multipliers; selling must not multiply twice.
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -13,7 +15,12 @@ local World = require(ReplicatedStorage.Shared.World)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
-type State = { seedStock: { [string]: number }, restockAt: number, discovered: { [string]: boolean } }
+type State = {
+	seedStock: { [string]: number },
+	restockAt: number,
+	discovered: { [string]: boolean },
+	indexed: { [string]: boolean },
+}
 local states: { [Player]: State } = {}
 local lastAction: { [Player]: number } = {}
 local seeds: { [string]: World.Crop } = {}
@@ -41,13 +48,31 @@ local function sync(player: Player, state: State)
 	Remotes.ShopSync:FireClient(player, { restockAt = state.restockAt, stock = table.clone(state.seedStock) })
 end
 
+local function syncIndex(player: Player, state: State)
+	local ids = {}
+	for itemId in state.indexed do
+		table.insert(ids, itemId)
+	end
+	Remotes.IndexSync:FireClient(player, ids)
+end
+
+-- Adds an item to the player's Index the first time they get it.
+function GardenService.discover(player: Player, itemId: string)
+	local state = states[player]
+	if state and not state.indexed[itemId] and Inventory.find(itemId) then
+		state.indexed[itemId] = true
+		syncIndex(player, state)
+	end
+end
+
 function GardenService.load(
 	player: Player,
 	stock: { [string]: number },
 	restockAt: number,
-	discovered: { [string]: boolean }
+	discovered: { [string]: boolean },
+	indexed: { [string]: boolean }
 )
-	local state: State = { seedStock = {}, restockAt = restockAt, discovered = {} }
+	local state: State = { seedStock = {}, restockAt = restockAt, discovered = {}, indexed = {} }
 	for seed, crop in seeds do
 		local amount = stock[seed]
 		state.seedStock[seed] = if typeof(amount) == "number"
@@ -60,9 +85,21 @@ function GardenService.load(
 	for cropId in World.CROPS do
 		state.discovered[cropId] = discovered[cropId] == true
 	end
+	for itemId, had in indexed do
+		if had == true and typeof(itemId) == "string" and Inventory.find(itemId) then
+			state.indexed[itemId] = true
+		end
+	end
+	-- What the player holds now counts too, so saves from before the Index start with it.
+	for _, stack in InventoryService.snapshot(player) or {} do
+		if stack then
+			state.indexed[stack.itemId] = true
+		end
+	end
 	states[player] = state
 	restock(state)
 	sync(player, state)
+	syncIndex(player, state)
 end
 
 function GardenService.snapshot(player: Player): State?
@@ -72,6 +109,7 @@ function GardenService.snapshot(player: Player): State?
 			seedStock = table.clone(state.seedStock),
 			restockAt = state.restockAt,
 			discovered = table.clone(state.discovered),
+			indexed = table.clone(state.indexed),
 		}
 		else nil
 end
@@ -87,9 +125,10 @@ function GardenService.harvest(player: Player, cropId: string, mutation: string?
 		return
 	end
 	state.discovered[cropId] = true
+	GardenService.discover(player, World.CROPS[cropId].produce .. (if mutation then "+" .. mutation else ""))
 	EconomyService.addXp(player, Content.RARITIES[World.CROPS[cropId].rarity].xp)
 	if mutation then
-		Remotes.Notify:FireClient(player, `{mutation} {World.CROPS[cropId].name}!`)
+		Remotes.Notify:FireClient(player, `{Inventory.getItem(World.CROPS[cropId].produce .. "+" .. mutation).name}!`)
 	end
 end
 
@@ -219,6 +258,7 @@ local function sell(player: Player, mode: unknown)
 	end
 end
 function GardenService.init()
+	InventoryService.setGainedHandler(GardenService.discover)
 	Remotes.ShopBuy.OnServerEvent:Connect(buy)
 	Remotes.Sell.OnServerEvent:Connect(sell)
 	-- Prompts refresh the opening screen even if its initial load sync preceded HUD binding.

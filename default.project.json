@@ -17,6 +17,7 @@
         "Fx": { "$className": "RemoteEvent" },
         "Objective": { "$className": "RemoteEvent" },
         "ShopSync": { "$className": "RemoteEvent" },
+        "IndexSync": { "$className": "RemoteEvent" },
         "ShopBuy": { "$className": "RemoteEvent" },
         "PlotBuySection": { "$className": "RemoteEvent" },
         "Sell": { "$className": "RemoteEvent" },

@@ -27,7 +27,7 @@ local mutable: { [string]: boolean } = {}
 for _, item in Items do
 	assert(byId[item.id] == nil, `Inventory: duplicate item id "{item.id}"`)
 	byId[item.id] = item
-	if item.base and item.mutation then
+	if item.base and item.mutations then
 		mutable[item.base] = true
 	end
 end
@@ -51,7 +51,7 @@ function Inventory.find(itemId: string): Item?
 	return byId[itemId]
 end
 
--- Whether `itemId` comes in mutations (`<itemId>+<Mutation>`); false for a mutated variant.
+-- Whether `itemId` comes in mutations (`<itemId>+<Mutations key>`); false for a mutated variant.
 function Inventory.hasMutations(itemId: string): boolean
 	return mutable[itemId] == true
 end

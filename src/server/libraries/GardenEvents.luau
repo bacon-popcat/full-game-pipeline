@@ -14,7 +14,7 @@ local GardenEvents = {
 	Planted = Signal.new(),
 	-- (player, itemId: string, model: Model) a block or machine placed by hand
 	Placed = Signal.new(),
-	-- (player, cropId: string, mutation: string?, cell: Vector3) a ripe crop on the player's plot
+	-- (player, cropId: string, mutation: string? (a Mutations key), cell: Vector3) a ripe crop on the player's plot
 	-- harvested, by hand or by a machine
 	Harvested = Signal.new(),
 	-- (player, coins: number, at: Vector3?) a sale: at the Sell Stand (no position) or by a

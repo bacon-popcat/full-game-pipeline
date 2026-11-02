@@ -30,6 +30,7 @@ export type SavedCrop = {
 	cell: Cell,
 	plantedAt: number,
 	harvestCount: number,
+	-- A Mutations key ("Wet+Golden"); a save from before stacking holds one name, also a key.
 	mutation: string?,
 	mutationRolled: boolean?,
 	growthBonus: number?,

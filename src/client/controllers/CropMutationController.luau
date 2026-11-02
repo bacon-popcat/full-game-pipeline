@@ -1,5 +1,6 @@
 -- CropMutationController: ripe Mutation attributes own tint and soft sparkle. Baselines
--- come from replicated crop art, including fallback tint. Only nearby mutations emit;
+-- come from replicated crop art, including fallback tint. A crop with stacked mutations takes
+-- its most valuable one's tint and sparkles in all their colours. Only nearby mutations emit;
 -- Rainbow cycles at 6 Hz and becomes a static tint with reduced motion.
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7,7 +8,7 @@ local RunService = game:GetService("RunService")
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local World = require(ReplicatedStorage.Shared.World)
 local Trove = require(ReplicatedStorage.Packages.Trove)
-type Effect = { name: string, emitter: ParticleEmitter, parts: { [BasePart]: Color3 } }
+type Effect = { rainbow: boolean, emitter: ParticleEmitter, parts: { [BasePart]: Color3 } }
 local CropMutationController = {}
 function CropMutationController.init()
 	local folder = workspace:WaitForChild("World")
@@ -29,24 +30,32 @@ function CropMutationController.init()
 	end
 	local function refresh(model: Model)
 		clear(model)
-		local name, nodeType = model:GetAttribute("Mutation"), model:GetAttribute("NodeType")
-		local mutation = if typeof(name) == "string" then Mutations.ALL[name] else nil
+		local key, nodeType = model:GetAttribute("Mutation"), model:GetAttribute("NodeType")
+		local names = if typeof(key) == "string" then Mutations.parse(key) else nil
 		local def = if typeof(nodeType) == "string" then World.NODES[nodeType] else nil
 		local root = model.PrimaryPart
-		if not mutation or not def or not World.isRipe(def) or not root or typeof(name) ~= "string" then
+		if not names or not def or not World.isRipe(def) or not root then
 			return
+		end
+		local tint = Mutations.color(names)
+		local sparkle = {}
+		for index, name in names do
+			table.insert(sparkle, ColorSequenceKeypoint.new((index - 1) / math.max(1, #names - 1), Mutations.ALL[name].color))
+		end
+		if #sparkle == 1 then
+			table.insert(sparkle, ColorSequenceKeypoint.new(1, tint))
 		end
 		local parts: { [BasePart]: Color3 } = {}
 		for _, part in model:GetDescendants() do
 			if part:IsA("BasePart") and part.Name ~= "Hitbox" then
 				parts[part] = part.Color
-				part.Color = mutation.color
+				part.Color = tint
 			end
 		end
 		local emitter = Instance.new("ParticleEmitter")
 		emitter.Name = "MutationSparkles"
 		emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-		emitter.Color = ColorSequence.new(mutation.color)
+		emitter.Color = ColorSequence.new(sparkle)
 		emitter.Size = NumberSequence.new({
 			NumberSequenceKeypoint.new(0, 0),
 			NumberSequenceKeypoint.new(0.5, 0.16),
@@ -60,7 +69,7 @@ function CropMutationController.init()
 		emitter.LightEmission = 0.35
 		emitter.Enabled = false
 		emitter.Parent = root
-		effects[model] = { name = name, emitter = emitter, parts = parts }
+		effects[model] = { rainbow = names[#names] == "Rainbow", emitter = emitter, parts = parts }
 	end
 	local function bind(child: Instance)
 		if not child:IsA("Model") or bindings[child] then
@@ -127,7 +136,7 @@ function CropMutationController.init()
 			if effect.emitter.Enabled then
 				emitting += 1
 			end
-			if effect.name == "Rainbow" and near then
+			if effect.rainbow and near then
 				local color = if GuiService.ReducedMotionEnabled
 					then Mutations.ALL.Rainbow.color
 					else Color3.fromHSV((os.clock() / 8) % 1, 0.4, 1)

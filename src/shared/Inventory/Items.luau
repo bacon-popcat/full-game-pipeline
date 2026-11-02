@@ -19,8 +19,9 @@ export type Item = {
 	stack: number,
 	description: string?,
 	value: number?,
+	-- Mutated variants only: the plain item's id and the mutations it carries, in ORDER.
 	base: string?,
-	mutation: string?,
+	mutations: { string }?,
 	-- The template its art borrows (Assets.Blocks for placeables, Assets.Items for resources)
 	-- when it has none of its own, tinted `color` when given. ItemArt resolves it.
 	art: string?,
@@ -186,11 +187,16 @@ for cropId in World.CROPS do
 	table.insert(cropIds, cropId)
 end
 table.sort(cropIds)
-local mutationNames: { string } = {}
-for name in Mutations.ALL do
-	table.insert(mutationNames, name)
+-- A name for a set of mutations ahead of the plain name: "Wet Golden Carrot".
+local function variant(base: Item, key: string, description: string): Item
+	local names = string.split(key, "+")
+	local item = resource(base.id .. "+" .. key, table.concat(names, " ") .. " " .. base.name, description)
+	item.base = base.id
+	item.mutations = names
+	item.value = (base.value or 0) * Mutations.multiplier(names)
+	item.art = base.art
+	return item
 end
-table.sort(mutationNames)
 for _, cropId in cropIds do
 	local crop = World.CROPS[cropId]
 	table.insert(
@@ -200,32 +206,22 @@ for _, cropId in cropIds do
 	local produce = resource(crop.produce, crop.name, "Harvested from your garden.")
 	produce.value = crop.value
 	table.insert(ITEMS, produce)
-	for _, name in mutationNames do
-		local mutation = Mutations.ALL[name]
-		local variant = resource(crop.produce .. "+" .. name, name .. " " .. crop.name, "A mutated garden harvest.")
-		variant.base = crop.produce
-		variant.mutation = name
-		variant.value = crop.value * mutation.multiplier
-		table.insert(ITEMS, variant)
+	for _, key in Mutations.KEYS do
+		table.insert(ITEMS, variant(produce, key, "A mutated garden harvest."))
 	end
 end
--- A valued product made from mutated inputs keeps the mutation (Machine), so each has a
--- variant per mutation, worth its value times the multiplier. Parts have no value and none.
+-- A valued product made from mutated inputs keeps their mutations (Machine), so each has a
+-- variant per set of mutations, worth its value times their multiplier. Parts have no value
+-- and none.
 for _, product in Products do
 	local item = resource(product.id, product.name, product.description)
 	item.value = product.value
 	item.art = product.art
 	item.color = product.color
 	table.insert(ITEMS, item)
-	local value = product.value
-	if value then
-		for _, name in mutationNames do
-			local variant = resource(product.id .. "+" .. name, name .. " " .. product.name, product.description)
-			variant.base = product.id
-			variant.mutation = name
-			variant.value = value * Mutations.ALL[name].multiplier
-			variant.art = product.art
-			table.insert(ITEMS, variant)
+	if product.value then
+		for _, key in Mutations.KEYS do
+			table.insert(ITEMS, variant(item, key, product.description))
 		end
 	end
 end

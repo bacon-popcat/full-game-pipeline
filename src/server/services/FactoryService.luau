@@ -341,23 +341,31 @@ local function spend(lane: LaneState, index: number, taken: number)
 	markDirty(lane)
 end
 
--- Whether a filter's pick `id` lets through an item of `mutation`: it ticked that one, or it
--- ticked none.
-local function allows(block: Block, id: string, mutation: string): boolean
+-- Whether a filter's pick `id` lets through an item carrying `mutations` ("Plain" for none):
+-- it ticked one of them, or it ticked none.
+local function allows(block: Block, id: string, mutations: { string }): boolean
 	local ticks = block.mutations[id]
-	return ticks == nil or next(ticks) == nil or ticks[mutation] == true
+	if ticks == nil or next(ticks) == nil then
+		return true
+	end
+	for _, name in mutations do
+		if ticks[name] then
+			return true
+		end
+	end
+	return false
 end
 
 -- The side a filter conveyor sends `itemId`, or nil for straight on. A pick of the item's
 -- exact id wins; otherwise a pick of its base crop or product, which covers every mutation of
 -- it. Either way the pick's ticked mutations ("Plain" for none) must let it through, so Carrot
--- with Golden ticked takes Golden Carrots only.
+-- with Golden ticked takes any Carrot that is Golden, Wet Golden ones too.
 local function filterSide(block: Block, itemId: string): Side?
 	local item = Inventory.find(itemId)
-	local mutation = if item and item.mutation then item.mutation else "Plain"
+	local mutations = if item and item.mutations then item.mutations else { "Plain" }
 	for _, id in { itemId, if item then item.base else nil } do
 		local side = block.filter[id]
-		if side and allows(block, id, mutation) then
+		if side and allows(block, id, mutations) then
 			return side
 		end
 	end

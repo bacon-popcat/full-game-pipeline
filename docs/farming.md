@@ -113,12 +113,14 @@ layer of blocks and digging uncovers the cells round the hole. `GroundService` o
 
 ## Mutations
 
-`Shared/World/Mutations` owns multipliers, colours and the exclusive roll. On reaching Ripe,
-make one random draw with disjoint Rainbow, Golden, Shocked and Wet intervals, followed
-by the plain interval. This keeps the stated probabilities exact without stacking mutations.
-Golden Hour boosts Golden; storms also count as rain.
-A crop has at most one mutation. `mutationRolled` saves a completed plain roll as well as a
-variant, preventing rerolls on rejoin. Each harvest resets the next cycle's roll.
+`Shared/World/Mutations` owns multipliers, colours, keys and the roll. Mutations stack: on
+reaching Ripe, Wet, Shocked, Golden and Rainbow each roll on their own chance, so a crop can
+come out Wet and Golden at once. A set of mutations is a key, its names in value order joined
+by "+" (`Wet+Golden`); a set's multiplier is 1 plus each mutation's bonus over plain (Wet x2 +
+Golden x20 = x21). Golden Hour boosts Golden; storms also count as rain.
+`mutationRolled` saves a completed plain roll as well as a variant, preventing rerolls on
+rejoin. Each harvest resets the next cycle's roll. A save from before stacking holds one
+name, which is already a valid key.
 
 A crop that ripened offline rolls only the always-on chances when restored. A ripe saved
 mutation or completed plain roll is preserved. `WorldService.setChanceModifiers(provider)`
@@ -126,11 +128,14 @@ is the cell hook FactoryService fills with the best sprinkler's +10% Wet;
 `chanceModifiers(cell, offline)` combines additive Wet, Shocked and Golden chances with
 weather and clamps each to 0..1.
 
-Harvests use `<Produce>+<Mutation>`. Factory processing keeps each variant apart: a batch
-takes all its inputs in one mutation and makes that mutation's product, and each variant has
+Harvests use `<Produce>+<key>` (`Carrot+Wet+Golden`); Items generates all fifteen sets for
+every produce and valued product. Factory processing keeps each variant apart: a batch
+takes all its inputs in one set of mutations and makes that set's product, and each variant has
 its own input room (factory.md § Processors). The job records exact consumed variant ids for
 save/pickup refunds. A Filter Conveyor sorts by picked item, each pick narrowed by its own
-mutation checklist.
+mutation checklist; a stacked item passes when any of its mutations is ticked.
+`CropMutationController` tints a stacked crop in its most valuable mutation's colour and
+sparkles it in all of them.
 
 ## Weather
 

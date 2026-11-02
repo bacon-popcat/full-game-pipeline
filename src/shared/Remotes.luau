@@ -18,6 +18,9 @@ return {
 	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.
 	ShopSync = get("ShopSync"),
+	-- server -> client: (itemIds: { string }) every item id in the player's Index (GardenService);
+	-- sent on load and whenever an item is had for the first time.
+	IndexSync = get("IndexSync"),
 	-- client -> server: (shopId: string, itemId: string, count: number). shopId is a hub stall
 	-- (SeedShop, GearShop, MachineShop), bought from anywhere; count is a positive integer, within your own
 	-- stock for seeds, and the server checks level, coins and room. Answered with Notify.

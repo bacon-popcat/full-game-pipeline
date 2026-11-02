@@ -24,6 +24,9 @@ BuildService (server)  <--PlaceBlock / PickUpBlock-------------+
 - [plots.md](plots.md) maps profile loading, plot assignment, economy and saving.
 - `Shared/Remotes` names every RemoteEvent and documents its payload.
 - `client/libraries/Controls` owns every key binding and the hint text that names them.
+- `client/libraries/ItemDetails` owns the facts an item's info panel lists (amount, sell and
+  stack value, mutation bonus, rarity, grow time, seed or shop price, footprint), for the
+  backpack's sidebar and the Index's.
 
 The server never takes an item id from a client: placing uses whatever is in the
 player's held hotbar slot, and picking up reads the placed model's own attributes.
@@ -34,8 +37,8 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 
 | Instance | What it is |
 |---|---|
-| `StarterGui.HUD` | `Hotbar`, `Backpack` window, `DragGhost`, `ItemName`, `SideButtons.Backpack` |
-| `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage` |
+| `StarterGui.HUD` | `Hotbar`, `Backpack` window (its sidebar is Preview and Information; the Controls panel is gone), `Index` window (a copy of the Backpack's layout), `DragGhost`, `ItemName`, `SideButtons.Backpack`, `SideButtons.Index` (a book icon) |
+| `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage`, `InfoRow` (a Key/Value row ItemDetails clones into a panel's `Rows`, ahead of its `Description` at LayoutOrder 100) |
 | `ReplicatedStorage.Assets.UI.Stack` | `Count`, a BillboardGui with a TextLabel `Label` inside, cloned over every stack of more than one item, loose or on a belt, to show "x24"; until it is authored StackLabel draws a plain dark pill, without a warning |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
 | Cube studs | Each building cube (Grass, Dirt, Stone, Bricks...) is Plastic with `TopSurface = Studs` (Roblox's built-in surface, which only draws on Plastic), Grow a Garden style; `IslandsMachines/build/studio_studs.luau` sets it, and nothing else is studded |
@@ -104,6 +107,16 @@ Tool only after the final save snapshot. The selected slot resets to one on load
 BuildService.place is shared by normal placement and profile restoration. It synchronously
 registers factories, while seeds go directly to WorldService.plant. Saved blocks retain item id,
 plot-relative cell, rotation, Against and factory contents. See [plots.md](plots.md).
+
+## Index
+
+The Index side button opens a window of every plain item in the catalogue (IndexScreen).
+GardenService keeps the item ids each player has had, in their inventory (any
+`InventoryService.give`) or harvested on their plot, and sends them all over `IndexSync` on load
+and on each new one; at load, whatever the inventory already holds counts. Items not yet had are
+dark silhouettes named "???". A found item's page shows ItemDetails' rows, how many of its
+mutation sets have been found, and which. Products a machine sends straight to a Shipping Bin
+are not counted until one reaches the inventory.
 
 The garden HUD contract is in [economy.md](economy.md#authored-hud-contract-place-file-only).
 Shared/ItemArt owns tinted seed/produce fallbacks and mutation icons; Build delegates its

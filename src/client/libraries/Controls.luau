@@ -28,28 +28,11 @@ Controls.HOTBAR_SLOTS = {
 	Enum.KeyCode.Nine,
 }
 
-local function key(text: string): string
-	return `<font color="#FFFFFF">{text}</font>`
-end
-
-local HINTS: { [Enum.PreferredInput]: string } = {
-	[Enum.PreferredInput.KeyboardAndMouse] = `{key("Click")} a slot, then another, or {key("drag")} to move.\n`
-		.. `{key("1-9")} hold  ·  {key("R")} rotate  ·  {key("Q")} drop  ·  {key(Controls.TOGGLE_BACKPACK[1].Name)} close`,
-	[Enum.PreferredInput.Touch] = `{key("Tap")} a slot, then tap where it goes.\nTap the hotbar to hold an item.`,
-	[Enum.PreferredInput.Gamepad] = `{key("A")} lift / put down  ·  {key("B")} back\n`
-		.. `{key("LB RB")} hold  ·  {key("X")} rotate  ·  {key("D-pad down")} drop  ·  {key("Y")} close`,
-}
-
 local INTERACT_HINTS: { [Enum.PreferredInput]: string } = {
 	[Enum.PreferredInput.KeyboardAndMouse] = `Press {Controls.INTERACT[1].Name} to open its controls.`,
 	[Enum.PreferredInput.Touch] = "Tap Open to see its controls.",
 	[Enum.PreferredInput.Gamepad] = "Press D-pad up to open its controls.",
 }
-
--- Rich text describing the backpack controls for `input`.
-function Controls.hint(input: Enum.PreferredInput): string
-	return HINTS[input] or HINTS[Enum.PreferredInput.KeyboardAndMouse]
-end
 
 -- How to open the panel of the machine aimed at, for `input`.
 function Controls.interactHint(input: Enum.PreferredInput): string

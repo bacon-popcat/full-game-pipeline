@@ -11,7 +11,7 @@
 --
 -- The window, hotbar strip and drag ghost are authored in StarterGui.HUD (place file
 -- only). Resting looks are captured from those instances; selected and lifted looks are
--- attributes on the Slot template.
+-- attributes on the Slot template. The sidebar's facts about an item are ItemDetails' rows.
 --
 -- Invariants:
 --   * `view` plus InventoryClient is the only input to `render`.
@@ -29,13 +29,13 @@ local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
+local ItemDetails = require(Libraries.ItemDetails)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
 local PopupMotion = require(Libraries.PopupMotion)
@@ -128,10 +128,8 @@ local function bind(hud: ScreenGui): boolean
 		previewIcon = "Backpack.Body.Sidebar.Preview.Icon",
 		previewName = "Backpack.Body.Sidebar.Preview.ItemName",
 		previewKind = "Backpack.Body.Sidebar.Preview.Kind",
-		amount = "Backpack.Body.Sidebar.Information.Rows.Amount.Value",
-		footprint = "Backpack.Body.Sidebar.Information.Rows.Footprint.Value",
+		infoRows = "Backpack.Body.Sidebar.Information.Rows",
 		description = "Backpack.Body.Sidebar.Information.Rows.Description",
-		hint = "Backpack.Body.Sidebar.Controls.Hint",
 		grid = "Backpack.Body.Main.GridPanel.Grid",
 		gridLayout = "Backpack.Body.Main.GridPanel.Grid.UIGridLayout",
 		gridPadding = "Backpack.Body.Main.GridPanel.Grid.UIPadding",
@@ -143,7 +141,7 @@ local function bind(hud: ScreenGui): boolean
 		end
 		nodes[key] = node
 	end
-	for key, name in { slotTemplate = "Slot", selectionImage = "SelectionImage" } do
+	for key, name in { slotTemplate = "Slot", selectionImage = "SelectionImage", infoRow = "InfoRow" } do
 		local node = findNode(templates, name)
 		if not node then
 			return false
@@ -256,8 +254,7 @@ local function paintInspector(index: number?)
 		ItemIcon.show(ui.previewIcon, nil)
 		ui.previewName.Text = look.previewNone
 		ui.previewKind.Text = ""
-		ui.amount.Text = "-"
-		ui.footprint.Text = "-"
+		ItemDetails.paint(ui.infoRows, ui.infoRow, {})
 		ui.description.Text = ""
 		return
 	end
@@ -265,9 +262,7 @@ local function paintInspector(index: number?)
 	ItemIcon.show(ui.previewIcon, item.id)
 	ui.previewName.Text = item.name
 	ui.previewKind.Text = item.kind
-	ui.amount.Text = `{stack.count} / {item.stack}`
-	local footprint = if Inventory.isPlaceable(item) then Build.footprint(item.id, 0) else nil
-	ui.footprint.Text = if footprint then `{footprint.X} x {footprint.Z} x {footprint.Y}` else "-"
+	ItemDetails.paint(ui.infoRows, ui.infoRow, ItemDetails.rows(item, stack.count))
 	ui.description.Text = item.description or ""
 end
 
@@ -489,7 +484,6 @@ local function onHotbarAction(_: string, state: Enum.UserInputState, input: Inpu
 end
 
 local function paintInputHints()
-	ui.hint.Text = Controls.hint(UserInputService.PreferredInput)
 	local keyHint = ui.opener:FindFirstChild("KeyHint")
 	if keyHint and keyHint:IsA("TextLabel") then
 		keyHint.Text = Controls.TOGGLE_BACKPACK[1].Name

@@ -19,7 +19,8 @@ compact patch; its centre is within 3 cells of all 20 crop centres. A Harvester
 within 4 cells services it. Planter handles initial filling, not free new seeds.
 
 One Mill/Juicer/Crate Packer/Oven, actual recipe times, same-variant fractional
-EV inventories, one 60-item/min Shipping Bin. No mixed-mutation batches. Mutations
+EV inventories, one 60-item/min Shipping Bin. No mixed-variant batches. Mutations
+roll independently and stack (Wet+Golden is its own variant, bonuses added). They
 are expected fractional yields, never sampled jackpots; fractional rare batches
 must accumulate before processing. Overflow stays queued. Plain mode proves the
 path needs no rare seeds or mutations. Weather growth is omitted conservatively;
@@ -34,6 +35,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter, defaultdict
 from copy import deepcopy
+from itertools import combinations
 import json
 import math
 from pathlib import Path
@@ -47,7 +49,9 @@ ACTION = 2
 TRAVEL = 20
 CELLS = 96
 HORIZON = 12 * 60 * 60
-VARIANTS = ("Plain", "Wet", "Shocked", "Golden", "Rainbow")
+MUTATIONS = ("Wet", "Shocked", "Golden", "Rainbow")
+# Plain, then every stacked set of mutations as a Mutations key ("Wet+Golden").
+VARIANTS = ("Plain",) + tuple("+".join(names) for size in range(1, 5) for names in combinations(MUTATIONS, size))
 
 
 def source(path):
@@ -112,14 +116,19 @@ def read_content():
         starter_coins=number(data, r'local PROFILE_TEMPLATE.*?coins = (\d+)'),
         starter_seeds={key: int(value) for key, value in re.findall(r'itemId = "(\w+)Seeds", count = (\d+)', data)},
         restock=int(number(content, r'RESTOCK_SECONDS = (\d+)')),
-        harvest_seconds=number(blocks, r'Harvester = harvester\(\d+, ([\d.]+)\)'),
+        harvest_seconds=number(blocks, r'Harvester = harvester\(\d+, \d+, ([\d.]+)\)'),
         plant_seconds=number(blocks, r'SeedPlanter = planter\(\d+, \d+, ([\d.]+)\)'),
         growth_speed=number(blocks, r'Sprinkler = sprinkler\(\d+, ([\d.]+)'),
         wet=number(blocks, r'Sprinkler = sprinkler\(\d+, [\d.]+, ([\d.]+)'),
         smelt_seconds=number(blocks, r'recipe\(\{ IronOre = 1 \}, \{ IronBar = 1 \}, ([\d.]+)\)'),
         coal_seconds=number(blocks, r'Coal = ([\d.]+)'),
-        multipliers={"Plain": 1, **{key: int(value) for key, value in re.findall(r'(\w+) = \{ multiplier = (\d+)', mutations)}},
+        multipliers=stacked({key: int(value) for key, value in re.findall(r'(\w+) = \{ multiplier = (\d+)', mutations)}),
         rewards=rewards)
+
+
+def stacked(single):
+    """Every variant's multiplier: 1 plus each of its mutations' bonus over plain."""
+    return {variant: 1 + sum(single[name] - 1 for name in variant.split("+") if name != "Plain") for variant in VARIANTS}
 
 
 def parts_time(config, parts):
@@ -220,7 +229,12 @@ class Model:
             wet += .25 * (120 + 90) / (3 * 600)
             shocked = .05 * 90 / (3 * 600)
             golden += .04 * 60 / (3 * 600)
-        return dict(Plain=1 - wet - golden - shocked - .001, Wet=wet, Shocked=shocked, Golden=golden, Rainbow=.001)
+        chances = dict(Wet=wet, Shocked=shocked, Golden=golden, Rainbow=.001)
+        odds = {}
+        for variant in VARIANTS:
+            names = set(variant.split("+")) - {"Plain"}
+            odds[variant] = math.prod(chances[name] if name in names else 1 - chances[name] for name in MUTATIONS)
+        return odds
 
     def price(self, item, variant):
         base = self.c["crops"].get(item) or self.c["recipes"][item]
@@ -440,6 +454,8 @@ def main():
         baseline["rewards"] = [0] * 7
         (HERE / "before.json").write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
     before = json.loads((HERE / "before.json").read_text(encoding="utf-8"))
+    # Baselines from before stacking hold single multipliers only.
+    before["multipliers"] = stacked({key: value for key, value in before["multipliers"].items() if "+" not in key and key != "Plain"})
     print(f"Median of {args.runs} stock rolls; {'plain' if args.plain else 'mutation EV'}; minutes from join.")
     results = [[Model(config, seed, args.plain).run() for seed in range(args.runs)] for config in (before, current)]
     print("| Milestone | Before | After |\n|---|---:|---:|")

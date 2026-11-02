@@ -134,6 +134,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | seedStock | Remaining seed counts for this player in the current shop window |
 | restockAt | Next five-minute Unix boundary; stock is reused only while it matches |
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
+| indexed | Item id to boolean for the Index, marked when an item is given or harvested; unknown ids are dropped on load |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
 | plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below); not in the template |
 

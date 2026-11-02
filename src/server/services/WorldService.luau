@@ -33,6 +33,7 @@ export type Node = {
 	natural: boolean,
 	plantedAt: number?,
 	harvestCount: number,
+	-- The ripe crop's mutations as a Mutations key ("Wet+Golden"), nil for plain.
 	mutation: string?,
 	mutationRolled: boolean,
 	growthBonus: number,
@@ -630,7 +631,7 @@ function WorldService.restore(index: number, saved: Plot.SavedCrop): boolean
 	if typeof(saved.harvestCount) ~= "number" or saved.harvestCount < 0 or saved.harvestCount % 1 ~= 0 then
 		return false
 	end
-	if saved.mutation ~= nil and (typeof(saved.mutation) ~= "string" or not Mutations.ALL[saved.mutation]) then
+	if saved.mutation ~= nil and (typeof(saved.mutation) ~= "string" or not Mutations.parse(saved.mutation)) then
 		return false
 	end
 	if

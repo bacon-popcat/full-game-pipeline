@@ -184,8 +184,8 @@ function ItemArt.copy(itemId: string): Model?
 	end
 	if template and template:IsA("Model") then
 		local copy = template:Clone()
-		if item.mutation then
-			ItemArt.tint(copy, Mutations.ALL[item.mutation].color)
+		if item.mutations then
+			ItemArt.tint(copy, Mutations.color(item.mutations))
 		elseif tint then
 			ItemArt.tint(copy, tint)
 		end

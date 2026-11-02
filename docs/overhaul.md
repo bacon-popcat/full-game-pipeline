@@ -84,11 +84,13 @@ timestamp based, so crops keep growing while the player is away and the plot is 
 
 ### Mutations
 
-A crop rolls a mutation when it ripens (a multi crop rolls again each time its fruit grows back).
-A mutated harvest is its own item id, `<Crop>+<Mutation>` (`Carrot+Golden`), so it stacks with its
-own kind, rides belts and can be sorted by a Filter Conveyor (by item, each pick narrowed by
-its own mutation checklist). Processing machines never mix variants: a batch of one mutation makes
-that mutation's product (`Carrot Crate+Golden`, x20).
+A crop rolls its mutations when it ripens (a multi crop rolls again each time its fruit grows
+back). Each mutation rolls on its own, so they stack: a crop can be Wet and Golden at once, worth
+1 plus each mutation's bonus over plain (x2 and x20 make x21). A mutated harvest is its own item
+id, `<Crop>+<Mutations>` in value order (`Carrot+Golden`, `Carrot+Wet+Golden`), so it stacks with
+its own kind, rides belts and can be sorted by a Filter Conveyor (by item, each pick narrowed by
+its own mutation checklist). Processing machines never mix variants: a batch of one set of
+mutations makes that set's product (`Carrot Crate+Golden`, x20).
 
 | Mutation | Multiplier | Comes from |
 |---|---|---|
@@ -350,8 +352,8 @@ Git history keeps all of it.
   initial growth from multi regrowth. Saved `growthBonus` banks online rain speed, and offline
   time runs at normal speed. Rejoining starts a new live weather baseline, never retroactively
   claiming this server's past rain. Optional new crop fields default safely on Phase 1 saves.
-- Mutations are exclusive: one draw partitions the stated probabilities into Rainbow,
-  Golden, Shocked, Wet and plain outcomes, so the percentages remain exact. `mutationRolled` saves plain outcomes as well
+- Mutations were first exclusive (one draw partitioned the probabilities); they now stack, each
+  rolling independently at its stated chance, with bonuses added. `mutationRolled` saves plain outcomes as well
   as variants so ripe fruit cannot reroll on rejoin. Offline ripening uses only always-on
   chances. The cell chance-provider hook is zero until Phase 3 adds sprinklers.
 - Weather starts clear; events are equally likely and their starts are 8-12 minutes apart.

@@ -30,9 +30,9 @@ local SELL_CAP = 10
 -- Seconds between a seller's sales.
 local SELL_EVERY = 1
 local NO_RECIPES: { Factory.Recipe } = {}
--- The variants a batch is looked for in, in order: "" is plain, then the mutations from the
--- least to the most valuable.
-local VARIANTS: { string } = table.clone(Mutations.ORDER)
+-- The variants a batch is looked for in, in order: "" is plain, then every set of mutations
+-- (a Mutations key) from the least to the most valuable.
+local VARIANTS: { string } = table.clone(Mutations.KEYS)
 table.insert(VARIANTS, 1, "")
 
 export type Job = {

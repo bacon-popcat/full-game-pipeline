@@ -44,6 +44,8 @@ type Data = {
 	seedStock: { [string]: number },
 	restockAt: number,
 	discovered: { [string]: boolean },
+	-- Item ids the player has had, for the Index.
+	indexed: { [string]: boolean },
 	onboarding: number,
 }
 local starter = Inventory.emptySlots()
@@ -64,6 +66,7 @@ local PROFILE_TEMPLATE: Data = {
 	seedStock = {},
 	restockAt = 0,
 	discovered = {},
+	indexed = {},
 	onboarding = 1,
 }
 
@@ -351,7 +354,10 @@ local function sanitize(player: Player, data: any)
 	data.onboarding = Onboarding.sanitize(data.onboarding)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
 	assert(
-		typeof(data.seedStock) == "table" and integer(data.restockAt) and typeof(data.discovered) == "table",
+		typeof(data.seedStock) == "table"
+			and integer(data.restockAt)
+			and typeof(data.discovered) == "table"
+			and typeof(data.indexed) == "table",
 		"Invalid garden state"
 	)
 	assert(typeof(data.inventory) == "table" and #data.inventory == Inventory.SLOT_COUNT, "Invalid inventory")
@@ -426,6 +432,7 @@ local function snapshot(player: Player, session: Session)
 	data.seedStock = garden.seedStock
 	data.restockAt = garden.restockAt
 	data.discovered = garden.discovered
+	data.indexed = garden.indexed
 	local onboarding = OnboardingService.snapshot(player)
 	assert(onboarding, "DataService: loaded session lost onboarding state")
 	data.onboarding = onboarding
@@ -523,7 +530,13 @@ local function onPlayer(player: Player)
 		end
 		InventoryService.load(player, profile.Data.inventory)
 		EconomyService.load(player, profile.Data.coins, profile.Data.xp)
-		GardenService.load(player, profile.Data.seedStock, profile.Data.restockAt, profile.Data.discovered)
+		GardenService.load(
+			player,
+			profile.Data.seedStock,
+			profile.Data.restockAt,
+			profile.Data.discovered,
+			profile.Data.indexed
+		)
 		OnboardingService.load(player, profile.Data.onboarding)
 	end)
 	if not ok then

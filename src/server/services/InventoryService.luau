@@ -27,6 +27,8 @@ type State = {
 local InventoryService = {}
 
 local states: { [Player]: State } = {}
+-- Hears every item given to a player; GardenService registers it to fill the Index.
+local onGained: (Player, string) -> () = function() end
 
 local function sync(player: Player, state: State)
 	Remotes.InventorySync:FireClient(player, { slots = state.slots, selected = state.selected })
@@ -168,10 +170,15 @@ function InventoryService.give(player: Player, itemId: string, count: number): n
 	end
 	local left = Inventory.add(state.slots, itemId, count)
 	if left < count then
+		onGained(player, itemId)
 		sync(player, state)
 		refreshHeld(player, state)
 	end
 	return left
+end
+
+function InventoryService.setGainedHandler(handler: (Player, string) -> ())
+	onGained = handler
 end
 
 local function onMove(player: Player, from: unknown, to: unknown)
