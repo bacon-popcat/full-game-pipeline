@@ -26,7 +26,7 @@ function Settings.init(hud: ScreenGui)
 	end
 	local trove = Trove.new()
 	local prior: GuiObject? = nil
-	local animateWindow, cleanup = PopupMotion.bind(frame)
+	local animateWindow, cleanup = PopupMotion.bind(frame, true)
 	trove:Add(cleanup)
 	local opened = false
 	local function render()

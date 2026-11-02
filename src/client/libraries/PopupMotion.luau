@@ -1,13 +1,15 @@
 -- PopupMotion: shared window transitions from authored scale/body baselines. Logical
--- closure disables input immediately; cancelled exits cannot hide a reopened window.
+-- closure disables input immediately; cancelled exits cannot hide a reopened window. A modal
+-- window also shows the focus backdrop (Backdrop) while it is open.
 local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
+local Backdrop = require(script.Parent.Backdrop)
 local PopupMotion = {}
 local ENTER = TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local EXIT = TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local CONTENT = TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
-function PopupMotion.bind(frame: GuiObject): ((boolean) -> (), () -> ())
+function PopupMotion.bind(frame: GuiObject, modal: boolean?): ((boolean) -> (), () -> ())
 	local scale = frame:FindFirstChildOfClass("UIScale")
 	assert(scale, "PopupMotion requires an authored UIScale")
 	local baseline = scale.Scale
@@ -50,6 +52,9 @@ function PopupMotion.bind(frame: GuiObject): ((boolean) -> (), () -> ())
 			return
 		end
 		opened = show
+		if modal then
+			Backdrop.set(frame, show)
+		end
 		cancel()
 		frame.Interactable = show and interactable
 		if GuiService.ReducedMotionEnabled then
@@ -84,6 +89,9 @@ function PopupMotion.bind(frame: GuiObject): ((boolean) -> (), () -> ())
 		end
 	end, function()
 		preference:Disconnect()
+		if modal then
+			Backdrop.set(frame, false)
+		end
 		cancel()
 		restore()
 		frame.Visible = false

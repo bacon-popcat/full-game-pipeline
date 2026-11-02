@@ -15,8 +15,8 @@ inclusive quantity band in `Shared/Economy/Content`. The server checks boundarie
 second and also before a purchase, so a timer tick cannot sell yesterday's stock.
 
 A purchase accepts a known seed id and positive finite integer count no greater than the
-player's stock. The player must have DataReady, a living character and be within the
-server's stall reach. Purchases and sales share a 0.2-second action cooldown. The server
+player's stock. The player must have DataReady; shops and selling work from anywhere, so
+there is no stall reach check. Purchases and sales share a 0.2-second action cooldown. The server
 checks the whole inventory addition before `EconomyService.trySpend`, then gives the seeds
 and reduces stock without yielding. No coins or stock are lost to a full inventory.
 The UI buys one seed per press; the server supports larger validated counts.
@@ -49,7 +49,7 @@ GardenEvents.SectionBought, without counting as buying seeds or a Shipping Bin.
 
 ## Selling and XP
 
-`Sell("Held" | "All")` rechecks DataReady, the living character, stall reach and cooldown.
+`Sell("Held" | "All")` rechecks DataReady and the cooldown; it works from anywhere.
 Held removes only the selected stack. All removes every sellable stack, preserving tools,
 seeds, machines, decorative blocks, ores and bars. InventoryService applies the removal as
 one transaction and sends one final snapshot. GardenService prices removed items and awards
@@ -79,16 +79,18 @@ and one changed signal. First harvest also marks the crop id in saved `discovere
 
 HubService stands four soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
 SellStand, GearShop and MachineShop, each its `Assets.Props` model or a plain placeholder.
-Positions and transaction reach live in Shared/Hub: the stalls are at world (-24, 0, -15),
+Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
-with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. The server
-allows twelve studs from the stall's interaction point to tolerate movement during transit.
-The client checks the same reach, closes out of range/on death, and treats the server reply
-as authoritative.
+with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
+its window, and so do the authored `SideButtons.Shop` and `SideButtons.Sell` from anywhere:
+buying and selling need no walk to the hub. The Shop window's authored `Body.Tabs.SeedShop`,
+`GearShop` and `MachineShop` buttons switch catalogues; the selected tab is opaque and the
+side button reopens the last one. Windows close on Close, gamepad B or losing DataReady, and
+treat the server reply as authoritative.
 
 `libraries/Screens` arbitrates Backpack, MachinePanel, Shop, Sell and Settings. `HubWindow` owns
-stall prompt binding, Close, gamepad B, selection trapping/restoration and reach
-closing. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
+stall prompt binding, opening from a side button, Close, gamepad B and selection
+trapping/restoration. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
 text feedback as well as a muted appearance. Reduced motion skips spatial pops/XP animation.
 
 One `HUD.Shop` window serves three stalls: whichever stall's prompt opened it decides the
@@ -113,9 +115,16 @@ Each screen under `controllers/UIController` receives `init(hud)`.
 
 `SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
 `Header.Title`, `Body.Music.Label` (inside a TextButton), `Body.Note` and `Body.ControlsHint`.
-Settings is centered with an audio section and input-specific quick controls. The five main
-windows share authored header subtitles, dividers and a garden-green top accent.
-`libraries/PopupMotion` owns their scale-and-content entrance and shrink exit, plus the
+Settings has an audio section and input-specific quick controls. The five main windows
+(Backpack, MachinePanel, Shop, Sell, Settings) are centred on the screen (anchor 0.5, 0.5,
+size 0.94 x 0.72 scale, UISizeConstraint caps of 1040x580, 880x500, 700x520, 510x300 and
+530x380), with BackgroundTransparency 0.2, and share authored header subtitles, dividers and a
+garden-green top accent. The Backpack (and the MachinePanel, which copies it) stays centred but
+is sized by InventoryScreen to end 12 px above the hotbar. While any of them is open,
+`libraries/Backdrop` darkens the world through the authored `HUD.Backdrop` frame (ZIndex 0,
+under every other HUD node, so the hotbar and wallet stay clear) and a private `PopupBlur`.
+`libraries/PopupMotion` owns their scale-and-content entrance and shrink exit (and, for these
+modal windows, the backdrop), plus the
 scale transitions for Weather and BlockInfo. Each popup requires an authored UIScale.
 Closing disables interaction immediately; rapid reopen cancels the old exit. Reduced motion
 settles immediately, including when enabled during a transition. Notification templates also
@@ -346,21 +355,26 @@ hand farming after automation. The model is a reproducible balance hypothesis, n
 
 `Shared/Onboarding.STEPS` is the content owner. `OnboardingService` observes server
 `GardenEvents` and pays through EconomyService. There is no inbound objective remote and
-no tutorial gate; ordinary play can satisfy later steps before their prompts appear.
+no tutorial gate; ordinary play can satisfy later steps before their prompts appear. New
+players start with only a Hammer, Pickaxe and Hoe, 50 coins and an all-grass garden, so the
+first five steps teach farming by hand: buy seeds, till, plant, harvest, sell.
 
 | Step | Objective | Server evidence | Coins |
 |---|---|---|---:|
-| 1 | Buy seeds at the Seed Shop | Bought a World.PLANTS seed | 10 |
-| 2 | Plant a seed on your farm | Planted, or restored crops/discoveries | 10 |
-| 3 | Harvest a ripe crop | Harvested, or restored discoveries | 20 |
-| 4 | Sell your harvest at the Sell Stand | Sold with positive coins and no position | 20 |
-| 5 | Reach level 2 | LevelUp >= 2, or current level already >= 2 | 30 |
-| 6 | Buy a Shipping Bin at the Machine Shop | Bought ShippingBin, or restored owned Bin | 20 |
-| 7 | Place your Shipping Bin on your plot | Placed ShippingBin, or restored placed Bin | 50 |
+| 1 | Open the Shop and buy some Carrot Seeds | Bought a World.PLANTS seed | 10 |
+| 2 | Hold your Hoe and click the grass in your garden to till Farmland | Tilled, or restored tilled ground/crops/discoveries | 10 |
+| 3 | Hold your seeds and click the Farmland to plant them | Planted, or restored crops/discoveries | 10 |
+| 4 | Wait for a crop to ripen, then click it to harvest | Harvested, or restored discoveries | 20 |
+| 5 | Open Sell and sell your harvest for coins | Sold with positive coins and no position | 20 |
+| 6 | Reach level 2 | LevelUp >= 2, or current level already >= 2 | 30 |
+| 7 | Buy a Shipping Bin at the Machine Shop | Bought ShippingBin, or restored owned Bin | 20 |
+| 8 | Place your Shipping Bin on your plot | Placed ShippingBin, or restored placed Bin | 50 |
+
+Step 2 was inserted later; DataService moves a save's step past it once (layout 5).
 
 Each completion advances the saved next step before paying once and sending
 `Done! +N coins`; completion sends `Your garden is yours to grow. Happy gardening!`.
-Total rewards are 160 coins. There is no extra finishing grant. Earlier live actions are
+Total rewards are 170 coins. There is no extra finishing grant. Earlier live actions are
 remembered for the session; restored crops, discoveries, level and inventory/placed Bin
 provide evidence on rejoin. A starter seed is not evidence of buying, and a Shipping Bin
 sale is not evidence of selling at the stand. Those two events must be observed live.

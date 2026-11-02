@@ -56,9 +56,10 @@ export type SavedGround = { dug: { string }, tilled: { string }, grassed: { stri
 
 local WIDTH, DEPTH = SECTIONS_X * SECTION, SECTIONS_Z * SECTION
 -- The front-left corners of the six gardens, in cells: three across, 10 cells apart, one row
--- on either side of the hub with the quarry between them.
+-- on either side of the hub with the quarry between them. The rows stand 26 cells off the hub's
+-- centre line, so a garden's gate is well clear of the travel loops (TravelService) in the road.
 local ORIGINS: { Vector3 } = {}
-for _, z in { -76, 16 } do
+for _, z in { -86, 26 } do
 	for _, x in { -115, -35, 45 } do
 		table.insert(ORIGINS, Vector3.new(x, 0, z))
 	end
@@ -80,9 +81,9 @@ Plot.HEIGHT = 80
 -- The lowest level a garden can be dug down to and built in. The ground (Shared/World/Ground)
 -- fills every level from -1 down to here; below it lies bedrock nobody can dig.
 Plot.FLOOR = -8
--- The starter farm: Farmland at these plot-relative cells (FARM_LOW..FARM_HIGH, inclusive), in
--- the ground's top level (y = -1) in place of its grass, so its crops grow at ground level, the
--- same level as machines standing on the grass beside it.
+-- The old starter farm: plot-relative cells (FARM_LOW..FARM_HIGH, inclusive) in the ground's top
+-- level (y = -1) that used to start as Farmland. New gardens are all grass; DataService turns
+-- these into tilled ground in saves from before that, so their farms and crops stay.
 Plot.FARM_LOW = Vector3.new(START.x0 * SECTION + 6, -1, START.z0 * SECTION + 2)
 Plot.FARM_HIGH = Vector3.new(START.x0 * SECTION + 17, -1, START.z0 * SECTION + 9)
 -- Studs from the character to a section's centre within which it can be bought.

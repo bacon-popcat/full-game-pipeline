@@ -1,7 +1,7 @@
 # Farming
 
-Crops are WorldService nodes in their owner's plot, and grow only on Farmland: the starter
-farm's, or grass and dirt tilled with the Hoe (§ Ground and Farmland). [plots.md](plots.md) covers
+Crops are WorldService nodes in their owner's plot, and grow only on Farmland: grass and dirt
+tilled with the Hoe (§ Ground and Farmland). [plots.md](plots.md) covers
 ownership and saving; [economy.md](economy.md) covers stock, sales, XP and the authored HUD.
 
 ## Content ownership
@@ -64,8 +64,9 @@ these for the crop/mutation name, stage, status, countdown and whole-harvest sal
 ## Ground and Farmland
 
 Every garden's owned land is ground (`Shared/World/Ground`): grass at y = -1, its top flush with
-y = 0, two levels of dirt under it, then stone down to `Plot.FLOOR` (-8), with bedrock below. The
-starter farm (`Plot.FARM_LOW`/`FARM_HIGH`) is Farmland in place of the grass. Each cell is a
+y = 0, two levels of dirt under it, then stone down to `Plot.FLOOR` (-8), with bedrock below.
+There is no untilled Farmland: every farm is tilled (older saves keep their old starter farm as
+tilled cells, plots.md). Each cell is a
 WorldService node marked `ground` (GrassGround, DirtGround, StoneGround, Farmland), but only
 exposed cells, those with a face open to the air, stand as nodes, so an untouched garden is one
 layer of blocks and digging uncovers the cells round the hole. `GroundService` owns it:

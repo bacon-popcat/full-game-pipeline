@@ -48,16 +48,16 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
 - Each garden is 7 x 6 sections of 10 x 10 cells: 70 x 60 cells (210 x 180 studs). Section
   column x, row z covers relative cells from x*10, z*10; row 0 is the front (-Z). The start
   block, columns 2..4 and rows 0..2 (30 x 30 cells, relative x 20..49, z 0..29), is everyone's
-  from the start. Origins are x = -115, -35, 45 and z = -76, 16 cells (10-cell gaps), indexed
+  from the start. Origins are x = -115, -35, 45 and z = -86, 26 cells (10-cell gaps), indexed
   across the south row, then the north row; the hub and quarry sit between the rows.
   PlotService cuts the place's Baseplate (its top unchanged) into pieces round the gardens,
   reaching 36 studs past them all and as deep as the ground plus 4 studs of bedrock, so a hole
   dug at a garden's edge meets a wall; each garden has a bedrock slab under `Plot.FLOOR`. Owned
   sections are diggable ground, grass on top; each locked section is one solid slab as deep.
-- Farms contain twelve by eight Farmland cells at relative x 26..37, z 2..9 (`Plot.FARM_LOW`/
-  `FARM_HIGH`, in the start block), in the ground's top level at y = -1 in place of its grass,
-  so the farm is flush with the ground and its crops grow at y = 0, the level of machines
-  standing on the grass beside it. The rest is grass, which the Hoe tills into more Farmland. Players spawn at the hub, then PlotService
+- New gardens are all grass; the Hoe tills it into Farmland, flush with the ground, so crops
+  grow at y = 0, the level of machines standing on the grass beside them. Gardens used to start
+  with twelve by eight Farmland cells at relative x 26..37, z 2..9 (`Plot.FARM_LOW`/`FARM_HIGH`);
+  DataService saves those as tilled ground in older saves (layout 5), so their farms stay. Players spawn at the hub, then PlotService
   sends them to stand in front of their own gate, facing in, as soon as their garden is
   assigned and again after every respawn. The hub
   quarry contains shared Stone, Coal, Iron and Copper rocks.
@@ -186,9 +186,9 @@ the same server but do not survive Studio Stop.
 
 ## Studio playtest
 
-1. Join fresh: check the starter kit (with the Hoe), 50 Coins, Level 1, a hub spawn followed
-   by arrival at your own gate, owner sign, 96 Farmland cells per plot flush with the grass
-   blocks round them, and no gap or seam showing baseplate between the garden and the ground
+1. Join fresh: check the starter kit (Hammer, Pickaxe and Hoe only), 50 Coins, Level 1, a hub
+   spawn followed by arrival at your own gate, well clear of the travel loops, owner sign, an
+   all-grass garden, an old save's farm kept as Farmland, and no gap or seam showing baseplate between the garden and the ground
    round it. With API access off, expect the mock-store warning.
 2. Use two players: test full-footprint boundary ghosts, planting, Hammer/Pickaxe pickup,
    harvest, machine panels, belt pickup and aimed drops on another plot. All writes must
@@ -215,7 +215,7 @@ the same server but do not survive Studio Stop.
    farmland, once; rejoin and check they do not move again. A save with crops on placed Grass or
    Dirt must keep them, now on Farmland, and gain a Hoe.
 10. Ground: dig grass, dirt and stone down to the floor (bedrock stops it) and at a section and
-    garden edge (a wall, never a view into the void); mine starter Farmland for Dirt with a crop
+    garden edge (a wall, never a view into the void); mine Farmland for Dirt with a crop
     on it (uprooted); till grass, dirt and a placed Dirt block; seeds must refuse plain grass.
     Stand a sprinkler by Farmland and wait out a rain: it darkens, and dries two minutes after.
     Build a block back into a hole, buy a section next to a dug hole, rejoin and check every
@@ -225,6 +225,16 @@ the same server but do not survive Studio Stop.
 Local formatter, lint and type checks do not substitute for these runtime checks.
 
 ## Plot and hub props
+
+`TravelService` builds two public, opposite-direction continuous loops along the central
+road under `Workspace.TravelLanes`. Each runs beside both rows of plots and turns around
+at both ends, with the hub inside the loops. It owns their speed and appearance and derives
+their length from the plot bounds. Both are soft grey with low darker curbs; low surfaces allow
+entry and exit anywhere, and pale chevrons
+show travel direction. They sit clear of the hub stalls and quarry and use anchored surface
+velocity, independent of factory lanes and saves. Playtest by standing on each belt without
+input through the rounded end turns, then walking sideways off it and jumping; check that each carries in its marked
+direction and that ordinary ground movement resumes off the belt.
 
 PlotService fences the owned land with one `PlotFence` prop per edge cell and a `PlotFencePost`
 at every corner of the fence, leaving the two-cell gate at the start block's front, and stands the

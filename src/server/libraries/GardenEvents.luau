@@ -8,6 +8,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Signal = require(ReplicatedStorage.Packages.Signal)
 
 local GardenEvents = {
+	-- (player, cell: Vector3) grass or dirt (ground or a placed block) tilled into Farmland by hand
+	Tilled = Signal.new(),
 	-- (player, cell: Vector3, seedId: string) a seed planted by hand
 	Planted = Signal.new(),
 	-- (player, itemId: string, model: Model) a block or machine placed by hand

@@ -1,5 +1,7 @@
--- HubWindow: authored stall windows share modal selection, pop, close, prompt and reach
--- lifecycle. Screens arbitrates Backpack/MachinePanel/Shop/Sell; each screen owns content.
+-- HubWindow: authored stall windows share modal selection, pop, close and prompt lifecycle.
+-- A stall's prompt opens its window, and so does the screen's side button from anywhere: shops
+-- and selling work without walking to the hub. Screens arbitrates Backpack/MachinePanel/Shop/Sell;
+-- each screen owns content.
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
@@ -7,7 +9,6 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Hub = require(ReplicatedStorage.Shared.Hub)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Controls = require(script.Parent.Controls)
 local Hud = require(script.Parent.Hud)
@@ -15,10 +16,10 @@ local Screens = require(script.Parent.Screens)
 local UI = require(script.Parent.UI)
 local PopupMotion = require(script.Parent.PopupMotion)
 local HubWindow = {}
-export type Window = { open: () -> (), close: () -> (), frame: Frame }
+export type Window = { open: (stall: string?) -> (), close: () -> (), isOpen: () -> boolean, frame: Frame }
 
--- `stalls` are the hub stalls whose prompts open this window; `onOpen` hears which one did,
--- before `render`, and the window closes when you walk away from that stall.
+-- `stalls` are the hub stalls whose prompts open this window; `onOpen` hears which one did
+-- (or which the screen asked for), before `render`.
 function HubWindow.bind(
 	hud: ScreenGui,
 	name: string,
@@ -40,7 +41,7 @@ function HubWindow.bind(
 		return nil
 	end
 	local trove = Trove.new()
-	local animateWindow, cleanup = PopupMotion.bind(frame)
+	local animateWindow, cleanup = PopupMotion.bind(frame, true)
 	trove:Add(cleanup)
 	local opened = false
 	local prior: GuiObject? = nil
@@ -71,7 +72,7 @@ function HubWindow.bind(
 		end
 	end
 	local function open(opener: string)
-		if not Hub.inReach(Players.LocalPlayer, opener) or Players.LocalPlayer:GetAttribute("DataReady") ~= true then
+		if Players.LocalPlayer:GetAttribute("DataReady") ~= true then
 			return
 		end
 		Screens.claim(name)
@@ -119,10 +120,7 @@ function HubWindow.bind(
 			return
 		end
 		elapsed = 0
-		if
-			opened
-			and (Players.LocalPlayer:GetAttribute("DataReady") ~= true or not Hub.inReach(Players.LocalPlayer, stall))
-		then
+		if opened and Players.LocalPlayer:GetAttribute("DataReady") ~= true then
 			close()
 		end
 	end)
@@ -131,10 +129,13 @@ function HubWindow.bind(
 		trove:Destroy()
 	end)
 	return {
-		open = function()
-			open(stall)
+		open = function(opener: string?)
+			open(opener or stall)
 		end,
 		close = close,
+		isOpen = function()
+			return opened
+		end,
 		frame = frame,
 	}
 end

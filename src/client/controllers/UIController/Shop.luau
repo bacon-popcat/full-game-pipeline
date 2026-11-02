@@ -1,7 +1,9 @@
 -- Shop: the authored catalogue window behind the Seed Shop, Gear Shop and Machine Shop
--- stalls. Whichever stall's prompt opened it decides the catalogue: seeds with this player's
--- stock and restock countdown, or Shared/Economy/Shops' offers with their level locks. No
--- prices come from the UI; the server checks every purchase and answers with Notify.
+-- stalls. A stall's prompt opens it, as does the Shop side button from anywhere, and its tabs
+-- (Body.Tabs.<stall>) switch between the three. The open stall decides the catalogue: seeds
+-- with this player's stock and restock countdown, or Shared/Economy/Shops' offers with their
+-- level locks. No prices come from the UI; the server checks every purchase and answers with
+-- Notify.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -208,6 +210,9 @@ function Shop.init(hud: ScreenGui)
 	foundList.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	local trove = Trove.new()
 	local restockAt = 0
+	local current = "SeedShop"
+	local tabs: { [string]: TextButton } = {}
+	local tabLooks: { [TextButton]: { transparency: number, color: Color3 } } = {}
 	local seedOffers: { Offer } = {}
 	local seedById: { [string]: Offer } = {}
 	for _, crop in World.CROPS do
@@ -226,6 +231,13 @@ function Shop.init(hud: ScreenGui)
 	local categories: { [string]: number } =
 		{ Tool = 1, Block = 2, Conveyor = 1, Router = 2, Machine = 3, Crafting = 4 }
 	local function catalogue(stall: string)
+		current = stall
+		for name, tab in tabs do
+			local look = tabLooks[tab]
+			local selected = name == stall
+			tab.BackgroundTransparency = if selected then look.transparency else 0.6
+			tab.TextColor3 = if selected then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
+		end
 		local shop = Shops.SHOPS[stall]
 		local offers: { Offer } = if shop then {} else seedOffers
 		for _, each in if shop then shop.offers else {} do
@@ -251,6 +263,31 @@ function Shop.init(hud: ScreenGui)
 	local window = HubWindow.bind(hud, "Shop", stalls, render, catalogue)
 	if not window then
 		return
+	end
+	for _, stall in stalls do
+		local tab = Hud.find(hud, "Shop.Body.Tabs." .. stall, "TextButton")
+		if tab and tab:IsA("TextButton") then
+			tabs[stall] = tab
+			tabLooks[tab] = { transparency = tab.BackgroundTransparency, color = tab.TextColor3 }
+			trove:Add(UI.bindButton(tab, {
+				onActivate = function()
+					window.open(stall)
+				end,
+			}))
+		end
+	end
+	local opener = Hud.find(hud, "SideButtons.Shop", "TextButton")
+	if opener then
+		trove:Add(UI.bindButton(opener, {
+			hoverScale = 1.08,
+			onActivate = function()
+				if window.isOpen() then
+					window.close()
+				else
+					window.open(current)
+				end
+			end,
+		}))
 	end
 	catalogue("SeedShop")
 	trove:Connect(Remotes.ShopSync.OnClientEvent, function(snapshot: { restockAt: number, stock: { [string]: number } })

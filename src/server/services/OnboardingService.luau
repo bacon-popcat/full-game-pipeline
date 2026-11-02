@@ -1,6 +1,7 @@
 -- OnboardingService: observes authoritative garden actions without gating play. The saved
 -- next step prevents duplicate rewards; earlier actions in this session are remembered.
--- Restored crops, discoveries, level and Shipping Bin ownership also satisfy their steps.
+-- Restored tilled ground, crops, discoveries, level and Shipping Bin ownership also satisfy
+-- their steps.
 -- A seed purchase or stand sale has no saved evidence, so it must be observed live.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +12,7 @@ local GardenEvents = require(game:GetService("ServerScriptService").Libraries.Ga
 local BuildService = require(script.Parent.BuildService)
 local EconomyService = require(script.Parent.EconomyService)
 local GardenService = require(script.Parent.GardenService)
+local GroundService = require(script.Parent.GroundService)
 local InventoryService = require(script.Parent.InventoryService)
 local PlotService = require(script.Parent.PlotService)
 local WorldService = require(script.Parent.WorldService)
@@ -68,6 +70,9 @@ function OnboardingService.init(): ()
 			observe(player, "BinBought")
 		end
 	end)
+	GardenEvents.Tilled:Connect(function(player: Player)
+		observe(player, "Tilled")
+	end)
 	GardenEvents.Planted:Connect(function(player: Player)
 		observe(player, "Planted")
 	end)
@@ -98,6 +103,7 @@ function OnboardingService.load(player: Player, step: number): ()
 	local index = PlotService.get(player)
 	if index then
 		state.met.Planted = #WorldService.snapshot(index) > 0
+		state.met.Tilled = state.met.Planted or #GroundService.snapshot(index).tilled > 0
 		for _, block in BuildService.snapshot(player, index) do
 			if block.itemId == "ShippingBin" then
 				state.met.BinPlaced = true
@@ -119,6 +125,7 @@ function OnboardingService.load(player: Player, step: number): ()
 			if discovered then
 				state.met.Harvested = true
 				state.met.Planted = true
+				state.met.Tilled = true
 				break
 			end
 		end

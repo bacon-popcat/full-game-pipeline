@@ -1,5 +1,6 @@
--- Sell: previews the held stack and whole inventory from item values. The server chooses
--- the actual items and price at transaction time; the client only sends Held or All.
+-- Sell: previews the held stack and whole inventory from item values. The Sell Stand's prompt
+-- opens it, as does the Sell side button from anywhere. The server chooses the actual items
+-- and price at transaction time; the client only sends Held or All.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
@@ -77,6 +78,19 @@ function Sell.init(hud: ScreenGui)
 	local window = HubWindow.bind(hud, "Sell", { "SellStand" }, render)
 	if not window then
 		return
+	end
+	local opener = Hud.find(hud, "SideButtons.Sell", "TextButton")
+	if opener then
+		trove:Add(UI.bindButton(opener, {
+			hoverScale = 1.08,
+			onActivate = function()
+				if window.isOpen() then
+					window.close()
+				else
+					window.open()
+				end
+			end,
+		}))
 	end
 	for button, mode in { [sellHeld] = "Held", [sellAll] = "All" } do
 		trove:Add(UI.bindButton(button, {

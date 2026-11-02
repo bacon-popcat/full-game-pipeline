@@ -67,6 +67,8 @@ local NAME_FADE = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirectio
 local MIN_HOTBAR_SLOT = 42
 -- Pixels of screen kept clear either side of the hotbar.
 local HOTBAR_EDGE = 12
+-- Pixels between the hotbar's top edge and the backpack, which is centred on the screen.
+local WINDOW_GAP = 12
 -- Below this width or height the backpack drops its sidebar and is all grid.
 local COMPACT_WIDTH = 560
 local COMPACT_HEIGHT = 360
@@ -187,8 +189,6 @@ local function captureLook()
 		hotbarGap = ui.hotbarLayout.Padding.Offset,
 		-- Gaps between the hotbar's top edge and what sits above it, as authored.
 		nameGap = -ui.itemName.Position.Y.Offset - hotbarHeight,
-		windowGap = -ui.window.Position.Y.Offset - hotbarHeight,
-		windowTopGap = ui.window.Position.Y.Offset - ui.window.Size.Y.Offset,
 		windowWidth = ui.window.Size.X,
 		nameStroke = nameStroke,
 		nameStrokeTransparency = if nameStroke then nameStroke.Transparency else 0,
@@ -404,11 +404,12 @@ local function layoutHotbar()
 	for index = 1, Inventory.HOTBAR_SIZE do
 		cells[index].button.Size = UDim2.fromOffset(size, size)
 	end
-	-- The name and the backpack keep their authored gaps above the hotbar's top edge.
+	-- The name keeps its authored gap above the hotbar's top edge. The backpack stays centred
+	-- (its authored anchor and position), as tall as fits with WINDOW_GAP above the hotbar and
+	-- the same margin at the top; its UISizeConstraint caps it on big screens.
 	local top = look.hotbarMargin + size
 	ui.itemName.Position = UDim2.new(0.5, 0, 1, -(top + look.nameGap))
-	ui.window.Position = UDim2.new(0.5, 0, 1, -(top + look.windowGap))
-	ui.window.Size = UDim2.new(look.windowWidth, UDim.new(1, -(top + look.windowGap + look.windowTopGap)))
+	ui.window.Size = UDim2.new(look.windowWidth, UDim.new(1, -2 * (top + WINDOW_GAP)))
 end
 
 local function applyComposition()
@@ -545,7 +546,7 @@ function InventoryScreen.init(hud: ScreenGui)
 	end
 	captureLook()
 	local cleanup
-	animateWindow, cleanup = PopupMotion.bind(ui.window)
+	animateWindow, cleanup = PopupMotion.bind(ui.window, true)
 	trove:Add(cleanup)
 	-- This screen replaces Roblox's backpack and its 1-9 keys.
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)

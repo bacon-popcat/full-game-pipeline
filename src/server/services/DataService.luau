@@ -38,8 +38,8 @@ type Data = {
 		crops: { Plot.SavedCrop },
 	},
 	-- 2 once the plot is laid out in sections, 3 once its starter farm is sunk, 4 once crops on
-	-- placed soil stand on Farmland and it has a Hoe (migrate). Not in the template, so Reconcile
-	-- never fills it in for an old save.
+	-- placed soil stand on Farmland and it has a Hoe, 5 once its starter farm is saved as tilled
+	-- ground (migrate). Not in the template, so Reconcile never fills it in for an old save.
 	plotLayout: number?,
 	seedStock: { [string]: number },
 	restockAt: number,
@@ -52,8 +52,6 @@ for _, stack in
 		{ itemId = "Hammer", count = 1 },
 		{ itemId = "Pickaxe", count = 1 },
 		{ itemId = "Hoe", count = 1 },
-		{ itemId = "CarrotSeeds", count = 10 },
-		{ itemId = "WheatSeeds", count = 5 },
 	}
 do
 	Inventory.add(starter, stack.itemId, stack.count)
@@ -275,11 +273,56 @@ local function tillPlacedSoil(data: any): boolean
 	return true
 end
 
+-- Gardens used to start with a farm of Farmland (Plot.FARM_LOW/FARM_HIGH); now they are all
+-- grass and players till their own. Once, an old save keeps its farm as tilled ground (except
+-- cells it dug out), and its onboarding step moves past the till step inserted at step 2.
+local function keepFarm(data: any, fresh: boolean)
+	if typeof(data.plotLayout) == "number" and data.plotLayout >= 5 then
+		return
+	end
+	data.plotLayout = 5
+	if fresh then
+		return
+	end
+	local plot = if typeof(data.plot) == "table" then data.plot else {}
+	local ground = if typeof(plot.ground) == "table" then plot.ground else nil
+	if ground and typeof(ground.tilled) == "table" then
+		local skip: { [string]: boolean } = {}
+		for _, list in { ground.tilled, if typeof(ground.dug) == "table" then ground.dug else {} } do
+			for _, entry in list do
+				if typeof(entry) == "string" then
+					skip[entry] = true
+				end
+			end
+		end
+		for x = Plot.FARM_LOW.X, Plot.FARM_HIGH.X do
+			for z = Plot.FARM_LOW.Z, Plot.FARM_HIGH.Z do
+				local cellKey = `{x},{Plot.FARM_LOW.Y},{z}`
+				if not skip[cellKey] then
+					table.insert(ground.tilled, cellKey)
+				end
+			end
+		end
+	end
+	if typeof(data.onboarding) == "number" and data.onboarding >= 2 then
+		data.onboarding += 1
+	end
+end
+
 -- Returns whether the save predates the Hoe.
 local function migrate(data: any): boolean
+	-- A profile ProfileStore just made from the template has no layout version and nothing on it.
+	local saved = if typeof(data.plot) == "table" then data.plot else {}
+	local fresh = data.plotLayout == nil
+		and data.xp == 0
+		and typeof(saved.crops) == "table"
+		and #saved.crops == 0
+		and typeof(saved.blocks) == "table"
+		and #saved.blocks == 0
 	migrateLayout(data)
 	sinkFarm(data)
 	local owesHoe = tillPlacedSoil(data)
+	keepFarm(data, fresh)
 	for _, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
 		if typeof(stack) == "table" and RENAMED[stack.itemId] then
 			stack.itemId = RENAMED[stack.itemId]

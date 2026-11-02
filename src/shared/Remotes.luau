@@ -19,14 +19,14 @@ return {
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.
 	ShopSync = get("ShopSync"),
 	-- client -> server: (shopId: string, itemId: string, count: number). shopId is a hub stall
-	-- (SeedShop, GearShop, MachineShop) in reach; count is a positive integer, within your own
+	-- (SeedShop, GearShop, MachineShop), bought from anywhere; count is a positive integer, within your own
 	-- stock for seeds, and the server checks level, coins and room. Answered with Notify.
 	ShopBuy = get("ShopBuy"),
 	-- client -> server: (x: number, z: number), a section of your own garden to buy. The server
 	-- checks DataReady, that it is locked and touches owned land, your reach to its centre and
 	-- coins; Workspace.Plots[index].Sections replicates it to every client.
 	PlotBuySection = get("PlotBuySection"),
-	-- client -> server: (mode: "Held" | "All"), checked against server inventory and stall reach.
+	-- client -> server: (mode: "Held" | "All"), checked against server inventory, from anywhere.
 	Sell = get("Sell"),
 	-- server -> client: (message: string), a short transaction or rare-harvest toast.
 	Notify = get("Notify"),

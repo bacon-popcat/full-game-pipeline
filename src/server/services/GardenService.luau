@@ -93,12 +93,10 @@ function GardenService.harvest(player: Player, cropId: string, mutation: string?
 	end
 end
 
-local function refusal(player: Player, stall: string): string?
+-- Shops and selling work from anywhere (their HUD windows), so reach is not checked.
+local function refusal(player: Player): string?
 	if player:GetAttribute("DataReady") ~= true or not states[player] then
 		return "Your garden is still loading."
-	end
-	if not Hub.inReach(player, stall) then
-		return "Move closer to the stall."
 	end
 	local now = os.clock()
 	if now - (lastAction[player] or 0) < 0.2 then
@@ -168,7 +166,7 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 	restock(state)
 	local message = "Choose a valid amount."
 	if typeof(itemId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and count <= 99 then
-		local reason = refusal(player, shopId)
+		local reason = refusal(player)
 		local crop = if shopId == "SeedShop" then seeds[itemId] else nil
 		local offer = Shops.find(shopId, itemId)
 		if reason then
@@ -200,7 +198,7 @@ local function sell(player: Player, mode: unknown)
 	if mode ~= "Held" and mode ~= "All" then
 		return
 	end
-	local reason = refusal(player, "SellStand")
+	local reason = refusal(player)
 	if reason then
 		InventoryService.resync(player)
 		Remotes.Notify:FireClient(player, reason)

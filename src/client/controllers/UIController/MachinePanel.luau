@@ -874,7 +874,7 @@ function MachinePanel.init(hud: ScreenGui)
 		return
 	end
 	local cleanup
-	animateWindow, cleanup = PopupMotion.bind(ui.window)
+	animateWindow, cleanup = PopupMotion.bind(ui.window, true)
 	trove:Add(cleanup)
 	trove:Add(UI.bindButton(ui.close, { hoverScale = 1.15, onActivate = MachinePanel.close }))
 	ui.close.SelectionImageObject = ui.selectionImage

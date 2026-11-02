@@ -96,7 +96,8 @@ is docs/factory.md.
 ## Loading and saving
 
 DataService supplies InventoryService's slots after locking the profile and restoring the plot.
-New profiles receive the starter kit defined in DataService; the old full test kit is gone.
+New profiles receive the starter kit defined in DataService (a Hammer, Pickaxe and Hoe; seeds
+are bought); the old full test kit is gone.
 Inventory mutations wait for DataReady. InventoryService snapshots slots and releases its held
 Tool only after the final save snapshot. The selected slot resets to one on load.
 

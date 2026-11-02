@@ -31,6 +31,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
+local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local GroundArt = require(ServerScriptService.Libraries.GroundArt)
 local InventoryService = require(script.Parent.InventoryService)
 local WeatherService = require(script.Parent.WeatherService)
@@ -359,6 +360,7 @@ local function tillPlaced(player: Player, model: Model)
 	end
 	model:Destroy()
 	change(index, origin, "Tilled")
+	GardenEvents.Tilled:Fire(player, origin)
 end
 
 local function onInteract(player: Player, target: unknown, action: unknown)
@@ -386,6 +388,7 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 	local def = World.getNode(entry.node.nodeType)
 	if item.tills and def.tills then
 		change(entry.index, entry.node.cell, "Tilled")
+		GardenEvents.Tilled:Fire(player, entry.node.cell)
 	elseif def.tool == item.id then
 		mine(player, entry.index, entry.node)
 	end
