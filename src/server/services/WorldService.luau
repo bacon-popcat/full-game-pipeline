@@ -161,6 +161,66 @@ local function copyArt(name: string, placeholderSize: Vector3, cell: Vector3?): 
 	return model
 end
 
+-- The art key of a crop part: the `_<Key>` suffix of its name (Crop, Fruit, Bark ...).
+local function keyOf(part: Instance): string?
+	return string.match(part.Name, "_(%a+)$")
+end
+
+-- Turns a standing crop's model into stage `name`'s art in place, when the two looks share
+-- their other parts exactly (a multi crop's Mature is its Ripe without the fruit): parts whose
+-- key the new art lacks go, and the new art's extra parts are added where it has them. Returns
+-- false, changing nothing, when they differ in more than that.
+-- Why not swap the model: the new stage's leaves are their own mesh, and a mesh drawn for the
+-- first time blinks for a moment on the client even when preloaded, so every first harvest did.
+local function morph(model: Model, name: string, cell: Vector3): boolean
+	local art = variantOf(name, cell)
+	local hitbox, artHitbox = model.PrimaryPart, if art then art.PrimaryPart else nil
+	if not art or not hitbox or not artHitbox then
+		return false
+	end
+	local own: { [string]: BasePart } = {}
+	for _, part in model:GetChildren() do
+		local key = keyOf(part)
+		if part:IsA("BasePart") and part ~= hitbox and key then
+			if own[key] then
+				return false
+			end
+			own[key] = part
+		end
+	end
+	local adding: { BasePart } = {}
+	local kept: { [string]: boolean } = {}
+	for _, part in art:GetChildren() do
+		local key = keyOf(part)
+		if not part:IsA("BasePart") or part == artHitbox or not key then
+			continue
+		end
+		local mine = own[key]
+		if not mine then
+			table.insert(adding, part)
+		elseif
+			mine.Size ~= part.Size
+			or not hitbox.CFrame:ToObjectSpace(mine.CFrame):FuzzyEq(artHitbox.CFrame:ToObjectSpace(part.CFrame), 1e-3)
+		then
+			return false
+		end
+		kept[key] = true
+	end
+	for key, part in own do
+		if not kept[key] then
+			part:Destroy()
+		end
+	end
+	local toWorld = hitbox.CFrame * artHitbox.CFrame:Inverse()
+	for _, part in adding do
+		local copy = part:Clone()
+		copy.CFrame = toWorld * part.CFrame
+		copy.Anchored = true
+		copy.Parent = model
+	end
+	return true
+end
+
 local function footprintOf(model: Model): Vector3
 	local hitbox = model.PrimaryPart
 	assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
@@ -190,21 +250,25 @@ local function spawnNode(
 	harvestCount: number?,
 	mutation: string?,
 	growthBonus: number?,
-	mutationRolled: boolean?
+	mutationRolled: boolean?,
+	-- A model already standing in `cell` that morph made this node's art.
+	standing: Model?
 ): Node
-	World.getNode(nodeType)
-	local model = copyArt(nodeType, Vector3.one * Build.GRID, cell)
-	local footprint = footprintOf(model)
-	local centre = Build.box(cell, footprint)
-	-- A stable quarter turn per cell; only square
-	-- footprints can turn without changing the cells they cover. Ground never turns, so a
-	-- field's rows run straight across it.
 	local def = World.getNode(nodeType)
-	local turns = if footprint.X == footprint.Z and not def.ground then (cell.X * 7 + cell.Z * 13) % 4 else 0
-	local hitbox = model.PrimaryPart
-	assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
-	local pivotOffset = hitbox.CFrame:ToObjectSpace(model:GetPivot())
-	model:PivotTo(CFrame.new(centre.Position) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
+	local model = standing or copyArt(nodeType, Vector3.one * Build.GRID, cell)
+	local footprint = footprintOf(model)
+	if not standing then
+		local centre = Build.box(cell, footprint)
+		-- A stable quarter turn per cell; only square
+		-- footprints can turn without changing the cells they cover. Ground never turns, so a
+		-- field's rows run straight across it.
+		local turns = if footprint.X == footprint.Z and not def.ground then (cell.X * 7 + cell.Z * 13) % 4 else 0
+		local hitbox = model.PrimaryPart
+		assert(hitbox, "WorldService: node art needs a PrimaryPart hitbox")
+		local pivotOffset = hitbox.CFrame:ToObjectSpace(model:GetPivot())
+		model:PivotTo(CFrame.new(centre.Position) * CFrame.Angles(0, turns * math.pi / 2, 0) * pivotOffset)
+	end
+	model.Name = nodeType
 	model:SetAttribute("NodeType", nodeType)
 	model:SetAttribute("Cell", cell)
 	local node: Node = {
@@ -259,7 +323,8 @@ local function scheduleRespawn(nodeType: string, cell: Vector3, after: number)
 	end)
 end
 
-local function removeNode(node: Node)
+-- `keepModel` leaves the model standing, for the node that morph made it into.
+local function removeNode(node: Node, keepModel: boolean?)
 	if nodesByModel[node.model] ~= node then
 		return
 	end
@@ -270,7 +335,9 @@ local function removeNode(node: Node)
 	end)
 	nodesByModel[node.model] = nil
 	living[node.model] = nil
-	node.model:Destroy()
+	if not keepModel then
+		node.model:Destroy()
+	end
 	local respawn = World.getNode(node.nodeType).respawn
 	if node.natural and respawn then
 		scheduleRespawn(node.nodeType, node.cell, respawn)
@@ -354,17 +421,20 @@ local function grow(node: Node, offline: boolean?)
 		node.mutationRolled = true
 	end
 	if stage ~= def.stage then
-		removeNode(node)
+		local nodeType = World.cropStage(def.crop, stage)
+		local kept = morph(node.model, nodeType, node.cell)
+		removeNode(node, kept)
 		grow(
 			spawnNode(
-				World.cropStage(def.crop, stage),
+				nodeType,
 				node.cell,
 				false,
 				plantedAt,
 				node.harvestCount,
 				node.mutation,
 				node.growthBonus,
-				node.mutationRolled
+				node.mutationRolled,
+				if kept then node.model else nil
 			),
 			offline
 		)
@@ -452,10 +522,24 @@ function WorldService.reap(node: Node): boolean
 	if nodesByModel[node.model] ~= node or not crop or not World.isRipe(def) then
 		return false
 	end
-	removeNode(node)
-	awardHarvest(node)
 	local stage = if World.CROPS[crop].regrow then 3 else 1
-	grow(spawnNode(World.cropStage(crop, stage), node.cell, node.natural, wallTime(), node.harvestCount + 1))
+	local nodeType = World.cropStage(crop, stage)
+	local kept = morph(node.model, nodeType, node.cell)
+	removeNode(node, kept)
+	awardHarvest(node)
+	grow(
+		spawnNode(
+			nodeType,
+			node.cell,
+			node.natural,
+			wallTime(),
+			node.harvestCount + 1,
+			nil,
+			nil,
+			nil,
+			if kept then node.model else nil
+		)
+	)
 	return true
 end
 

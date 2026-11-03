@@ -172,7 +172,10 @@ WorldService picks one per cell from the cell's position, the same for every sta
 it grows and after a rejoin; nothing is saved. The node, its name and everything the client reads stay the stage's. The stages are imported as the
 `GardenWorld` showcase set and the seeds as `GardenSeeds` with `studio_import.luau` (SET), then finished with
 `studio_blocks.luau`. A multi crop's Mature art is built as its Ripe art with the fruit taken off (`crops.REGROWS`),
-in every look, so a harvest changes nothing but the fruit: the leaves stay exactly where they were. The produce items are still `garden.py`'s and `assets.py`'s.
+in every look, so a harvest changes nothing but the fruit: the leaves stay exactly where they were. WorldService
+keeps the standing model between those two stages (`morph`): a harvest takes the fruit parts off it and ripening
+adds them back, instead of swapping in the other stage's model, whose leaves are a different mesh and blinked the
+first time one was drawn. Stages whose shared parts don't match exactly still swap the whole model. The produce items are still `garden.py`'s and `assets.py`'s.
 
 Part keys decide what moves: `Stake` (canes, trellis posts, ties) and `Tuber` (roots and tubers in the ground)
 never move; `Crop`, `Bark`, `Vine`, `Fruit`, `Bloom`, `Grain` and `Glow` sway. None of them collide, so players walk
