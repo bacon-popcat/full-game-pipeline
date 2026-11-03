@@ -24,6 +24,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
+local Research = require(ReplicatedStorage.Shared.Research)
 local World = require(ReplicatedStorage.Shared.World)
 local ProfileStore = require(ServerStorage.ServerPackages.ProfileStore)
 local BuildService = require(script.Parent.BuildService)
@@ -32,6 +33,7 @@ local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 local OnboardingService = require(script.Parent.OnboardingService)
 local PlotService = require(script.Parent.PlotService)
+local ResearchService = require(script.Parent.ResearchService)
 local GardenService = require(script.Parent.GardenService)
 local GroundService = require(script.Parent.GroundService)
 local WorldService = require(script.Parent.WorldService)
@@ -60,6 +62,7 @@ type Data = {
 	-- Item ids the player has had, for the Index.
 	indexed: { [string]: boolean },
 	onboarding: number,
+	research: Research.Saved,
 	-- Unix seconds this save was last opened, so a join reopens the one played last (zero: never).
 	loadedAt: number,
 }
@@ -83,6 +86,7 @@ local PROFILE_TEMPLATE: Data = {
 	discovered = {},
 	indexed = {},
 	onboarding = 1,
+	research = { done = {}, active = nil },
 	loadedAt = 0,
 }
 
@@ -461,6 +465,9 @@ local function snapshot(player: Player, session: Session)
 	local onboarding = OnboardingService.snapshot(player)
 	assert(onboarding, "DataService: loaded session lost onboarding state")
 	data.onboarding = onboarding
+	local research = ResearchService.snapshot(player)
+	assert(research, "DataService: loaded session lost research state")
+	data.research = research
 	data.plot = {
 		sections = PlotService.sections(index),
 		ground = GroundService.snapshot(index),
@@ -481,6 +488,7 @@ local function clear(player: Player)
 	InventoryService.release(player)
 	EconomyService.release(player)
 	GardenService.release(player)
+	ResearchService.release(player)
 	PlotService.release(player)
 end
 
@@ -612,6 +620,7 @@ local function load(player: Player, slot: number)
 		sanitize(player, profile.Data)
 		local index = PlotService.assign(player, profile.Data.plot.sections)
 		assert(index, "All six gardens are occupied")
+		ResearchService.load(player, profile.Data.research)
 		-- Ground first, so blocks can stand in the holes dug in it and crops find their Farmland.
 		GroundService.restore(index, profile.Data.plot.ground)
 		for _, block in profile.Data.plot.blocks do

@@ -5,9 +5,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(ReplicatedStorage.Shared.Economy)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
+local Bonuses = require(game:GetService("ServerScriptService").Libraries.Bonuses)
 
 type State = { coins: number, xp: number, level: number }
 local states: { [Player]: State } = {}
+local xpRemainders: { [Player]: number } = {}
 local EconomyService = {}
 
 local function sync(player: Player, state: State)
@@ -41,6 +43,7 @@ function EconomyService.load(player: Player, coins: number, xp: number)
 	assert(valid(coins) and valid(xp), "EconomyService: invalid saved balance")
 	local level = Economy.progress(xp)
 	states[player] = { coins = coins, xp = xp, level = level }
+	xpRemainders[player] = nil
 	sync(player, states[player])
 end
 
@@ -75,7 +78,11 @@ function EconomyService.addXp(player: Player, amount: number): boolean
 		return false
 	end
 	local before = state.level
-	state.xp += amount
+	local earned = amount * (1 + Bonuses.get(player, "xpGain")) + (xpRemainders[player] or 0)
+	-- Decimal bonuses can land just below a whole XP after several awards.
+	local whole = math.floor(earned + 1e-9)
+	xpRemainders[player] = math.max(0, earned - whole)
+	state.xp += whole
 	state.level = Economy.progress(state.xp)
 	sync(player, state)
 	if state.level > before then
@@ -86,6 +93,7 @@ end
 
 function EconomyService.release(player: Player)
 	states[player] = nil
+	xpRemainders[player] = nil
 end
 
 return EconomyService

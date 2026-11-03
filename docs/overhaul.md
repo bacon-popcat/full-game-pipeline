@@ -24,9 +24,10 @@ conveyors play, never for their models.
 
 ## The map
 
-Cells are `Build` cells (3 studs). The gardens reach x -115 ... 114 cells, past the place's
-Baseplate, so PlotService cuts it into pieces round them and widens it to cover them all
-(plots.md); the gardens themselves are diggable ground, 8 levels deep (farming.md).
+Cells are `Build` cells (3 studs). The gardens reach x -115 ... 114 cells. PlotService lays
+grass ground round them (plots.md), and since phase 7 MapService grows Terrain past it: a
+forest ring with paths and ponds, then hills (`Shared/World/Map`); the gardens themselves are
+diggable ground, 8 levels deep (farming.md).
 
 ```text
           z = -76 ... -17      [Plot 1] [Plot 2] [Plot 3]  (maximum footprints)
@@ -52,7 +53,9 @@ Baseplate, so PlotService cuts it into pieces round them and widens it to cover 
 
 - **Coins** are the currency, shown on the HUD and in `leaderstats`.
 - **XP and level.** XP comes from harvesting (the crop's rarity) and from selling (1 per 10 coins).
-  The level unlocks machines in the Machine Shop. Advancing from level n costs `20 * n^2.75` XP, rounded.
+  The level unlocks machines in the Machine Shop and research projects (levels 2-50). Advancing from
+  level n costs `12 * n^2.15` XP, rounded (12 for level 2, about 4,500 lifetime for level 10, about
+  830,000 for level 50); the curve before phase 7 was `20 * n^2.75`.
 - **Selling.** At the Sell Stand: sell what's in your hand, or sell every crop and product you
   carry. A Shipping Bin on your plot sells what a belt brings it. Price is the item's `value`
   times its mutation's multiplier.

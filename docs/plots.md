@@ -14,6 +14,8 @@ DataService -> ProfileStore.StartSessionAsync -> reconcile/validate
                  v
 PlotService.assign -> first free plot, saved Sections + Owner attributes, display-name sign
                  v
+ResearchService.load -> finished bonuses + BeltSpeed + ResearchSync (no completion events)
+                 v
 GroundService.restore -> dug and tilled cells, exposed ground in owned sections
                  v
 BuildService.restore -> FactoryService.register/restore -> lanes and machines
@@ -25,9 +27,9 @@ OnboardingService.load -> restored conditions + Objective sync
              DataReady = true
 
 ProfileStore OnSave / two-minute snapshot / leave
-    <- inventory slots + economy + garden stock/discoveries + onboarding + sections + dug/tilled ground + relative blocks, factory contents, crops
+    <- inventory slots + economy + research + garden stock/discoveries + onboarding + sections + dug/tilled ground + relative blocks, factory contents, crops
 leave or "Save & quit to menu" -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
-      -> release plot (ground back to untouched) -> ProfileStore.EndSession
+      -> release research (clear bonuses/BeltSpeed) -> release plot (ground back to untouched) -> ProfileStore.EndSession
       (quitting then sends SaveSlots once the last save has landed)
 ```
 
@@ -69,9 +71,10 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   block, columns 2..4 and rows 0..2 (30 x 30 cells, relative x 20..49, z 0..29), is everyone's
   from the start. Origins are x = -115, -35, 45 and z = -86, 26 cells (10-cell gaps), indexed
   across the south row, then the north row; the hub and quarry sit between the rows.
-  PlotService cuts the place's Baseplate (its top unchanged) into pieces round the gardens,
-  reaching 36 studs past them all and as deep as the ground plus 4 studs of bedrock, so a hole
-  dug at a garden's edge meets a wall; each garden has a bedrock slab under `Plot.FLOOR`. Owned
+  PlotService lays grass pieces round the gardens (and removes the place's Baseplate), reaching
+  `Map.GROUND_MARGIN` (36 studs) past them all and as deep as the ground plus 4 studs of bedrock,
+  so a hole dug at a garden's edge meets a wall; each garden has a bedrock slab under
+  `Plot.FLOOR`. Past that ground the map is MapService's Terrain (§ The map round the gardens). Owned
   sections are diggable ground, grass on top; each locked section is one solid slab as deep.
 - New gardens are all grass; the Hoe tills it into Farmland, flush with the ground, so crops
   grow at y = 0, the level of machines standing on the grass beside them. Gardens used to start
@@ -155,6 +158,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 | indexed | Item id to boolean for the Index, marked when an item is given or harvested; unknown ids are dropped on load |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
+| research | `done: {[id]: boolean}`, `active: {id, startedAt, seconds}?`; fractional Unix start and whole-second duration, loaded before blocks/crops (research.md) |
 | loadedAt | Unix seconds this save was last opened (0 before then), so a join reopens the one played last |
 | plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below); not in the template |
 
@@ -187,7 +191,8 @@ Active recipe ingredients are refunded into saved input counts and processing re
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,
 outputs, router settings and lane counts persist; lane ordering/positions are reconstructed
 at legal spacing. Loose drops are not saved and are cleared on departure. Only crops grow
-offline. Current timing, multi regrowth and weather credit are in [farming.md](farming.md).
+offline; research timers also elapse offline and finish in the live loop after DataReady.
+Current timing, multi regrowth and weather credit are in [farming.md](farming.md).
 Old crops default missing growthBonus to zero and mutationRolled to false (or true when
 a mutation is already stored); the profile store stays unchanged.
 
@@ -244,6 +249,31 @@ the same server but do not survive Studio Stop.
     player. Watch server memory and join time with all six gardens loaded.
 
 Local formatter, lint and type checks do not substitute for these runtime checks.
+
+## The map round the gardens
+
+`Shared/World/Map` owns the layout, built outward from the gardens' extent: `GROUND` (the gardens
+plus the margin), a flat forest ring `FOREST` (150) studs wide, then `HILLS` (240) studs of hills
+to `EDGE`; its `PATHS` (a road out of each end of the hub road, joining a loop through the
+middle of the forest) and `PONDS`; and the meadow colour both PlotService and the Terrain use.
+`MapService` grows it at startup, never saved:
+
+- **Meadow.** Grass Terrain from PlotService's ground out to the edge, top at y = 0, and a ring
+  tucked under the ground's edge a stud below its top, where the parts hide it, so no gap opens
+  at the seam (voxels are 4 studs; the gardens' edges aren't on that grid).
+- **Paths and ponds.** Paths are a voxel deep of Ground (dirt), rounded at the ends. Each pond is
+  a sand disc, a bowl carved by an air ball and water up to a stud and a bit below the meadow.
+- **Hills.** One smooth heightmap written with WriteVoxels a 64-stud chunk a frame: rising
+  from the forest's edge (corners rounded) to about 130 studs at the map's edge, in broad noise
+  swells with small bumps, rock on the bumpiest high tops. The top voxel of each column is
+  partly filled, so slopes aren't stepped.
+- **Edge and sky.** Invisible walls at `EDGE`; an Atmosphere (soft haze) when the place has none.
+- **Trees.** `World/Layout` scatters about 90 ForestOak, ForestPine and ForestBirch nodes over the
+  forest on a seeded, jittered grid, thicker in noise groves and clear of paths and ponds
+  (factory.md § The forest).
+
+Playtested: the meadow meets the gardens' ground with no seam, paths and ponds show, the hills
+close the view, and 89 trees stand.
 
 ## Plot and hub props
 

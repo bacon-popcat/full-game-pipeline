@@ -1,7 +1,8 @@
 -- MusicController: plays Shared/Music's calm tracks in the background, flat to this player.
 -- Each track fades in, plays through, fades out, then a quiet gap of a random length before the
 -- next; the order is reshuffled every pass and never repeats the track that just played. Tracks
--- with no id are skipped, so the game is whole without music.
+-- with no id are skipped, so the game is whole without music. The playing track's name is the
+-- Sound's `Track` attribute, for the now-playing card.
 local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
@@ -38,12 +39,15 @@ local function play(sound: Sound, track: Music.Track)
 	end
 	local fade = TweenInfo.new(Music.FADE, Enum.EasingStyle.Sine)
 	sound:Play()
+	-- The now-playing card (UIController/NowPlaying) reads this.
+	sound:SetAttribute("Track", track.name)
 	TweenService:Create(sound, fade, { Volume = Music.VOLUME }):Play()
 	task.wait(math.max(sound.TimeLength - Music.FADE, 0))
 	local out = TweenService:Create(sound, fade, { Volume = 0 })
 	out:Play()
 	out.Completed:Wait()
 	sound:Stop()
+	sound:SetAttribute("Track", nil)
 end
 
 function MusicController.init()

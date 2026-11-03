@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local World = require(ReplicatedStorage.Shared.World)
@@ -89,6 +90,19 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	return info
 end
 
+-- A Crafting Bench isn't a factory block: its window (CraftingScreen) does the work.
+local function benchInfo(model: Model): Info
+	local open = if model:GetAttribute("Owner") == player.UserId
+		then Controls.interactHint(UserInputService.PreferredInput)
+		else "Only its owner can craft at it."
+	return {
+		title = itemName(Crafting.BENCH),
+		working = false,
+		rows = {},
+		hint = `{Inventory.getItem(Crafting.BENCH).description}\n{open}`,
+	}
+end
+
 local function nodeInfo(model: Model, nodeType: string): Info?
 	local node = World.NODES[nodeType]
 	if not node then
@@ -147,6 +161,8 @@ local function target(): Info?
 	local def = if typeof(itemId) == "string" then Factory.get(itemId) else nil
 	if placed and typeof(itemId) == "string" and def then
 		return blockInfo(placed, itemId, def)
+	elseif placed and itemId == Crafting.BENCH then
+		return benchInfo(placed)
 	end
 	local node = Aim.modelUnder(result.Instance, "World")
 	local nodeType = if node then node:GetAttribute("NodeType") else nil
@@ -218,7 +234,7 @@ function BlockInfo.init(hud: ScreenGui)
 	end
 
 	local windows = {}
-	for _, name in { "Backpack", "MachinePanel", "Shop", "Sell", "Settings" } do
+	for _, name in { "Backpack", "MachinePanel", "Shop", "Sell", "Settings", "Research", "Crafting" } do
 		local window = hud:FindFirstChild(name)
 		if window and window:IsA("GuiObject") then
 			table.insert(windows, window)

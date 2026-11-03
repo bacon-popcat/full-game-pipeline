@@ -56,8 +56,12 @@ export type State = {
 }
 
 export type Env = {
+	machineSpeed: number?,
+	harvesterSpeed: number?,
 	-- Producers: what the world offers this machine right now, or nil and why not.
 	source: (() -> (Factory.Source?, string?))?,
+	-- Rolls the completed harvest's yield once, before checking output room.
+	harvestCount: ((source: Factory.Source) -> number)?,
 	-- Pickers: reap a ripe crop near it that `source` comes from; returns whether it did.
 	reap: ((source: Factory.Source) -> boolean)?,
 	-- Planters: whether an item could be planted in a free cell of its patch, and planting it there.
@@ -392,6 +396,9 @@ local function stepProducer(state: State, dt: number, env: Env)
 		return
 	end
 	local reap = env.reap
+	if env.harvestCount then
+		source.count = env.harvestCount(source)
+	end
 	if #state.outputs + (source.count or 1) > OUTPUT_CAP then
 		state.status = "Output full"
 		return
@@ -480,11 +487,12 @@ function Machine.step(state: State, dt: number, env: Env)
 		local used = Machine.slotsUsed(state)
 		state.status = if used == 0 then "Empty" elseif used >= def.stores then "Full" else "Storing"
 	elseif def.plants then
-		stepPlanter(state, dt, env)
+		stepPlanter(state, dt * (1 + (env.harvesterSpeed or 0)), env)
 	elseif def.produce then
-		stepProducer(state, dt, env)
+		stepProducer(state, dt * (1 + (env.harvesterSpeed or 0)), env)
 	elseif def.recipes then
-		stepRecipes(state, dt)
+		-- Work and coal both use recipe-time seconds, keeping fuel per bar unchanged.
+		stepRecipes(state, dt * (1 + (env.machineSpeed or 0)))
 	end
 end
 

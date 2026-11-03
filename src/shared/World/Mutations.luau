@@ -8,7 +8,7 @@
 -- so Wet (x2) and Golden (x20) together are x21, never x40.
 
 export type Mutation = { multiplier: number, color: Color3 }
-export type Chances = { wet: number, shocked: number, golden: number }
+export type Chances = { wet: number, shocked: number, golden: number, multiplier: number? }
 local ALL: { [string]: Mutation } = {
 	Wet = { multiplier = 2, color = Color3.fromRGB(135, 194, 234) },
 	Shocked = { multiplier = 10, color = Color3.fromRGB(193, 173, 244) },
@@ -85,7 +85,7 @@ function Mutations.roll(random: Random, chances: Chances): string?
 	local rolls = { Wet = chances.wet, Shocked = chances.shocked, Golden = chances.golden, Rainbow = RAINBOW_CHANCE }
 	local names = {}
 	for _, name in ORDER do
-		if random:NextNumber() < rolls[name] then
+		if random:NextNumber() < math.clamp(rolls[name] * (chances.multiplier or 1), 0, 1) then
 			table.insert(names, name)
 		end
 	end

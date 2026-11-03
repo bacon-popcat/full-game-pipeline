@@ -14,6 +14,8 @@
         "$className": "Folder",
         "InventorySync": { "$className": "RemoteEvent" },
         "EconomySync": { "$className": "RemoteEvent" },
+        "ResearchSync": { "$className": "RemoteEvent" },
+        "Research": { "$className": "RemoteEvent" },
         "Fx": { "$className": "RemoteEvent" },
         "Objective": { "$className": "RemoteEvent" },
         "ShopSync": { "$className": "RemoteEvent" },
@@ -31,7 +33,8 @@
         "DropItem": { "$className": "RemoteEvent" },
         "DropCollected": { "$className": "RemoteEvent" },
         "SaveSlots": { "$className": "RemoteEvent" },
-        "SaveMenu": { "$className": "RemoteEvent" }
+        "SaveMenu": { "$className": "RemoteEvent" },
+        "Craft": { "$className": "RemoteEvent" }
       }
     },
 

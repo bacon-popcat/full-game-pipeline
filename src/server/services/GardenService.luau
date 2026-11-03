@@ -13,6 +13,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
 local World = require(ReplicatedStorage.Shared.World)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
+local Bonuses = require(game:GetService("ServerScriptService").Libraries.Bonuses)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 type State = {
@@ -30,7 +31,7 @@ for _, crop in World.CROPS do
 end
 local GardenService = {}
 
-local function restock(state: State): boolean
+local function restock(player: Player, state: State): boolean
 	local nextAt = (math.floor(os.time() / Content.RESTOCK_SECONDS) + 1) * Content.RESTOCK_SECONDS
 	if state.restockAt == nextAt then
 		return false
@@ -40,6 +41,9 @@ local function restock(state: State): boolean
 	for seed, crop in seeds do
 		local band = Content.RARITIES[crop.rarity]
 		state.seedStock[seed] = if random:NextNumber() < band.chance then random:NextInteger(band.min, band.max) else 0
+		if state.seedStock[seed] > 0 then
+			state.seedStock[seed] += Bonuses.get(player, "seedStock")
+		end
 	end
 	return true
 end
@@ -78,7 +82,7 @@ function GardenService.load(
 		state.seedStock[seed] = if typeof(amount) == "number"
 				and amount % 1 == 0
 				and amount >= 0
-				and amount <= Content.RARITIES[crop.rarity].max
+				and amount <= Content.RARITIES[crop.rarity].max + Bonuses.get(player, "seedStock")
 			then amount
 			else 0
 	end
@@ -97,7 +101,7 @@ function GardenService.load(
 		end
 	end
 	states[player] = state
-	restock(state)
+	restock(player, state)
 	sync(player, state)
 	syncIndex(player, state)
 end
@@ -202,7 +206,7 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 	if not state or typeof(shopId) ~= "string" or not Hub.STALLS[shopId] then
 		return
 	end
-	restock(state)
+	restock(player, state)
 	local message = "Choose a valid amount."
 	if typeof(itemId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and count <= 99 then
 		local reason = refusal(player)
@@ -250,6 +254,7 @@ local function sell(player: Player, mode: unknown)
 	for id, count in sold do
 		coins += (Inventory.getItem(id).value or 0) * count
 	end
+	coins = math.floor(coins * (1 + Bonuses.get(player, "sellPrice")) + 1e-9)
 	EconomyService.add(player, coins)
 	EconomyService.addXp(player, math.floor(coins / 10))
 	Remotes.Notify:FireClient(player, if coins > 0 then `+{coins} coins` else "Hold a crop or product to sell it.")
@@ -275,14 +280,14 @@ function GardenService.init()
 			and player:GetAttribute("DataReady") == true
 			and Hub.inReach(player, "SeedShop")
 		then
-			restock(state)
+			restock(player, state)
 			sync(player, state)
 		end
 	end)
 	while true do
 		task.wait(1)
 		for player, state in states do
-			if player.Parent == Players and restock(state) then
+			if player.Parent == Players and restock(player, state) then
 				sync(player, state)
 			end
 		end

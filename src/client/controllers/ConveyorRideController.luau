@@ -47,7 +47,8 @@ local function lanesOf(model: Model): { WorldLane }
 		return cached
 	end
 	local frame = Factory.originFrame(model)
-	local itemId = model:GetAttribute("ItemId") :: string
+	local itemId = model:GetAttribute("ItemId")
+	assert(typeof(itemId) == "string", "ConveyorRideController: belt must have an item id")
 	local result: { WorldLane } = {}
 	if frame then
 		for _, def in Factory.lanes(itemId) do
@@ -64,10 +65,11 @@ end
 
 local function step(dt: number)
 	local character = Players.LocalPlayer.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local root = character and character:FindFirstChild("HumanoidRootPart")
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if
 		not root
+		or not root:IsA("BasePart")
 		or not humanoid
 		or humanoid.Health <= 0
 		or humanoid.FloorMaterial == Enum.Material.Air
@@ -103,7 +105,9 @@ local function step(dt: number)
 		return
 	end
 	local direction = toward.Unit
-	local position = root.Position + direction * best.speed * dt
+	local origin = model:GetAttribute("Origin")
+	local multiplier = if typeof(origin) == "Vector3" then Factory.beltMultiplier(origin) else 1
+	local position = root.Position + direction * best.speed * multiplier * dt
 	-- Turn to face the belt while standing; walking leaves turning to the Humanoid.
 	local facing = root.CFrame.LookVector
 	if humanoid.MoveDirection.Magnitude < 0.1 then

@@ -35,8 +35,10 @@ DataService -> snapshot/restore crop cycle and rain credit
   drops (`WorldService.uproot`).
 - A full inventory leaves the entire hand harvest intact, with a toast. Harvester output
   capacity is checked for the entire yield before changing the plant.
+  Yield research rolls once for both capacity and output; unripe digging and uprooting are unchanged (research.md).
 - Harvest XP is awarded once per harvest to the plot owner, including machine harvests;
   unripe digging and soil removal give no XP. Discovery is saved on the first harvest.
+  EconomyService applies XP research to that award and carries fractional XP.
 - **Trees keep their column clear.** Apple and Starfruit grow four cells tall (`World.CROPS`
   `height`). From planting, each keeps that column, one cell wide, above its own cell: a seed
   (by hand or Seed Planter) won't plant unless the whole column is clear and on owned land
@@ -110,6 +112,7 @@ layer of blocks and digging uncovers the cells round the hole. `GroundService` o
   speed, plus wall time times (speed - 1). So rain and a sprinkler multiply, a sprinkler placed
   or picked up takes effect within half a second, and the credit is saved with the crop.
   `GrowsAt` divides what's left by both speeds.
+  Growth research multiplies the cell speed and banks online credit the same way; offline growth stays normal.
 - **The Watering Can** (Gear Shop) is used on a growing crop on your own plot: one splash
   banks a fifth of what's left of the crop's current stage into `growthBonus`, with a 1.5 s
   cooldown per player and a server-made splash of droplets. Ripe crops are left alone. The hand
@@ -132,7 +135,8 @@ A crop that ripened offline rolls only the always-on chances when restored. A ri
 mutation or completed plain roll is preserved. `WorldService.setChanceModifiers(provider)`
 is the cell hook FactoryService fills with the best sprinkler's +10% Wet;
 `chanceModifiers(cell, offline)` combines additive Wet, Shocked and Golden chances with
-weather and clamps each to 0..1.
+weather; Mutations.roll applies research to every final chance before clamping to 0..1.
+Mutation research includes Rainbow and offline always-on rolls; sprinkler reach research is applied by FactoryService.
 
 Harvests use `<Produce>+<key>` (`Carrot+Wet+Golden`); Items generates all fifteen sets for
 every produce and valued product. Factory processing keeps each variant apart: a batch

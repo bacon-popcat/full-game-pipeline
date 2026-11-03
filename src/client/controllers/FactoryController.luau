@@ -20,6 +20,7 @@ local StackLabel = require(Players.LocalPlayer.PlayerScripts.Libraries.StackLabe
 
 type LaneView = {
 	model: Model,
+	origin: Vector3,
 	points: { Vector3 },
 	length: number,
 	speed: number,
@@ -97,7 +98,8 @@ local function viewFor(key: string): LaneView?
 	local model = if blockId then blockModels[blockId] else nil
 	local itemId = if model then model:GetAttribute("ItemId") else nil
 	local frame = if model then Factory.originFrame(model) else nil
-	if not model or typeof(itemId) ~= "string" or not frame or not index then
+	local origin = if model then model:GetAttribute("Origin") else nil
+	if not model or typeof(itemId) ~= "string" or typeof(origin) ~= "Vector3" or not frame or not index then
 		return nil
 	end
 	local def = Factory.lanes(itemId)[index]
@@ -106,7 +108,7 @@ local function viewFor(key: string): LaneView?
 	end
 	local points = Factory.worldPoints(frame, def.points)
 	local view: LaneView =
-		{ model = model, points = points, length = Lane.length(points), speed = def.speed, items = {} }
+		{ model = model, origin = origin, points = points, length = Lane.length(points), speed = def.speed, items = {} }
 	lanes[key] = view
 	return view
 end
@@ -140,7 +142,7 @@ local function apply(key: string, items: { Lane.Item }, t: number)
 	view.items = table.clone(items)
 	local behind = workspace:GetServerTimeNow() - t
 	if behind > 0 then
-		Lane.advance(view.items, behind, view.speed, view.length)
+		Lane.advance(view.items, behind, view.speed * Factory.beltMultiplier(view.origin), view.length)
 	end
 	for _, item in view.items do
 		itemLane[item.id] = key
@@ -204,7 +206,7 @@ local function render(dt: number)
 		end
 	end
 	for _, view in lanes do
-		Lane.advance(view.items, dt, view.speed, view.length)
+		Lane.advance(view.items, dt, view.speed * Factory.beltMultiplier(view.origin), view.length)
 		for _, item in view.items do
 			local visual = visuals[item.id]
 			if not visual then

@@ -15,6 +15,14 @@ local function get(name: string): RemoteEvent
 end
 
 return {
+	-- server -> client: ({ done: { string }, active: { id: string, endsAt: number, seconds: number }?,
+	-- bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().
+	-- Sent on load, start, cancel, finish and every refused research request.
+	ResearchSync = get("ResearchSync"),
+	-- client -> server: (action: "Start" | "Cancel", id: string?); Start names a Shared/Research
+	-- project. The server rechecks DataReady, cooldown, level, prerequisites, items and coins;
+	-- Cancel refunds only when all items fit. Every request answers with Notify and ResearchSync.
+	Research = get("Research"),
 	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.
 	ShopSync = get("ShopSync"),
@@ -33,8 +41,10 @@ return {
 	Sell = get("Sell"),
 	-- server -> client: (message: string), a short transaction or rare-harvest toast.
 	Notify = get("Notify"),
-	-- server -> client: (fx: { kind: "Plant" | "Harvest" | "Sell" | "Buy" | "LevelUp", position: Vector3?,
-	-- itemId: string?, mutation: string?, amount: number? }) a moment to show and sound (FxService ->
+	-- server -> client: (fx: { kind: "Plant" | "Harvest" | "Water" | "Sell" | "Buy" | "LevelUp" | "Chop" |
+	-- "Craft" | "Research", position: Vector3?, itemId: string?, mutation: string?, amount: number?,
+	-- by: number? (who harvested), look: string?, pivot: CFrame? (a chopped tree's art and where it
+	-- stood), from: Vector3? (where its chopper stood) }) a moment to show and sound (FxService ->
 	-- FxController). Cosmetic only: nothing the client does with it changes the game.
 	Fx = get("Fx"),
 	-- server -> client: (objective: { step: number, total: number, text: string, done: boolean })
@@ -89,4 +99,9 @@ return {
 	-- the loaded garden and go back to the menu. One at a time; the server answers with
 	-- DataReady or SaveSlots.
 	SaveMenu = get("SaveMenu"),
+	-- client -> server: (recipeId: string, times: number) craft a Shared/Crafting recipe `times`
+	-- times (a whole number, 1 to Crafting.MAX_TIMES) at one of your own placed Crafting Benches
+	-- within reach. The server checks DataReady, the recipe's research, every input and room for
+	-- the output, then trades them in one step. Answered with Notify.
+	Craft = get("Craft"),
 }

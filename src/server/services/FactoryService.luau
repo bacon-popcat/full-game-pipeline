@@ -45,6 +45,7 @@ local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Machine = require(ServerScriptService.Libraries.Machine)
+local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local DropService = require(script.Parent.DropService)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local EconomyService = require(script.Parent.EconomyService)
@@ -176,6 +177,7 @@ local sprinklers: { [Block]: boolean } = {}
 -- Shipping bin sales not yet toasted, and coins not yet turned into XP, per owner.
 local pendingSales: { [Player]: number } = {}
 local xpCoins: { [Player]: number } = {}
+local saleRemainders: { [Player]: number } = {}
 local cellIndex: { [string]: Block } = {}
 local entries: { [string]: { Entry } } = {}
 local laneSet: { [LaneState]: boolean } = {}
@@ -650,7 +652,7 @@ end
 
 local function stepLanes(dt: number)
 	for lane in laneSet do
-		Lane.advance(lane.items, dt, lane.def.speed, lane.length)
+		Lane.advance(lane.items, dt, lane.def.speed * Factory.beltMultiplier(lane.block.origin), lane.length)
 	end
 	for lane in laneSet do
 		local front = Lane.waiting(lane.items, lane.length)
@@ -681,7 +683,13 @@ local function stepLanes(dt: number)
 			elseif not target and lane.exitPort and isOpen(lane.exitPort) then
 				table.remove(lane.items, 1)
 				markDirty(lane)
-				throwOff(lane.block, lane.exitPort, lane.def.speed, front.itemId, Lane.count(front))
+				throwOff(
+					lane.block,
+					lane.exitPort,
+					lane.def.speed * Factory.beltMultiplier(lane.block.origin),
+					front.itemId,
+					Lane.count(front)
+				)
 			end
 		else
 			local out = routeOut(lane.block, front)
@@ -740,9 +748,16 @@ end
 local function paySale(block: Block, itemId: string)
 	local player = ownerOf(block)
 	local value = Inventory.getItem(itemId).value
-	if not player or not value or not EconomyService.add(player, value) then
+	if not player or not value then
 		return
 	end
+	local earned = value * (1 + Bonuses.get(player, "sellPrice")) + (saleRemainders[player] or 0)
+	-- Do not hold back a whole coin because a decimal carry rounded just below it.
+	value = math.floor(earned + 1e-9)
+	if not EconomyService.add(player, value) then
+		return
+	end
+	saleRemainders[player] = math.max(0, earned - value)
 	block.earned += value
 	pendingSales[player] = (pendingSales[player] or 0) + value
 	local coins = (xpCoins[player] or 0) + value
@@ -757,6 +772,12 @@ local function sprinklerAt(cell: Vector3): { radius: number, speed: number, wet:
 	for block in sprinklers do
 		local rule = block.def.sprinkles
 		local low, high = Factory.area(block.itemId, block.origin, block.footprint, block.frame)
+		if rule and low and high then
+			local radius = Bonuses.get(ownerOf(block), "sprinklerRadius")
+			local extra = Vector3.new(radius, 0, radius)
+			low -= extra
+			high += extra
+		end
 		if
 			rule
 			and low
@@ -795,6 +816,9 @@ local function envFor(block: Block): Machine.Env
 			local node = selected
 			return node ~= nil and Plot.same(block.origin, node.cell) and WorldService.reap(node)
 		end
+		env.harvestCount = function(source: Factory.Source): number
+			return if selected then WorldService.harvestCount(selected) else source.count or 1
+		end
 	end
 	if def.plants then
 		env.canPlant = function(itemId)
@@ -820,7 +844,11 @@ local function stepMachines(dt: number)
 		if not machine then
 			continue
 		end
-		Machine.step(machine, dt, envFor(block))
+		local env = envFor(block)
+		local owner = ownerOf(block)
+		env.machineSpeed = Bonuses.get(owner, "machineSpeed")
+		env.harvesterSpeed = Bonuses.get(owner, "harvesterSpeed")
+		Machine.step(machine, dt, env)
 		local itemId = Machine.peekOutput(machine)
 		local belt = block.outputLane
 		if belt then
@@ -1440,6 +1468,14 @@ function FactoryService.init()
 		lastAction[player] = nil
 		pendingSales[player] = nil
 		xpCoins[player] = nil
+		saleRemainders[player] = nil
+	end)
+	Bonuses.changed:Connect(function(player: Player)
+		if player:GetAttribute("DataReady") ~= true then
+			pendingSales[player] = nil
+			xpCoins[player] = nil
+			saleRemainders[player] = nil
+		end
 	end)
 	WorldService.setChanceModifiers(function(cell: Vector3)
 		local sprinkler = sprinklerAt(cell)

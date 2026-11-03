@@ -15,6 +15,7 @@ local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Blocks = require(ReplicatedStorage.Shared.Factory.Blocks)
 local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
+local Plot = require(ReplicatedStorage.Shared.Plot)
 
 export type Def = Blocks.Def
 export type LaneDef = Blocks.LaneDef
@@ -42,6 +43,15 @@ local lanesCache: { [string]: { LaneDef } } = {}
 
 function Factory.get(itemId: string): Def?
 	return Blocks[itemId]
+end
+
+-- ResearchService publishes this multiplier on the plot; simulation, drawing and riding
+-- read the same attribute, including machine belts and router arms.
+function Factory.beltMultiplier(cell: Vector3): number
+	local index = Plot.at(cell)
+	local plot = if index then Plot.model(index) else nil
+	local speed = if plot then plot:GetAttribute("BeltSpeed") else nil
+	return if typeof(speed) == "number" then speed else 1
 end
 
 -- Whether the block has a panel of controls (UIController/MachinePanel): every machine,

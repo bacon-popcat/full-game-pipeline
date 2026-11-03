@@ -38,6 +38,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   like any other block.
 - **Items move on the server.** Clients receive changed lane lists through FactorySync and
   interpolate with Lane. A machine starts a job only when its outputs fit.
+  Research's replicated plot BeltSpeed scales every item lane and existing conveyor/router riding (research.md).
 - **Players ride belts too.** ConveyorRideController (client only, since characters are
   client-owned) moves the local character along the nearest lane of
   any conveyor or router it stands on, at that lane's speed, and turns it to face the belt. Machine belts don't carry players.
@@ -45,6 +46,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   including through a Merger. Other routers decide per item.
 - **Only the Smelter burns fuel.** It consumes coal while working and smelts iron or
   copper ore. Farm machines and processors run without fuel.
+  Machine-speed research scales work and coal burn together, preserving fuel per bar.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
   the Smelter and Workbench for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
@@ -66,21 +68,25 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   paying its owner the item's value and Sell Stand XP (1 per 10 coins, remainders carried per
   player). Its owner sees one "Shipping Bin +N coins" toast every 2 s at most. It publishes
   `Sold` and `Earned`.
+  Sale research multiplies item value with fractional coins carried per player; XP uses paid coins.
 - **Work areas.** A planter, harvester or sprinkler works only on cells at its own level (its
   bottom cell row), never above or below; `Factory.area` gives the rectangle and the server and
-  the placing ghost share it. While placing one, BuildController lays a soft yellow sheet over
+  the placing ghost share its base area. While placing one, BuildController lays a soft yellow sheet over
   that rectangle.
 - **Seed Planter** plants the first loaded seed that fits into the first free cell of a patch
   3 wide and 5 deep past its forks (`plantArea` in Blocks), every 2 s.
+  Harvester-speed research divides both Planter and Harvester intervals.
 - **Harvester** harvests every ripe crop in a patch 5 wide and 3 deep behind it (the side away
   from its output belt, centred on its belt line; `produce.area` in Blocks), one every 3 s,
   onto its output belt. The tier 2 patch is 7 wide and 5 deep.
   A single crop restarts from a sprout, so it replants itself; a multi crop regrows its fruit.
   Each harvest gives the owner harvest XP, as a hand harvest does.
+  Yield research rolls once before the output-room check and uses that same count for the harvest.
 - **Sprinkler** has no ports. Crops within 3 cells across on its plot grow
   1.25x as fast and gain +10% Wet chance. The best sprinkler over a crop counts; several don't
   stack. FactoryService hands WorldService the speed and chance providers; SprinklerController
   draws a soft spray.
+  Radius research extends its reach; growth and mutation research multiply its crop effects (research.md).
 - Source queries and completed actions of every machine stay inside its own plot.
 - **Cut systems are removed.** Tubes, sap, deposits, lumber, animals and walking, petroleum,
   polishing/cutting, alloys and presses are gone. PlotService removes the live showcase;
@@ -93,6 +99,7 @@ value and borrowed art. Items makes the product items from it and Blocks the rec
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
 Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
+Machine-speed research divides batch times for processors, Workbench and Smelter.
 Mutated inputs are never grouped with plain ones or each other. Each variant has its own
 input room; a batch takes every input in one set of mutations (plain first, then rising
 value, `Mutations.KEYS`) and makes its product in that set, `<Product>+<Mutations>` worth the
@@ -168,6 +175,38 @@ hand takes belt items, switches routers or harvests owned crops. Machines are wo
 their panel. Picking up a machine refunds active recipe ingredients with its contents; partial
 processing progress is discarded. Inventory overflow on block pickup retains the existing
 behavior: it is lost, so empty a full machine before picking it up.
+Mining/chopping research boosts the acting player's named node drop before the inventory-room check.
+
+## The forest
+
+Shared like the quarry: ForestOak (3 Wood), ForestPine (4) and ForestBirch (2) are World nodes,
+chopped by anyone with the Axe (Gear Shop, 60 coins), plus their Sharp Axe research
+(`World.Node.boost`, research.md). `World/Layout` stands them through the forest ring
+(plots.md § The map round the gardens). A chopped tree leaves its `ForestStump` art as scenery
+(no collisions or queries, so it never blocks the respawn) and grows back after 90 s. Like
+crops, a tree comes in looks (`ForestOakVariant2` ...), picked per cell; its model carries the
+look as `Look`. Chopping fires `GardenEvents.Chopped`, and FxService has every client nearby
+draw that look tipping over away from the chopper and settling into the ground, with wood
+chips, leaves and the Chop and TreeFall sounds. Wood has no sell value, so Sell All keeps it.
+
+## Crafting Bench
+
+A block (Machine Shop, level 1, 100 coins) that crafts by hand, not from belts: the Workbench
+stays the belt-fed parts machine. `Shared/Crafting` owns its recipes, each an output and count
+from inputs, some unlocked by a research project (overhaul.md § Wood and crafting has the
+table). Its owner opens the Crafting window with the interact key aimed at it within reach
+(`UIController/CraftingScreen`; an Open button on touch), and it closes on walking away; the
+hover panel says how. Body.Tabs.Times1, Times5 and Times10 set how many times a press crafts;
+each recipe is a row cloned from `Assets.UI.Crafting.Row` (Icon, Name, Inputs, Status, Have,
+Craft), locked ones last, naming the project that unlocks them. `Remotes.Craft(recipeId, times)`
+goes to `CraftingService`, which rechecks DataReady, a cooldown, that one of the player's own
+benches is in reach, the research (`Bonuses.has`) and every input, then tries the trade on a
+copy of the inventory (inputs out, output in, so the room the inputs free counts) and applies
+it whole without yielding, with a toast and `GardenEvents.Crafted` (a puff of wood shavings
+and the Craft sound). The window and its row template are authored in the place file.
+
+Played through in Studio: opening it with F at the bench, 1 Wood into 4 Wood Planks, a Timber
+Frame, a x5 craft, and a locked recipe refused ("Research Crate Making first").
 
 ## Place-file art and adding content
 
@@ -177,5 +216,4 @@ remain authored in Studio. CopperRock uses a copper-coloured cell when no templa
 
 A machine needs an Inventory/Items entry, a Factory/Blocks definition and a matching block
 template. A recipe uses known item ids. Quarry nodes need a World definition and Layout spot.
-See farming.md for crops. Power remains sensor pulses plus the Split's manual switch;
-conveyors do not carry players.
+See farming.md for crops. Power remains sensor pulses plus the Split's manual switch.

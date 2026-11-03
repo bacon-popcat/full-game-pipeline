@@ -16,6 +16,7 @@ local World = require(ReplicatedStorage.Shared.World)
 local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
+local Bonuses = require(game:GetService("ServerScriptService").Libraries.Bonuses)
 local GroundArt = require(game:GetService("ServerScriptService").Libraries.GroundArt)
 local GardenService = require(script.Parent.GardenService)
 local WeatherService = require(script.Parent.WeatherService)
@@ -55,6 +56,9 @@ local PLACEHOLDER_COLORS: { [string]: Color3 } = {
 	GrassGround = Color3.fromRGB(120, 178, 92),
 	DirtGround = Color3.fromRGB(150, 108, 72),
 	StoneGround = Color3.fromRGB(150, 150, 150),
+	ForestOak = Color3.fromRGB(120, 170, 96),
+	ForestPine = Color3.fromRGB(92, 146, 110),
+	ForestBirch = Color3.fromRGB(170, 200, 120),
 }
 -- Studs per second a crop's harvest is tossed out at when its soil is taken away.
 local UPROOT_SPEED = 8
@@ -440,24 +444,30 @@ function WorldService.speedAt(cell: Vector3): number
 	return cellSpeed(cell)
 end
 
+-- GroundService reads speedAt for wet soil; research alone must not wet the ground.
+local function growthSpeed(cell: Vector3): number
+	return cellSpeed(cell) * (1 + Bonuses.at(cell, "growSpeed"))
+end
+
 function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutations.Chances
 	local modifiers = if offline then { wet = 0, shocked = 0, golden = 0 } else cellModifiers(cell)
 	local weather = if offline then "" else WeatherService.current()
 	return {
-		wet = math.clamp(modifiers.wet + (if weather == "Rain" or weather == "Thunderstorm" then 0.25 else 0), 0, 1),
-		shocked = math.clamp(modifiers.shocked + (if weather == "Thunderstorm" then 0.05 else 0), 0, 1),
-		golden = math.clamp(modifiers.golden + (if weather == "Golden Hour" then 0.05 else 0.01), 0, 1),
+		wet = modifiers.wet + (if weather == "Rain" or weather == "Thunderstorm" then 0.25 else 0),
+		shocked = modifiers.shocked + (if weather == "Thunderstorm" then 0.05 else 0),
+		golden = modifiers.golden + (if weather == "Golden Hour" then 0.05 else 0.01),
+		multiplier = 1 + Bonuses.at(cell, "mutationChance"),
 	}
 end
 
 -- Banks the extra growth since the last bank: rain's (WeatherService's clock) and the cell's
--- sprinkler speed, multiplied together. Called every grow tick, so a sprinkler placed or
+-- sprinkler/research speed, multiplied together. Called every grow tick, so a sprinkler placed or
 -- removed changes a crop's speed within half a second.
 local function bankGrowth(node: Node)
 	local clock = WeatherService.bonusNow()
 	local now = wallTime()
 	if not World.isRipe(World.getNode(node.nodeType)) then
-		local speed = cellSpeed(node.cell)
+		local speed = growthSpeed(node.cell)
 		node.growthBonus += (clock - node.weatherClock) * speed + (now - node.bankedAt) * (speed - 1)
 	end
 	node.weatherClock = clock
@@ -523,7 +533,7 @@ local function grow(node: Node, offline: boolean?)
 		return
 	end
 	local nextAt = now.nextAt
-	local remaining = math.max(0, nextAt - elapsed) / (WeatherService.speed() * cellSpeed(node.cell))
+	local remaining = math.max(0, nextAt - elapsed) / (WeatherService.speed() * growthSpeed(node.cell))
 	local deadline = workspace:GetServerTimeNow() + remaining
 	local previous = node.model:GetAttribute("GrowsAt")
 	-- Clock sampling must not turn an unchanged deadline into a stream of attribute updates.
@@ -532,23 +542,30 @@ local function grow(node: Node, offline: boolean?)
 	end
 end
 
-local function harvestItems(node: Node): { [string]: number }
+-- One yield roll shared by the capacity check and the committed hand or machine harvest.
+function WorldService.harvestCount(node: Node): number
+	local def = World.getNode(node.nodeType)
+	local crop = if def.crop then World.CROPS[def.crop] else nil
+	assert(crop and World.isRipe(def), "WorldService.harvestCount: crop must be ripe")
+	local amount = crop.yield * (1 + Bonuses.at(node.cell, "cropYield"))
+	local whole = math.floor(amount)
+	local fraction = amount - whole
+	return whole + (if fraction > 0 and random:NextNumber() < fraction then 1 else 0)
+end
+
+local function harvestItems(node: Node, boosted: boolean?): { [string]: number }
 	local def = World.getNode(node.nodeType)
 	if def.crop and World.isRipe(def) then
 		local crop = World.CROPS[def.crop]
 		local id = crop.produce .. (if node.mutation then "+" .. node.mutation else "")
-		return { [id] = crop.yield }
+		return { [id] = if boosted then WorldService.harvestCount(node) else crop.yield }
 	end
 	return def.harvest or {}
 end
 
 local function awardHarvest(node: Node)
 	local def = World.getNode(node.nodeType)
-	local index = Plot.at(node.cell)
-	local plots = workspace:FindFirstChild("Plots")
-	local plot = if plots and index then plots:FindFirstChild(tostring(index)) else nil
-	local owner = if plot then plot:GetAttribute("Owner") else nil
-	local player = if typeof(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
+	local player = Bonuses.ownerAt(node.cell)
 	if player and def.crop then
 		GardenService.harvest(player, def.crop, node.mutation)
 		GardenEvents.Harvested:Fire(player, def.crop, node.mutation, node.cell)
@@ -715,7 +732,11 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		if not def.tool or held ~= def.tool then
 			return
 		end
-		local drops = def.drops or {}
+		local drops = table.clone(def.drops or {})
+		if def.boost then
+			local boost = def.boost
+			drops[boost.item] = (drops[boost.item] or 0) + Bonuses.get(player, boost.stat)
+		end
 		if not InventoryService.canGiveAll(player, drops) then
 			return
 		end
@@ -733,10 +754,10 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 			)
 		end
 	elseif action == "Take" and def.harvest then
-		local harvest = harvestItems(node)
 		if held then
 			return
 		end
+		local harvest = harvestItems(node, true)
 		if not InventoryService.canGiveAll(player, harvest) then
 			Remotes.Notify:FireClient(player, "Your inventory is full.")
 			return

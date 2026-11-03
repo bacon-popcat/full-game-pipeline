@@ -83,6 +83,7 @@ local SHOPS: { [string]: Shop } = {
 			offer("MillTier2", 6000, 10, "Machine", { Gear = 8, SteelFrame = 2 }),
 			offer("HarvesterTier2", 10000, 12, "Machine", { Circuit = 6, SteelFrame = 3 }),
 			offer("Workbench", 400, 3, "Crafting"),
+			offer("CraftingBench", 100, 1, "Crafting"),
 			offer("Smelter", 500, 3, "Crafting"),
 		},
 	},

@@ -28,6 +28,12 @@ mutation EV uses clear weather for the first 10 min, then long-run event weights
 Tier-two affordability is a separate wallet observation, not another purchase;
 parts timing is a serial upper bound for one supplied Smelter + Workbench, including
 recursive ingredients and coal, excluding quarry travel and ore contention.
+
+Levels 13-50 are extrapolated, not simulated. After level 12 the run plays one more
+hour; the XP/min earned in that hour (all tier-one machines owned, no new expansion, no
+tier-two machines, no rare crops) is held flat, so a level's time is the lifetime XP it
+needs divided by that rate. The extrapolation is conservative: real players keep adding
+soil, tier-two machines and rare crops, which raise the rate.
 """
 
 from __future__ import annotations
@@ -49,6 +55,8 @@ ACTION = 2
 TRAVEL = 20
 CELLS = 96
 HORIZON = 12 * 60 * 60
+STEADY_WINDOW = 60 * 60
+MILESTONES = (15, 20, 30, 40, 50)
 MUTATIONS = ("Wet", "Shocked", "Golden", "Rainbow")
 # Plain, then every stacked set of mutations as a Mutations key ("Wet+Golden").
 VARIANTS = ("Plain",) + tuple("+".join(names) for size in range(1, 5) for names in combinations(MUTATIONS, size))
@@ -113,6 +121,8 @@ def read_content():
     return dict(crops=crops, rarities=rarities, offers=offers, recipes=recipes,
         coefficient=number(economy, r'math.round\(([\d.]+) \* level'),
         exponent=number(economy, r'level \^ ([\d.]+)'),
+        # Optional linear term; the pre-rework curve (before.json) has none.
+        linear=float(m[1]) if (m := re.search(r'\+ ([\d.]+) \* level\)', economy)) else 0.0,
         starter_coins=number(data, r'local PROFILE_TEMPLATE.*?coins = (\d+)'),
         starter_seeds={key: int(value) for key, value in re.findall(r'itemId = "(\w+)Seeds", count = (\d+)', data)},
         restock=int(number(content, r'RESTOCK_SECONDS = (\d+)')),
@@ -183,7 +193,7 @@ class Model:
         self.time = 0
 
     def required(self, level):
-        return math.floor(self.c["coefficient"] * level ** self.c["exponent"] + .5)
+        return math.floor(self.c["coefficient"] * level ** self.c["exponent"] + self.c.get("linear", 0) * level + .5)
 
     def event(self, name):
         self.met.add(name)
@@ -406,13 +416,24 @@ class Model:
         self.plants.append([item, self.c["crops"][item]["grow"], covered])
 
     def run(self):
+        end_at = None
+        rates = {}
         for self.time in range(HORIZON):
             self.tick()
             assert len(self.plants) <= CELLS and self.coins >= -1e-9
-            if self.level >= 12:
+            if self.level >= 12 and end_at is None:
+                end_at = self.time + STEADY_WINDOW
+                xp_at_12 = self.xp
+                # Stage rates are reported up to level 12, before the steady-state hour.
+                rates = {stage: (gross - seeds) * 60 / seconds for stage, (seconds, gross, seeds) in self.stats.items() if seconds}
+            if end_at is not None and self.time >= end_at:
                 break
+        # Steady late-game XP rate: XP/min over the hour after level 12, with every
+        # tier-one machine owned. Used only to extrapolate past the simulated levels.
+        steady = (self.xp - xp_at_12) * 60 / STEADY_WINDOW if end_at is not None else None
         return dict(levels=self.levels, afford=self.afford, bought=self.bought, wallet_at_unlock=self.wallet_at_unlock,
-                    rates={stage: (gross - seeds) * 60 / seconds for stage, (seconds, gross, seeds) in self.stats.items() if seconds})
+                    xp_end=self.xp, minutes_end=self.time / 60, steady_xp=steady,
+                    rates=rates)
 
 
 def audit(config):
@@ -440,6 +461,26 @@ def fmt(value):
     return "unreached" if value is None else f"{value:.1f}"
 
 
+def cumulative(config, level):
+    """Lifetime XP needed to reach `level` under a config's curve."""
+    model = Model(config)
+    return sum(model.required(n) for n in range(1, level))
+
+
+def reach_minutes(config, result, level):
+    """Minutes to a level: simulated where the run got there, else extrapolated at the steady XP rate."""
+    if level in result["levels"]:
+        return result["levels"][level]
+    if not result["steady_xp"]:
+        return None
+    return result["minutes_end"] + (cumulative(config, level) - result["xp_end"]) / result["steady_xp"]
+
+
+def median_reach(config, results, level):
+    values = [reach_minutes(config, r, level) for r in results]
+    return None if None in values else statistics.median(values)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--capture-before", action="store_true")
@@ -461,6 +502,15 @@ def main():
     print("| Milestone | Before | After |\n|---|---:|---:|")
     for level in range(2, 13):
         print(f"| Level {level} | " + " | ".join(fmt(median(r, "levels", level)) for r in results) + " |")
+    print("\nBeyond level 12 the run is extrapolated, not simulated: the model keeps playing one hour past")
+    print("level 12 and takes the XP/min earned in that hour (every tier-one machine owned, no new")
+    print("expansion, no tier-two machines, no rare crops) as a flat rate for all later levels.")
+    print("Minutes from join; levels the extra hour actually reached are simulated, the rest extrapolated.")
+    print("| Milestone | Before | After | After lifetime XP |\n|---|---:|---:|---:|")
+    for level in MILESTONES:
+        print(f"| Level {level} (extrapolated) | " + " | ".join(fmt(median_reach(c, r, level)) for c, r in zip((before, current), results))
+              + f" | {cumulative(current, level):,} |")
+    print("| steady XP/min | " + " | ".join(fmt(statistics.median(x["steady_xp"] for x in r)) for r in results) + " | |")
     for stage in ("hand", "automation", "processors"):
         print(f"| {stage} net coins/min | " + " | ".join(fmt(median(r, "rates", stage)) for r in results) + " |")
     print("\n| Machine | Level | Before coin-affordable | After coin-affordable | After bought | Parts min before / after |\n|---|---:|---:|---:|---:|---:|")
@@ -477,7 +527,7 @@ def main():
     for item, offer in current["offers"].items():
         if offer["parts"]:
             print(item, parts_time(current, offer["parts"]))
-            assert 20 <= parts_time(current, offer["parts"])["minutes"] <= 30
+            assert 4 <= parts_time(current, offer["parts"])["minutes"] <= 10, "tier-two parts are 4-10 min of supplied crafting (economy.md)"
 
 
 if __name__ == "__main__":

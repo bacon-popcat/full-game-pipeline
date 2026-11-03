@@ -6,10 +6,11 @@
 -- placement queries. A player joins at the hub spawn, then is sent to stand at their garden's
 -- gate, and comes back there every respawn.
 --
--- Owned land is GroundService's diggable ground, Plot.FLOOR levels deep. So the place's
--- Baseplate is cut into pieces round the gardens (widened to reach past them all, and deepened
--- to the floor so a hole dug at a garden's edge meets a wall), and every garden has bedrock under
--- its floor. A purchase stands the new section's ground (GroundService.extend); a freed garden's
+-- Owned land is GroundService's diggable ground, Plot.FLOOR levels deep. So the ground round
+-- the gardens is laid as grass pieces that leave a hole for each garden (reaching Map's
+-- GROUND_MARGIN past them all, and as deep as the floor so a hole dug at a garden's edge meets a
+-- wall), and every garden has bedrock under its floor. The place's Baseplate is removed; past
+-- this ground MapService's Terrain takes over, in the same grass. A purchase stands the new section's ground (GroundService.extend); a freed garden's
 -- ground goes back to untouched (GroundService.reset).
 --
 -- A garden's scenery (its Boundary model) is rebuilt whenever its owner or sections change,
@@ -26,6 +27,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Build = require(ReplicatedStorage.Shared.Build)
+local Map = require(ReplicatedStorage.Shared.World.Map)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
@@ -40,12 +42,11 @@ local GATE_X = { [Plot.START_OFFSET.X + 14] = true, [Plot.START_OFFSET.X + 15] =
 local GATE_CENTRE = Plot.START_OFFSET.X + 15
 local GATE_STEP = 3
 local COOLDOWN = 0.5
-local GRASS = Color3.fromRGB(153, 191, 126)
 local LOCKED = Color3.fromRGB(119, 132, 105)
 local FENCE = Color3.fromRGB(225, 211, 178)
 local BEDROCK = Color3.fromRGB(74, 70, 76)
--- Studs of ground round the gardens on every side.
-local GROUND_MARGIN = 36
+-- The ground round the gardens, the same grass as MapService's Terrain past it.
+local MEADOW = Map.GRASS
 -- Studs from the top of the ground (y = 0) to the bottom of its lowest level, and the bedrock
 -- under that.
 local GROUND_DEPTH = -Plot.FLOOR * GRID
@@ -91,10 +92,9 @@ local function footprint(index: number): (Vector2, Vector2)
 	return Vector2.new(math.min(a.X, b.X), math.min(a.Z, b.Z)), Vector2.new(math.max(a.X, b.X), math.max(a.Z, b.Z))
 end
 
--- Lays the ground round the gardens: the place's Baseplate (or a plain grass part) cut into
--- pieces that leave a hole for every garden, reaching past them all and as deep as their
--- ground with its bedrock. Bands are cut at every garden edge; each band's runs of cells
--- outside the gardens become one piece.
+-- Lays the ground round the gardens: grass pieces that leave a hole for every garden, reaching
+-- past them all and as deep as their ground with its bedrock. Bands are cut at every garden
+-- edge; each band's runs of cells outside the gardens become one piece.
 local function ground()
 	local lows, highs = {}, {}
 	local reach = Vector2.zero
@@ -103,7 +103,7 @@ local function ground()
 		lows[index], highs[index] = low, high
 		reach = reach:Max(Vector2.new(math.max(-low.X, high.X), math.max(-low.Y, high.Y)))
 	end
-	local half = reach + Vector2.one * GROUND_MARGIN
+	local half = reach + Vector2.one * Map.GROUND_MARGIN
 	local xs, zs = { -half.X, half.X }, { -half.Y, half.Y }
 	for index = 1, Plot.COUNT do
 		table.insert(xs, lows[index].X)
@@ -113,23 +113,13 @@ local function ground()
 	end
 	table.sort(xs)
 	table.sort(zs)
-	local baseplate = workspace:FindFirstChild("Baseplate")
-	local source = if baseplate and baseplate:IsA("BasePart") then baseplate else nil
-	local top = if source then source.Position.Y + source.Size.Y / 2 else 0
 	local depth = GROUND_DEPTH + BEDROCK_DEPTH
 	local folder = Instance.new("Folder")
 	folder.Name = "Ground"
 	local function piece(x0: number, x1: number, z0: number, z1: number)
 		local size = Vector3.new(x1 - x0, depth, z1 - z0)
-		local centre = Vector3.new((x0 + x1) / 2, top - depth / 2, (z0 + z1) / 2)
-		if source then
-			local copy = source:Clone()
-			copy.Size = size
-			copy.CFrame = CFrame.new(centre)
-			copy.Parent = folder
-		else
-			part(folder, "Ground", size, centre, GRASS, true)
-		end
+		local centre = Vector3.new((x0 + x1) / 2, -depth / 2, (z0 + z1) / 2)
+		part(folder, "Ground", size, centre, MEADOW, true).Material = Enum.Material.Grass
 	end
 	local function inGarden(x: number, z: number): boolean
 		for index = 1, Plot.COUNT do
@@ -164,8 +154,9 @@ local function ground()
 		part(folder, "Bedrock", size, centre, BEDROCK, true)
 	end
 	folder.Parent = workspace
-	if source then
-		source:Destroy()
+	local baseplate = workspace:FindFirstChild("Baseplate")
+	if baseplate and baseplate:IsA("BasePart") then
+		baseplate:Destroy()
 	end
 end
 

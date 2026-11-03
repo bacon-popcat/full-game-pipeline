@@ -133,6 +133,11 @@ local ITEMS: { Item } = {
 	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
 	machine("Workbench", "Workbench", "Makes gears, copper wire, circuits and steel frames from bars."),
 	machine(
+		"CraftingBench",
+		"Crafting Bench",
+		"Open it to craft Wood and bars into planks, frames and machines. Research teaches it more."
+	),
+	machine(
 		"SeedPlanter",
 		"Seed Planter",
 		"Plants the seeds in its hopper into empty soil, 3 wide and 5 deep, in front of it."
