@@ -19,7 +19,6 @@
 --   * Layout reads sizes divided by the window's UIScale, so the open animation never
 --     reflows the grid mid-tween.
 
-local ContentProvider = game:GetService("ContentProvider")
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
@@ -544,12 +543,7 @@ function InventoryScreen.init(hud: ScreenGui)
 	trove:Add(cleanup)
 	-- This screen replaces Roblox's backpack and its 1-9 keys.
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-	-- Item icons are mostly MeshParts; fetch them now so the first backpack open isn't
-	-- a grid of blanks while they download.
-	local blocks = findNode(ReplicatedStorage, "Assets.Blocks")
-	if blocks then
-		task.spawn(ContentProvider.PreloadAsync, ContentProvider, { blocks })
-	end
+	-- Icon meshes (Assets.Blocks, Assets.Items) are fetched on join by PreloadController.
 
 	for index = 1, Inventory.SLOT_COUNT do
 		createCell(index, if index <= Inventory.HOTBAR_SIZE then ui.hotbar else ui.grid)
