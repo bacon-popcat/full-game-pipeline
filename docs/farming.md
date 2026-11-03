@@ -163,13 +163,16 @@ neighbouring cells, yet each is still one cell to the game: `studio_blocks.luau`
 cell, and overlap tests count only hitboxes (`Build.isCoveredArt`), so the art never blocks planting or building
 beside it. One scale per crop, so it never shrinks as it grows.
 
-Each stage comes in three looks, so a field isn't rows of clones: `<Crop><Stage>` and `<Crop><Stage>Variant2` and
-`Variant3` in `Assets.World`, each laid out differently and drawn at its own height and leaf tint (`crops.VARIANTS`).
+Each stage comes in five looks, so a field isn't rows of clones: `<Crop><Stage>` and `<Crop><Stage>Variant2` to
+`Variant5` in `Assets.World` (`crops.VARIANTS`). Each is laid out differently, bent its own way (leaves higher on one
+side, the plant twisting as it rises, so fruit hangs in other places), drawn at its own height and leaf tint, and
+some are mirrored. Every leaf drifts a little from its crop's greens, and each fruit or vegetable is its own size and
+shade.
 WorldService picks one per cell from the cell's position, the same for every stage, so a plant keeps its look as
 it grows and after a rejoin; nothing is saved. The node, its name and everything the client reads stay the stage's. The stages are imported as the
 `GardenWorld` showcase set and the seeds as `GardenSeeds` with `studio_import.luau` (SET), then finished with
-`studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit, since it regrows on it; Ripe adds
-the fruit. The produce items are still `garden.py`'s and `assets.py`'s.
+`studio_blocks.luau`. A multi crop's Mature art is built as its Ripe art with the fruit taken off (`crops.REGROWS`),
+in every look, so a harvest changes nothing but the fruit: the leaves stay exactly where they were. The produce items are still `garden.py`'s and `assets.py`'s.
 
 Part keys decide what moves: `Stake` (canes, trellis posts, ties) and `Tuber` (roots and tubers in the ground)
 never move; `Crop`, `Bark`, `Vine`, `Fruit`, `Bloom`, `Grain` and `Glow` sway. None of them collide, so players walk
