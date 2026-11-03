@@ -27,7 +27,7 @@ local SETTLE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirec
 local FLOAT_TWEEN = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local POP_SCALE = 1.15
 -- The wallet panel's background, see-through enough for the world to show behind it.
-local BACKGROUND_TRANSPARENCY = 0.45
+local BACKGROUND_TRANSPARENCY = 0.25
 local GAIN_COLOR = Color3.fromRGB(120, 230, 120)
 
 local Wallet = {}
