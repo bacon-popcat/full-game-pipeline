@@ -120,9 +120,26 @@ local function placeholder(name: string, size: Vector3): Model
 	return model
 end
 
-local function copyArt(name: string, placeholderSize: Vector3): Model
+-- A crop stage's art can come in looks: <Stage>, then <Stage>Variant2, Variant3 ... with no
+-- gaps. Each cell keeps one look, picked from its position (no save needed, the same after a
+-- rejoin), and the same pick for every stage, so one plant grows as itself.
+local function variantOf(name: string, cell: Vector3): Model?
+	local count = 1
+	while template(`{name}Variant{count + 1}`) do
+		count += 1
+	end
+	local pick = math.floor(math.abs(math.sin(cell.X * 12.9898 + cell.Z * 78.233 + cell.Y * 37.719)) * 43758.5453)
+		% count
+		+ 1
+	return if pick == 1 then template(name) else template(`{name}Variant{pick}`)
+end
+
+local function copyArt(name: string, placeholderSize: Vector3, cell: Vector3?): Model
 	local def = World.NODES[name]
-	local found = if def and def.ground then GroundArt.copy(name) else template(name)
+	local found = if def and def.ground
+		then GroundArt.copy(name)
+		elseif def and def.crop and cell then variantOf(name, cell)
+		else template(name)
 	local crop = if def and def.crop then World.CROPS[def.crop] else nil
 	local fallback = not found and crop ~= nil
 	if not found and crop and def and def.stage then
@@ -176,7 +193,7 @@ local function spawnNode(
 	mutationRolled: boolean?
 ): Node
 	World.getNode(nodeType)
-	local model = copyArt(nodeType, Vector3.one * Build.GRID)
+	local model = copyArt(nodeType, Vector3.one * Build.GRID, cell)
 	local footprint = footprintOf(model)
 	local centre = Build.box(cell, footprint)
 	-- A stable quarter turn per cell; only square

@@ -161,7 +161,12 @@ exports the normals; studio_import uses them). A crop has no soil of its own; it
 Farmland under it. Crops are drawn tall, standing up to almost two cells high and reaching a little into the
 neighbouring cells, yet each is still one cell to the game: `studio_blocks.luau` pins GardenWorld's hitboxes to one
 cell, and overlap tests count only hitboxes (`Build.isCoveredArt`), so the art never blocks planting or building
-beside it. One scale per crop, so it never shrinks as it grows. The stages are imported as the
+beside it. One scale per crop, so it never shrinks as it grows.
+
+Each stage comes in three looks, so a field isn't rows of clones: `<Crop><Stage>` and `<Crop><Stage>Variant2` and
+`Variant3` in `Assets.World`, each laid out differently and drawn at its own height and leaf tint (`crops.VARIANTS`).
+WorldService picks one per cell from the cell's position, the same for every stage, so a plant keeps its look as
+it grows and after a rejoin; nothing is saved. The node, its name and everything the client reads stay the stage's. The stages are imported as the
 `GardenWorld` showcase set and the seeds as `GardenSeeds` with `studio_import.luau` (SET), then finished with
 `studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit, since it regrows on it; Ripe adds
 the fruit. The produce items are still `garden.py`'s and `assets.py`'s.
