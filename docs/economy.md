@@ -113,6 +113,22 @@ safe-area insets, responsive sizing and useful selection/scroll layout in Studio
 or mistyped node warns once through `libraries/Hud`; that screen returns without throwing.
 Each screen under `controllers/UIController` receives `init(hud)`.
 
+The always-on pieces (SideButtons, Wallet, Objective, Weather, Toasts, ItemName, and the
+Slot and Toast templates inside them) are authored in Scale so they scale with the device.
+Each piece's Size is its share of a 1280x720 reference screen (`Hud.REFERENCE_WIDTH` and
+`REFERENCE_HEIGHT`), and a UIAspectRatioConstraint keeps its shape, so it follows whichever
+screen axis is tighter. A 4:3 tablet therefore scales by width, while 16:9 and wider screens
+scale by height. Their contents are Scale shares of the piece, and single-line text is
+TextScaled in a box trimmed to the authored text height, capped at twice that by a
+UITextSizeConstraint. The objective's wrapped body text is capped at its authored size.
+The objective sits 58 px (Roblox's topbar) plus a Scale gap from the top. Code that sizes
+these pieces in pixels uses `Hud.zoom` and follows the same rule: the hotbar's slots, gaps
+and margin in InventoryScreen, and ItemGained's code-built cards. There are no minimum
+sizes, because on a phone a floor pushes the left column and the hotbar into each other.
+So a 390 px tall phone draws the HUD at about half size (28 px side buttons). The wallet,
+item cards and side column can also sit under Roblox's touch thumbstick and jump button
+there, since the arrangement is the desktop one.
+
 `SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
 `Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
 `Fill` and `Knob`, and a `Value` TextBox), `Body.Note`, `Body.ControlsHint` and the
@@ -145,12 +161,12 @@ inventory binding for inventory even beside shops and section purchases.
 
 ```text
 StarterGui.HUD [ScreenGui]
-  Wallet [Frame]                         bottom-left, see-through, balance counts and pops (Wallet.luau)
+  Wallet [Frame]                         bottom-left in Scale, see-through, balance counts and pops (Wallet.luau)
     Coins [TextLabel]                   formatted 1,234
     Level [TextLabel]                   Lv 3
     XpBar [Frame]
       Fill [Frame]                     tweened X.Scale 0..1
-      Text [TextLabel]                 optional; "120 / 450 XP" (made plain if missing)
+      Text [TextLabel]                 "120 / 450 XP"
   Weather [Frame]                       initially hidden
     Title [TextLabel]                   Rain / Thunderstorm / Golden Hour
     Time [TextLabel]                    1:42

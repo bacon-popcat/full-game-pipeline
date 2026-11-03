@@ -4,6 +4,19 @@
 local Hud = {}
 local warned: { [string]: boolean } = {}
 
+-- The screen the always-on HUD is drawn for. Its pieces are authored in Scale, each a share of
+-- a REFERENCE_WIDTH x REFERENCE_HEIGHT screen, with a UIAspectRatioConstraint keeping its shape
+-- (so it follows whichever of the two axes is tighter). Code that sizes HUD pieces in pixels
+-- uses `zoom`. No piece has a minimum size: on a phone a floor would push the left column and
+-- the hotbar into each other, while pure proportion keeps the reference arrangement.
+Hud.REFERENCE_WIDTH = 1280
+Hud.REFERENCE_HEIGHT = 720
+
+-- How many times the reference size the HUD is drawn on a screen of `size`.
+function Hud.zoom(size: Vector2): number
+	return math.min(size.X / Hud.REFERENCE_WIDTH, size.Y / Hud.REFERENCE_HEIGHT)
+end
+
 function Hud.find(root: Instance, path: string, className: string): Instance?
 	local node: Instance? = root
 	for name in string.gmatch(path, "[^%.]+") do

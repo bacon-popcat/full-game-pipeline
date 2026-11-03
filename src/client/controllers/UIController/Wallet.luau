@@ -1,9 +1,9 @@
--- Wallet: binds the authored balance/level labels and eases XP from authoritative state. It sits
--- in the bottom-left corner, and the XP bar reads "xp / needed" for the current level: an
--- authored XpBar.Text label, or a plain one made here until the place has it. The bar is made
--- XP_BAR_HEIGHT tall (the wallet grows to fit) so its count is readable. The balance counts up or
--- down to a new amount over COUNT_TIME instead of jumping, and a gain pops the balance and floats
--- a green "+amount" up from it. Reduced motion jumps straight to the amount with no pop.
+-- Wallet: binds the authored balance/level labels and eases XP from authoritative state. The
+-- panel, its place in the bottom-left corner and the XP bar's authored "xp / needed" label
+-- (XpBar.Text) are all in Scale, so it grows with the screen like the rest of the HUD. The balance
+-- counts up or down to a new amount over COUNT_TIME instead of jumping, and a gain pops the
+-- balance and floats a green "+amount" up from it. Reduced motion jumps straight to the amount
+-- with no pop.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,51 +12,23 @@ local Economy = require(ReplicatedStorage.Shared.Economy)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local EconomyClient = require(Libraries.EconomyClient)
 local Hud = require(Libraries.Hud)
--- Pixels between the wallet and the screen's bottom-left corner.
-local MARGIN = 16
--- Pixels tall the XP bar is made.
-local XP_BAR_HEIGHT = 20
-local XP_TEXT_SIZE = 14
--- Pixels between the bar and the panel's bottom edge, and between the balance row and the bar.
-local INSET = 10
-local GAP = 6
 local COUNT_TIME = 0.6
 local COUNT_TWEEN = TweenInfo.new(COUNT_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local POP_TWEEN = TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local SETTLE_TWEEN = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local FLOAT_TWEEN = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local POP_SCALE = 1.15
--- The wallet panel's background, see-through enough for the world to show behind it.
-local BACKGROUND_TRANSPARENCY = 0.25
+-- How far the "+amount" floats up, in heights of the balance label.
+local FLOAT_RISE = 1.7
 local GAIN_COLOR = Color3.fromRGB(120, 230, 120)
 
 local Wallet = {}
 
--- The XP bar's "xp / needed" label: authored, or one laid over the bar in the level label's
--- font and colours, so it reads as part of the same HUD.
-local function xpLabel(bar: Instance, style: TextLabel): TextLabel
-	local found = bar:FindFirstChild("Text")
-	if found and found:IsA("TextLabel") then
-		return found
-	end
-	local label = Instance.new("TextLabel")
-	label.Name = "Text"
-	label.BackgroundTransparency = 1
-	label.Size = UDim2.fromScale(1, 1)
-	label.ZIndex = 10
-	label.FontFace = style.FontFace
-	label.TextColor3 = style.TextColor3
-	label.TextStrokeColor3 = style.TextStrokeColor3
-	label.TextStrokeTransparency = math.min(style.TextStrokeTransparency, 0.5)
-	label.TextScaled = false
-	label.TextSize = XP_TEXT_SIZE
-	label.Parent = bar
-	return label
-end
 function Wallet.init(hud: ScreenGui)
 	local coins = Hud.find(hud, "Wallet.Coins", "TextLabel")
 	local level = Hud.find(hud, "Wallet.Level", "TextLabel")
 	local fill = Hud.find(hud, "Wallet.XpBar.Fill", "Frame")
+	local progress = Hud.find(hud, "Wallet.XpBar.Text", "TextLabel")
 	if
 		not coins
 		or not coins:IsA("TextLabel")
@@ -64,34 +36,11 @@ function Wallet.init(hud: ScreenGui)
 		or not level:IsA("TextLabel")
 		or not fill
 		or not fill:IsA("Frame")
+		or not progress
+		or not progress:IsA("TextLabel")
 	then
 		return
 	end
-	local wallet = coins.Parent
-	if wallet and wallet:IsA("GuiObject") then
-		wallet.AnchorPoint = Vector2.new(0, 1)
-		wallet.Position = UDim2.new(0, MARGIN, 1, -MARGIN)
-		wallet.BackgroundTransparency = math.max(wallet.BackgroundTransparency, BACKGROUND_TRANSPARENCY)
-	end
-	local bar = fill.Parent :: Instance
-	if bar:IsA("GuiObject") and wallet and wallet:IsA("GuiObject") then
-		-- Pin the bar to the panel's bottom, inside it, and size the panel to hold the balance row
-		-- above it, so a taller bar can never hang out of the panel.
-		bar.AnchorPoint = Vector2.new(bar.AnchorPoint.X, 1)
-		bar.Position = UDim2.new(bar.Position.X, UDim.new(1, -INSET))
-		bar.Size = UDim2.new(bar.Size.X, UDim.new(0, XP_BAR_HEIGHT))
-		local function fit()
-			local top = math.max(
-				coins.AbsolutePosition.Y + coins.AbsoluteSize.Y,
-				level.AbsolutePosition.Y + level.AbsoluteSize.Y
-			) - wallet.AbsolutePosition.Y
-			if top > 0 then
-				wallet.Size = UDim2.new(wallet.Size.X, UDim.new(0, math.ceil(top + GAP + XP_BAR_HEIGHT + INSET)))
-			end
-		end
-		task.defer(fit)
-	end
-	local progress = xpLabel(bar, level)
 	-- The balance as shown, counted toward the real one.
 	local shown = Instance.new("NumberValue")
 	shown.Value = EconomyClient.get().coins
@@ -121,7 +70,7 @@ function Wallet.init(hud: ScreenGui)
 			0,
 			coins.AbsolutePosition.Y - hud.AbsolutePosition.Y
 		)
-		float.Size = UDim2.fromOffset(coins.AbsoluteSize.X, 28)
+		float.Size = UDim2.fromOffset(coins.AbsoluteSize.X, coins.AbsoluteSize.Y)
 		float.Font = Enum.Font.GothamBold
 		float.TextScaled = true
 		float.TextXAlignment = Enum.TextXAlignment.Left
@@ -131,7 +80,7 @@ function Wallet.init(hud: ScreenGui)
 		float.ZIndex = 20
 		float.Parent = hud
 		local rise = TweenService:Create(float, FLOAT_TWEEN, {
-			Position = float.Position - UDim2.fromOffset(0, 50),
+			Position = float.Position - UDim2.fromOffset(0, coins.AbsoluteSize.Y * FLOAT_RISE),
 			TextTransparency = 1,
 			TextStrokeTransparency = 1,
 		})

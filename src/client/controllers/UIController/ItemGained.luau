@@ -2,21 +2,28 @@
 -- ItemGained: a small card in the bottom-right corner for each item the player gains,
 -- with its icon and "+count Name". A repeat gain of an item still on screen adds to that
 -- card instead of stacking a new one. At most MAX_CARDS show; each fades after LIFETIME.
--- Built in code; the place has no template for it.
+-- Built in code; the place has no template for it. Like the authored HUD it is in Scale: the
+-- holder is a share of the reference screen (Hud.REFERENCE_WIDTH x REFERENCE_HEIGHT) with its
+-- shape kept by a UIAspectRatioConstraint, and the cards are shares of the holder.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local Hud = require(Libraries.Hud)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 
 -- Pixels from the screen's bottom-right corner, clear of the hotbar's sides.
 local MARGIN = 16
+-- A card's size, its gap and its text, in pixels at Hud.REFERENCE_HEIGHT.
 local CARD_WIDTH = 220
 local CARD_HEIGHT = 48
+local CARD_GAP = 6
+local TEXT_SIZE = 16
 local MAX_CARDS = 4
+local HOLDER_HEIGHT = (CARD_HEIGHT + CARD_GAP) * MAX_CARDS
 local LIFETIME = 3
 local IN_TWEEN = TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 local OUT_TWEEN = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
@@ -30,15 +37,18 @@ function ItemGained.init(hud: ScreenGui)
 	holder.Name = "ItemGained"
 	holder.AnchorPoint = Vector2.new(1, 1)
 	holder.Position = UDim2.new(1, -MARGIN, 1, -MARGIN)
-	holder.Size = UDim2.fromOffset(CARD_WIDTH, (CARD_HEIGHT + 6) * MAX_CARDS)
+	holder.Size = UDim2.fromScale(CARD_WIDTH / Hud.REFERENCE_WIDTH, HOLDER_HEIGHT / Hud.REFERENCE_HEIGHT)
 	holder.BackgroundTransparency = 1
 	holder.Parent = hud
 	local layout = Instance.new("UIListLayout")
 	layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 6)
+	layout.Padding = UDim.new(CARD_GAP / HOLDER_HEIGHT, 0)
 	layout.Parent = holder
+	local shape = Instance.new("UIAspectRatioConstraint")
+	shape.AspectRatio = CARD_WIDTH / HOLDER_HEIGHT
+	shape.Parent = holder
 
 	local cards: { Card } = {}
 	local order = 0
@@ -99,7 +109,7 @@ function ItemGained.init(hud: ScreenGui)
 		end
 
 		local frame = Instance.new("Frame")
-		frame.Size = UDim2.fromOffset(CARD_WIDTH, CARD_HEIGHT)
+		frame.Size = UDim2.fromScale(1, CARD_HEIGHT / HOLDER_HEIGHT)
 		frame.BackgroundColor3 = Color3.fromRGB(20, 24, 22)
 		frame.BackgroundTransparency = 0.35
 		order += 1
@@ -114,17 +124,19 @@ function ItemGained.init(hud: ScreenGui)
 
 		local viewport = Instance.new("ViewportFrame")
 		viewport.BackgroundTransparency = 1
-		viewport.Position = UDim2.fromOffset(4, 4)
-		viewport.Size = UDim2.fromOffset(CARD_HEIGHT - 8, CARD_HEIGHT - 8)
+		viewport.Position = UDim2.fromScale(4 / CARD_WIDTH, 4 / CARD_HEIGHT)
+		viewport.Size = UDim2.fromScale((CARD_HEIGHT - 8) / CARD_WIDTH, (CARD_HEIGHT - 8) / CARD_HEIGHT)
 		viewport.Parent = frame
 		ItemIcon.show(viewport, itemId)
 
 		local label = Instance.new("TextLabel")
 		label.BackgroundTransparency = 1
-		label.Position = UDim2.fromOffset(CARD_HEIGHT + 2, 0)
-		label.Size = UDim2.new(1, -(CARD_HEIGHT + 10), 1, 0)
+		-- The box is the text's height, so TextScaled draws it at TEXT_SIZE at the reference height.
+		label.AnchorPoint = Vector2.new(0, 0.5)
+		label.Position = UDim2.fromScale((CARD_HEIGHT + 2) / CARD_WIDTH, 0.5)
+		label.Size = UDim2.fromScale(1 - (CARD_HEIGHT + 10) / CARD_WIDTH, TEXT_SIZE / CARD_HEIGHT)
 		label.Font = Enum.Font.GothamBold
-		label.TextSize = 16
+		label.TextScaled = true
 		label.TextColor3 = Color3.fromRGB(255, 255, 255)
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextTruncate = Enum.TextTruncate.AtEnd

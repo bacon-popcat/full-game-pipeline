@@ -50,7 +50,7 @@ end
 local function bindTooltip(tooltip: GuiObject): ((boolean) -> (), () -> ())
 	local size, position = tooltip.Size, tooltip.Position
 	local collapsed = UDim2.new(size.X.Scale * 0.15, size.X.Offset * 0.15, size.Y.Scale, size.Y.Offset)
-	local tucked = position - UDim2.new(0, size.X.Offset * 0.12, 0, 0)
+	local tucked = position - UDim2.new(size.X.Scale * 0.12, size.X.Offset * 0.12, 0, 0)
 	local visible = false
 	local tweens: { Tween } = {}
 	local completion: RBXScriptConnection? = nil

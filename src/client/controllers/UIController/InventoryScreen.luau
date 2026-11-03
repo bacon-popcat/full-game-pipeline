@@ -18,6 +18,9 @@
 --   * One cell per slot, created once at init and only repainted after.
 --   * Layout reads sizes divided by the window's UIScale, so the open animation never
 --     reflows the grid mid-tween.
+--   * The hotbar grows and shrinks with the screen like the rest of the HUD (Hud.zoom): its
+--     slots, gaps and margins are the authored pixels at the reference size, and shrink
+--     further only if the screen is too narrow for the strip.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -33,6 +36,7 @@ local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Controls = require(Libraries.Controls)
+local Hud = require(Libraries.Hud)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemDetails = require(Libraries.ItemDetails)
 local ItemIcon = require(Libraries.ItemIcon)
@@ -62,8 +66,6 @@ local BACK_ACTION = "BackpackBack"
 local HOTBAR_ACTION = "HotbarSelect"
 local NAME_HOLD_SECONDS = 1.5
 local NAME_FADE = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
--- Hotbar slots shrink toward this on narrow screens before the strip would overflow.
-local MIN_HOTBAR_SLOT = 42
 -- Pixels of screen kept clear either side of the hotbar.
 local HOTBAR_EDGE = 12
 -- Pixels between the hotbar's top edge and the backpack, which is centred on the screen.
@@ -392,17 +394,21 @@ end
 
 local function layoutHotbar()
 	local width = ui.hud.AbsoluteSize.X
-	local gap = look.hotbarGap
+	local zoom = Hud.zoom(ui.hud.AbsoluteSize)
+	local gap = math.round(look.hotbarGap * zoom)
 	local fit = math.floor((width - HOTBAR_EDGE * 2 - gap * (Inventory.HOTBAR_SIZE - 1)) / Inventory.HOTBAR_SIZE)
-	local size = math.clamp(fit, MIN_HOTBAR_SLOT, look.slotSize)
+	local size = math.max(1, math.min(fit, math.round(look.slotSize * zoom)))
 	for index = 1, Inventory.HOTBAR_SIZE do
 		cells[index].button.Size = UDim2.fromOffset(size, size)
 	end
+	ui.hotbarLayout.Padding = UDim.new(0, gap)
+	local margin = look.hotbarMargin * zoom
+	ui.hotbar.Position = UDim2.new(0.5, 0, 1, -margin)
 	-- The name keeps its authored gap above the hotbar's top edge. The backpack stays centred
 	-- (its authored anchor and position), as tall as fits with WINDOW_GAP above the hotbar and
 	-- the same margin at the top; its UISizeConstraint caps it on big screens.
-	local top = look.hotbarMargin + size
-	ui.itemName.Position = UDim2.new(0.5, 0, 1, -(top + look.nameGap))
+	local top = margin + size
+	ui.itemName.Position = UDim2.new(0.5, 0, 1, -(top + look.nameGap * zoom))
 	ui.window.Size = UDim2.new(look.windowWidth, UDim.new(1, -2 * (top + WINDOW_GAP)))
 end
 
