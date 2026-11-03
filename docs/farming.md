@@ -158,7 +158,10 @@ All twelve crops' growth stages and seeds are built by `IslandsMachines/build/cr
 few curved, two-sided leaves with real outlines (strap, lance, ovate, palmate, compound), tapering stems, fruit
 turned on a lathe, colour that drifts from base to tip and from plant to plant, and smooth shading (roblox_data
 exports the normals; studio_import uses them). A crop has no soil of its own; it grows straight out of the
-Farmland under it. The stages are imported as the
+Farmland under it. Crops are drawn tall, standing up to almost two cells high and reaching a little into the
+neighbouring cells, yet each is still one cell to the game: `studio_blocks.luau` pins GardenWorld's hitboxes to one
+cell, and overlap tests count only hitboxes (`Build.isCoveredArt`), so the art never blocks planting or building
+beside it. One scale per crop, so it never shrinks as it grows. The stages are imported as the
 `GardenWorld` showcase set and the seeds as `GardenSeeds` with `studio_import.luau` (SET), then finished with
 `studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit, since it regrows on it; Ripe adds
 the fruit. The produce items are still `garden.py`'s and `assets.py`'s.
