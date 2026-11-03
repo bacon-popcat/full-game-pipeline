@@ -4,9 +4,10 @@
 -- finishes, just with a moment's pop-in.
 --
 -- Order is what a new player meets first: the HUD and its UI templates, the sound palette,
--- then the templates in ReplicatedStorage.Assets from the small and soon-seen (Items, Tools)
--- to the large (Blocks, World). Each group is its own PreloadAsync so the early ones land
--- before the later ones start. A group missing from the place is skipped quietly; the
+-- then the templates in ReplicatedStorage.Assets: the small and soon-seen (Items, Tools),
+-- World (every crop stage and look), then the rest. Each group is its own PreloadAsync so the
+-- early ones land before the later ones start. World matters most: a crop restored ripe never
+-- drew its Mature mesh, so its first harvest would blink while that mesh downloads. A group missing from the place is skipped quietly; the
 -- screens that use it warn on their own (Hud.find). Music goes last: MusicController waits
 -- a few seconds before its first track and checks that track's own load.
 --
@@ -20,7 +21,7 @@ local Sounds = require(ReplicatedStorage.Shared.Sounds)
 
 local PreloadController = {}
 
-local ASSET_GROUPS = { "UI", "Items", "Tools", "Props", "Blocks", "World" }
+local ASSET_GROUPS = { "UI", "Items", "Tools", "World", "Props", "Blocks" }
 
 local function preload(label: string, content: { any })
 	if #content == 0 then
