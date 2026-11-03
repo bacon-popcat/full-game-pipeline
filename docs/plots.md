@@ -6,8 +6,11 @@ header owns its rules; this page maps initialization, permissions and persistenc
 ## Flow
 
 ```text
+join -> SaveSlots (what each of the three save files holds) -> save menu
+                 | player picks a slot (Remotes.SaveMenu "Load")
+                 v
 DataService -> ProfileStore.StartSessionAsync -> reconcile/validate
-                 | failure / session lost -> kick, release runtime state
+                 | failure / session lost -> release runtime state, back to the menu with why
                  v
 PlotService.assign -> first free plot, saved Sections + Owner attributes, display-name sign
                  v
@@ -23,9 +26,21 @@ OnboardingService.load -> restored conditions + Objective sync
 
 ProfileStore OnSave / two-minute snapshot / leave
     <- inventory slots + economy + garden stock/discoveries + onboarding + sections + dug/tilled ground + relative blocks, factory contents, crops
-leave -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
+leave or "Save & quit to menu" -> clear crops -> unregister/remove blocks -> clear drops/inventory/economy
       -> release plot (ground back to untouched) -> ProfileStore.EndSession
+      (quitting then sends SaveSlots once the last save has landed)
 ```
+
+## Save files
+
+Each player has three save files, each its own profile key in `GardenFoundation_v1`: slot 1
+is `<UserId>`, the key every save had before slots, so older gardens are Slot 1; slots 2 and 3
+are `<UserId>_2` and `<UserId>_3`. Nothing loads on join: `SaveMenuController` shows the
+authored `StarterGui.SaveMenu` whenever DataReady isn't true, with one card per slot (level,
+coins and when it was last saved, read with `GetAsync` without taking the session lock). An
+empty slot starts a new garden; a filled one can be deleted (`RemoveAsync`) after a confirm.
+`Settings.Body.SaveQuit` saves and releases the garden exactly as leaving does and reopens the
+menu, so a player can switch saves without rejoining.
 
 State is established at require time. Assignment builds plots idempotently even if
 PlotService.init has not run. Placement registers factories synchronously; a later

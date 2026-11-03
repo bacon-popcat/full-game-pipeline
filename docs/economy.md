@@ -115,7 +115,8 @@ Each screen under `controllers/UIController` receives `init(hud)`.
 
 `SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
 `Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
-`Fill` and `Knob`, and a `Value` TextBox), `Body.Note` and `Body.ControlsHint`. Clicking or
+`Fill` and `Knob`, and a `Value` TextBox), `Body.Note`, `Body.ControlsHint` and the
+`Body.SaveQuit` button (back to the save menu, plots.md § Save files). Clicking or
 dragging a track, or typing 0-100 in its box, sets that session volume (`libraries/AudioSettings`:
 music and every `Sound.play` effect each play through their own SoundGroup).
 Settings has music and sound volume sliders and input-specific quick controls. The five main windows

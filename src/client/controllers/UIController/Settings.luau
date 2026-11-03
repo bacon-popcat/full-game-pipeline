@@ -1,11 +1,13 @@
 -- Settings: binds the authored side button and the session music and sound-effect volumes.
 -- Each volume row (Body.MusicVolume, Body.SfxVolume) has a Track to click or drag and a Value
 -- box to type 0-100 into; both stay in step. Screens owns window exclusivity; AudioSettings
--- owns audio state independently of this screen's lifecycle.
+-- owns audio state independently of this screen's lifecycle. Body.SaveQuit saves the garden
+-- and goes back to the save menu (SaveMenuController).
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = script.Parent.Parent.Parent.Libraries
 local AudioSettings = require(Libraries.AudioSettings)
@@ -128,6 +130,15 @@ function Settings.init(hud: ScreenGui)
 		end,
 	}))
 	trove:Add(UI.bindButton(closeButton, { onActivate = close }))
+	local saveQuit = Hud.find(hud, "Settings.Body.SaveQuit", "TextButton")
+	if saveQuit then
+		trove:Add(UI.bindButton(saveQuit, {
+			onActivate = function()
+				close()
+				Remotes.SaveMenu:FireServer("Quit")
+			end,
+		}))
+	end
 	local dragging: Slider? = nil
 	local function slideTo(slider: Slider, x: number)
 		local width = slider.track.AbsoluteSize.X

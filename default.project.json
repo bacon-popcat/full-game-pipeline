@@ -29,7 +29,9 @@
         "Interact": { "$className": "RemoteEvent" },
         "FactorySync": { "$className": "RemoteEvent" },
         "DropItem": { "$className": "RemoteEvent" },
-        "DropCollected": { "$className": "RemoteEvent" }
+        "DropCollected": { "$className": "RemoteEvent" },
+        "SaveSlots": { "$className": "RemoteEvent" },
+        "SaveMenu": { "$className": "RemoteEvent" }
       }
     },
 

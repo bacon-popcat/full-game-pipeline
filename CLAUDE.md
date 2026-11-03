@@ -32,7 +32,7 @@ the quarry's copper rock is still a placeholder.
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 
-The place file, `StarterGui.HUD`, `ReplicatedStorage.Assets` (block, item, world, prop and UI
+The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI
 templates) and the `IslandsMachines/` art pipeline live outside git.
 
 ## Invariants

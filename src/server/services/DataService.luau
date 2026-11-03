@@ -4,13 +4,21 @@
 -- ProfileStore owns autosaving and locks; OnSave refreshes live state, also captured every
 -- two minutes and before EndSession. The installed store uses its mock when Studio lacks API
 -- access. Mock data lasts only for that Studio server. No sibling init is a load prerequisite.
+--
+-- Each player has SLOTS save files, each its own profile key; nothing loads until the player
+-- picks one in the save menu (Remotes.SaveMenu), and quitting to the menu saves and releases
+-- the garden exactly as leaving does. Slot 1's key is the one every save had before slots, so
+-- a garden from then is Slot 1. A key whose session is still ending is waited on before it
+-- is read, reopened or removed, so a quick quit-and-reload sees the garden just saved.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
+local Economy = require(ReplicatedStorage.Shared.Economy)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
@@ -27,6 +35,9 @@ local GroundService = require(script.Parent.GroundService)
 local WorldService = require(script.Parent.WorldService)
 
 local SNAPSHOT_EVERY = 120
+local SLOTS = 3
+-- Seconds a key's ending session is waited on before going ahead anyway.
+local END_WAIT = 15
 type Data = {
 	coins: number,
 	xp: number,
@@ -72,10 +83,19 @@ local PROFILE_TEMPLATE: Data = {
 
 ProfileStore.SetConstant("AUTO_SAVE_PERIOD", SNAPSHOT_EVERY)
 local store = ProfileStore.New("GardenFoundation_v1", PROFILE_TEMPLATE)
-type Profile = { Data: Data, EndSession: (Profile) -> () }
-type Session = { profile: Profile, loaded: boolean, closing: boolean }
+type Profile = { Data: Data, EndSession: (Profile) -> (), IsActive: (Profile) -> boolean }
+type Session = {
+	profile: Profile,
+	key: string,
+	loaded: boolean,
+	closing: boolean,
+	spawning: RBXScriptConnection?,
+}
 local sessions: { [Player]: Session } = {}
-local joining: { [Player]: boolean } = {}
+-- Players with a save menu request (load, delete or quit) under way.
+local busy: { [Player]: boolean } = {}
+-- Profiles whose session was ended here, by key, until their last save lands.
+local ending: { [string]: Profile } = {}
 local closing = false
 local knownItems: { [string]: Inventory.Item } = {}
 for _, item in Inventory.ITEMS do
@@ -459,6 +479,53 @@ local function clear(player: Player)
 	PlotService.release(player)
 end
 
+local function keyFor(player: Player, slot: number): string
+	return if slot == 1 then tostring(player.UserId) else `{player.UserId}_{slot}`
+end
+
+-- Waits until a session this server ended on `key` has saved for the last time; ProfileStore
+-- won't reopen a key it still holds, and a read before then would miss that save.
+local function settle(key: string)
+	local profile = ending[key]
+	local started = os.clock()
+	while profile and profile:IsActive() and os.clock() - started < END_WAIT do
+		task.wait(0.1)
+	end
+	ending[key] = nil
+end
+
+local function toHub(player: Player)
+	local character = player.Character
+	if character and character:FindFirstChild("HumanoidRootPart") then
+		character:PivotTo(CFrame.new(0, 5, 0))
+	end
+end
+
+-- Sends the player what each save file holds, for the menu.
+local function sendSlots(player: Player, message: string?)
+	local slots = {}
+	for slot = 1, SLOTS do
+		local key = keyFor(player, slot)
+		settle(key)
+		local profile = store:GetAsync(key)
+		local data = if profile then profile.Data else nil
+		if typeof(data) == "table" then
+			local info = profile.KeyInfo
+			slots[slot] = {
+				empty = false,
+				level = (Economy.progress(if typeof(data.xp) == "number" then data.xp else 0)),
+				coins = if typeof(data.coins) == "number" then data.coins else 0,
+				savedAt = if info then info.UpdatedTime / 1000 else nil,
+			}
+		else
+			slots[slot] = { empty = true }
+		end
+	end
+	if player.Parent == Players then
+		Remotes.SaveSlots:FireClient(player, { slots = slots, message = message })
+	end
+end
+
 local function release(player: Player)
 	local session = sessions[player]
 	if not session or session.closing then
@@ -469,24 +536,30 @@ local function release(player: Player)
 	session.loaded = false
 	clear(player)
 	sessions[player] = nil
+	if session.spawning then
+		session.spawning:Disconnect()
+	end
+	ending[session.key] = session.profile
 	session.profile:EndSession()
 end
 
-local function onPlayer(player: Player)
-	if joining[player] or sessions[player] or closing then
+-- Starts save file `slot`'s session and restores its garden. On a failure the player is back at
+-- the menu with the reason.
+local function load(player: Player, slot: number)
+	if sessions[player] or closing then
 		return
 	end
-	joining[player] = true
+	local key = keyFor(player, slot)
+	settle(key)
 	player:SetAttribute("DataReady", false)
-	local profile = store:StartSessionAsync(tostring(player.UserId), {
+	local profile = store:StartSessionAsync(key, {
 		Cancel = function()
 			return closing or player.Parent ~= Players
 		end,
 	})
-	joining[player] = nil
 	if not profile then
 		if player.Parent == Players then
-			player:Kick("Your garden could not be loaded. Please rejoin.")
+			sendSlots(player, "That garden couldn't be opened. Please try again.")
 		end
 		return
 	end
@@ -496,7 +569,7 @@ local function onPlayer(player: Player)
 		profile:EndSession()
 		return
 	end
-	local session: Session = { profile = profile, loaded = false, closing = false }
+	local session: Session = { profile = profile, key = key, loaded = false, closing = false }
 	sessions[player] = session
 	profile.OnSave:Connect(function()
 		snapshot(player, session)
@@ -507,9 +580,12 @@ local function onPlayer(player: Player)
 		end
 		sessions[player] = nil
 		session.loaded = false
+		if session.spawning then
+			session.spawning:Disconnect()
+		end
 		clear(player)
 		if player.Parent == Players then
-			player:Kick("Your garden session ended. Please rejoin.")
+			sendSlots(player, "Your garden was opened somewhere else.")
 		end
 	end)
 	local ok, message = pcall(function()
@@ -542,33 +618,86 @@ local function onPlayer(player: Player)
 	if not ok then
 		warn(`DataService: restore failed for {player.UserId}: {message}`)
 		release(player)
-		player:Kick("Your garden could not be restored, or this server is full. Your save was kept. Please rejoin.")
+		sendSlots(player, "Your garden could not be restored, or this server is full. Your save was kept.")
 		return
 	end
 	session.loaded = true
 	player:SetAttribute("DataReady", true)
-	local function spawnAtHub(character: Model)
-		local root = character:WaitForChild("HumanoidRootPart", 10)
-		if root and sessions[player] == session then
-			character:PivotTo(CFrame.new(0, 5, 0))
+	session.spawning = player.CharacterAdded:Connect(function(character: Model)
+		if character:WaitForChild("HumanoidRootPart", 10) and sessions[player] == session then
+			toHub(player)
 		end
-	end
-	player.CharacterAdded:Connect(spawnAtHub)
+	end)
 	local spawn = workspace.Plots:FindFirstChild("HubSpawn")
 	if spawn and spawn:IsA("SpawnLocation") then
 		player.RespawnLocation = spawn
 	end
-	if player.Character then
-		task.spawn(spawnAtHub, player.Character)
-	end
+	toHub(player)
 	if RunService:IsStudio() and ProfileStore.DataStoreState ~= "Access" then
 		warn("DataService: Studio uses ProfileStore's mock; this garden will not persist after Stop.")
 	end
 end
 
+local function quit(player: Player)
+	local session = sessions[player]
+	if not session or not session.loaded then
+		return
+	end
+	release(player)
+	toHub(player)
+	sendSlots(player)
+end
+
+local function delete(player: Player, slot: number)
+	if sessions[player] then
+		return
+	end
+	local key = keyFor(player, slot)
+	settle(key)
+	store:RemoveAsync(key)
+	sendSlots(player)
+end
+
+local function onSaveMenu(player: Player, action: unknown, slot: unknown)
+	if busy[player] or closing then
+		return
+	end
+	local valid = typeof(slot) == "number" and slot % 1 == 0 and slot >= 1 and slot <= SLOTS
+	local work: (() -> ())? = if action == "Quit"
+		then function()
+			quit(player)
+		end
+		elseif action == "Load" and valid then function()
+			load(player, slot :: number)
+		end
+		elseif action == "Delete" and valid then function()
+			delete(player, slot :: number)
+		end
+		else nil
+	if not work then
+		return
+	end
+	busy[player] = true
+	local ok, message = pcall(work)
+	busy[player] = nil
+	if not ok then
+		warn(`DataService: save menu {action} failed for {player.UserId}: {message}`)
+		sendSlots(player, "Something went wrong. Please try again.")
+	end
+end
+
+local function onPlayer(player: Player)
+	player:SetAttribute("DataReady", false)
+	sendSlots(player)
+end
+
 function DataService.init()
 	Players.PlayerAdded:Connect(onPlayer)
-	Players.PlayerRemoving:Connect(release)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		release(player)
+		busy[player] = nil
+	end)
+	Remotes.SaveMenu.OnServerEvent:Connect(onSaveMenu)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayer, player)
 	end
