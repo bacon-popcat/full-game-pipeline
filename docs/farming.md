@@ -154,12 +154,22 @@ subtle, and is disabled for reduced motion. Rain rate also decreases with reduce
 
 ## Art and client effects
 
-All twelve crops have their own art: Wheat, Carrot and Potato from `assets.py`, and the nine
-the Garden loop added from `IslandsMachines/build/garden.py` (four stages, the produce item and,
-through the finish script, each sprout copied as its seeds' block). They live in their own
-showcase sets, `GardenWorld` and `GardenItems`, imported with `studio_import.luau` (SET) and
-finished with `studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit,
-since it regrows on it; Ripe adds the fruit. Fruit, Vine, Stake and Glow parts don't collide.
+All twelve crops' growth stages and seeds are built by `IslandsMachines/build/crops.py` in Blender, kept simple: a
+few curved, two-sided leaves with real outlines (strap, lance, ovate, palmate, compound), tapering stems, fruit
+turned on a lathe, colour that drifts from base to tip and from plant to plant, and smooth shading (roblox_data
+exports the normals; studio_import uses them). A crop has no soil of its own; it grows straight out of the
+Farmland under it. The stages are imported as the
+`GardenWorld` showcase set and the seeds as `GardenSeeds` with `studio_import.luau` (SET), then finished with
+`studio_blocks.luau`. A multi crop's Mature art is the full plant without fruit, since it regrows on it; Ripe adds
+the fruit. The produce items are still `garden.py`'s and `assets.py`'s.
+
+Part keys decide what moves: `Stake` (canes, trellis posts, ties) and `Tuber` (roots and tubers in the ground)
+never move; `Crop`, `Bark`, `Vine`, `Fruit`, `Bloom`, `Grain` and `Glow` sway. None of them collide, so players walk
+through a field.
+
+A seed is its own block, `Assets.Blocks.<Crop>Seeds`: a little open sack heaped with that crop's seed (potatoes:
+small sprouting seed potatoes) and a label in the crop's colour. It is what the hand, icons and drops show. The
+placement ghost instead shows the sprout the seed plants as (`BuildController`), green only over Farmland.
 
 `Shared/ItemArt` owns block/seed/produce lookup; Build delegates to it. An authored template
 wins, so the tint fallback below now only covers a crop added before its art. Otherwise the crop table's `art` names Wheat, Carrot or Potato: clone that seed/produce
@@ -167,6 +177,29 @@ and tint non-Hitbox parts with the crop colour. WorldService's node-art lookup d
 for stages. Expected fallbacks do not warn; a missing fallback base still uses the existing
 placeholder warning. Mutated item icons, hands, drops and belt items use base produce art
 with the mutation colour. No source assets are modified.
+
+### Plant movement
+
+`PlantSwayController` makes crops sway in the wind and bend aside when someone walks through them, then spring
+back. It is drawn only on each client and changes nothing on the server: no remote, no physics, and the server's
+crop parts, saves and aim stay put.
+
+- **One tilt per plant.** A crop's moving parts turn together about the centre of its cell's floor (from its
+  `Cell` attribute), so taller plants sweep further at the top. `FLEX` makes trees and trained vines (Apple,
+  Starfruit, Grape, Tomato, Corn) give less than soft plants.
+- **Wind.** A small steady lean downwind, gusts that roll across the garden as a wave (so a field ripples rather
+  than nodding in step), and a little flutter across the wind at each plant's own pace. The wind veers slowly.
+  Rain blows harder, a Thunderstorm harder still, Golden Hour is calmer (`ReplicatedStorage.Weather`). Reduced
+  motion stills the wind.
+- **Walking through.** Every player character within `PUSH_RADIUS` of a plant (across the ground, and not far above
+  or below it) pushes it away from them, more the closer they are, up to `PUSH_ANGLE`. A damped spring chases that
+  target, so a plant bends as you pass and springs back with one soft overshoot. Reduced motion keeps this, since it
+  answers the player's own movement. Other players push crops too.
+- **Cost.** Plants are found by cell around each character, so pushes cost nothing away from players. Plants
+  past `FAR` from the camera are put back at rest and skipped; those past `NEAR` update every other frame; a
+  plant whose tilt barely changed isn't moved. Everything moves in one `workspace:BulkMoveTo` per frame.
+- **Rest poses.** A part's rest pose is taken the first time the controller sees it, before moving it, and parts
+  that stream in later join the plant at theirs. A new stage is a new model, so growing never inherits a lean.
 
 `CropMutationController` watches ripe nodes' Mutation attributes, tints their non-Hitbox
 parts and adds soft particles. It restores captured colours on removal/change. Nearby

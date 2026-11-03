@@ -11,7 +11,7 @@
 --   * a Hoe tills their own grass and dirt, ground or placed cubes, into Farmland;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
 --   * an empty hand takes from a conveyor (its belt items) or switches a split conveyor, or harvests a crop (a ripe one for its produce, a growing one for its seed);
---   * a seed's ghost is only green over Farmland (Shared/World/Soil);
+--   * a seed's ghost is the sprout it plants as, and only green over Farmland (Shared/World/Soil);
 --   * a planter, harvester or sprinkler's ghost also lays a soft sheet over the cells it
 --     will work (Factory.area), at its own level.
 -- The drop key drops one of whatever is held: onto the conveyor aimed at, or in front.
@@ -471,8 +471,18 @@ local function onRotate(_: string, state: Enum.UserInputState): Enum.ContextActi
 	return Enum.ContextActionResult.Sink
 end
 
+-- A seed's ghost is the sprout it plants as, not its sack of seed: both templates pivot at the
+-- centre of their cell's floor, so the seed's placement pivot fits the sprout.
+local function sproutArt(itemId: string): Model?
+	local plant = World.PLANTS[itemId]
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local folder = if assets then assets:FindFirstChild("World") else nil
+	local sprout = if plant and folder then folder:FindFirstChild(plant.node) else nil
+	return if sprout and sprout:IsA("Model") then sprout:Clone() else nil
+end
+
 local function makeGhost(itemId: string): Model?
-	local model = ItemArt.copyBlock(itemId)
+	local model = sproutArt(itemId) or ItemArt.copyBlock(itemId)
 	if not model then
 		return nil
 	end
