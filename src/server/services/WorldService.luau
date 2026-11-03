@@ -77,11 +77,14 @@ local function folder(parent: Instance, name: string): Folder
 end
 
 local worldFolder = folder(workspace, "World")
+local stumpFolder = folder(workspace, "Stumps")
 
 local nodesByCell: { [string]: Node } = {}
 local nodesByModel: { [Model]: Node } = {}
 -- Every node that isn't ground.
 local living: { [Model]: Node } = {}
+-- Stumps of chopped trees waiting to grow back, by cell key.
+local stumps: { [string]: Model } = {}
 local lastAction: { [Player]: number } = {}
 local lastWatered: { [Player]: number } = {}
 local warned: { [string]: boolean } = {}
@@ -120,6 +123,41 @@ local function placeholder(name: string, size: Vector3): Model
 	return model
 end
 
+-- Tree crops keep a column of World.CROPS `height` cells from the moment they're planted, so
+-- their hitbox is that column: placement tests then refuse any block in it, on the server and
+-- in the placing ghost. The art's hitboxes are one cell, as the import makes every crop's, so
+-- each stage's template (every look) is stretched up here once, its bottom where it was and its
+-- pivot kept; clones, morph and clients (the templates replicate) all see the same box.
+local function reserveColumns()
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local holder = if assets then assets:FindFirstChild("World") else nil
+	if not holder then
+		return
+	end
+	for cropId, crop in World.CROPS do
+		if crop.height <= 1 then
+			continue
+		end
+		local tall = crop.height * Build.GRID
+		for _, stage in World.STAGES do
+			for _, art in holder:GetChildren() do
+				local hitbox = if art:IsA("Model") then art.PrimaryPart else nil
+				local name = cropId .. stage
+				local look = art.Name == name or string.match(art.Name, `^{name}Variant%d+$`) ~= nil
+				if not look or not hitbox or math.abs(hitbox.Size.Y - tall) < 0.01 then
+					continue
+				end
+				local pivot = (art :: Model):GetPivot()
+				local bottom = hitbox.CFrame * CFrame.new(0, -hitbox.Size.Y / 2, 0)
+				hitbox.Size = Vector3.new(hitbox.Size.X, tall, hitbox.Size.Z)
+				hitbox.CFrame = bottom * CFrame.new(0, tall / 2, 0)
+				hitbox.PivotOffset = hitbox.CFrame:ToObjectSpace(pivot)
+			end
+		end
+	end
+end
+reserveColumns()
+
 -- A crop stage's art can come in looks: <Stage>, then <Stage>Variant2, Variant3 ... with no
 -- gaps. Each cell keeps one look, picked from its position (no save needed, the same after a
 -- rejoin), and the same pick for every stage, so one plant grows as itself.
@@ -129,16 +167,17 @@ local function variantOf(name: string, cell: Vector3): Model?
 		count += 1
 	end
 	local pick = math.floor(math.abs(math.sin(cell.X * 12.9898 + cell.Z * 78.233 + cell.Y * 37.719)) * 43758.5453)
-		% count
+			% count
 		+ 1
 	return if pick == 1 then template(name) else template(`{name}Variant{pick}`)
 end
 
 local function copyArt(name: string, placeholderSize: Vector3, cell: Vector3?): Model
 	local def = World.NODES[name]
+	-- Crops and forest trees come in looks; a node with only one look finds just that.
 	local found = if def and def.ground
 		then GroundArt.copy(name)
-		elseif def and def.crop and cell then variantOf(name, cell)
+		elseif def and cell then variantOf(name, cell)
 		else template(name)
 	local crop = if def and def.crop then World.CROPS[def.crop] else nil
 	local fallback = not found and crop ~= nil
@@ -152,6 +191,8 @@ local function copyArt(name: string, placeholderSize: Vector3, cell: Vector3?): 
 	if fallback and crop then
 		ItemArt.tint(model, crop.color)
 	end
+	-- Which look it is (Assets.World), for effects drawn from its art after it's gone.
+	model:SetAttribute("Look", if found and not (def and def.ground) then found.Name else nil)
 	model.Name = name
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
@@ -311,11 +352,38 @@ local function cellsClear(cell: Vector3, footprint: Vector3, ignore: Node?): boo
 	return Build.isFree(cell, footprint, overlapParams)
 end
 
+-- A broken node's stump (World.Node `stump`), standing in its cell until it respawns. Scenery:
+-- it doesn't collide or answer queries, so it never blocks the respawn or a placement.
+local function standStump(def: World.Node, node: Node)
+	local art = if def.stump then template(def.stump) else nil
+	if not art then
+		return
+	end
+	local stump = art:Clone()
+	for _, part in stump:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+		end
+	end
+	local floor = Build.box(node.cell, Vector3.new(1, 0, 1)).Position
+	stump:PivotTo(CFrame.new(floor) * node.model:GetPivot().Rotation)
+	stump.Parent = stumpFolder
+	stumps[cellKey(node.cell)] = stump
+end
+
 local function scheduleRespawn(nodeType: string, cell: Vector3, after: number)
 	task.delay(after, function()
 		local probe = template(nodeType)
 		local footprint = if probe then footprintOf(probe) else Vector3.one
 		if cellsClear(cell, footprint, nil) then
+			local stump = stumps[cellKey(cell)]
+			stumps[cellKey(cell)] = nil
+			if stump then
+				stump:Destroy()
+			end
 			spawnNode(nodeType, cell, true)
 		else
 			scheduleRespawn(nodeType, cell, RESPAWN_RETRY)
@@ -335,12 +403,17 @@ local function removeNode(node: Node, keepModel: boolean?)
 	end)
 	nodesByModel[node.model] = nil
 	living[node.model] = nil
+	local def = World.getNode(node.nodeType)
+	local respawns = node.natural and def.respawn ~= nil
+	-- Before the model goes, while its turn can still be read.
+	if respawns then
+		standStump(def, node)
+	end
 	if not keepModel then
 		node.model:Destroy()
 	end
-	local respawn = World.getNode(node.nodeType).respawn
-	if node.natural and respawn then
-		scheduleRespawn(node.nodeType, node.cell, respawn)
+	if respawns and def.respawn then
+		scheduleRespawn(node.nodeType, node.cell, def.respawn)
 	end
 end
 
@@ -497,13 +570,22 @@ function WorldService.nodesNear(position: Vector3, radius: number, types: { [str
 	return found
 end
 
--- Whether `itemId` (a seed) could be planted in `cell`: nothing there, and soil
--- under it if it needs some.
+-- Whether `itemId` (a seed) could stand in `cell`: in a garden, soil under it if it needs some,
+-- and nothing in the way: its own cell, or with `column` the whole column a tree keeps clear
+-- above it (World.plantColumn), all of it in the garden.
+local function canStand(cell: Vector3, itemId: string, column: boolean): boolean
+	local reserve = World.plantColumn(itemId)
+	if not reserve or Plot.at(cell) == nil or not Soil.canPlant(itemId, cell) then
+		return false
+	end
+	local size = if column then reserve else Vector3.one
+	return Plot.at(cell + Vector3.yAxis * (size.Y - 1)) ~= nil and cellsClear(cell, size, nil)
+end
+
+-- Whether `itemId` (a seed) could be planted in `cell`: nothing in its column, and soil under it
+-- if it needs some.
 function WorldService.canPlant(cell: Vector3, itemId: string): boolean
-	return Plot.at(cell) ~= nil
-		and World.PLANTS[itemId] ~= nil
-		and cellsClear(cell, Vector3.one, nil)
-		and Soil.canPlant(itemId, cell)
+	return canStand(cell, itemId, true)
 end
 
 -- Plants a seed in `cell`. Returns whether it did.
@@ -637,8 +719,19 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		if not InventoryService.canGiveAll(player, drops) then
 			return
 		end
+		local look = node.model:GetAttribute("Look")
+		local pivot = node.model:GetPivot()
 		removeNode(node)
 		giveAll(player, drops)
+		if def.tool == "Axe" then
+			GardenEvents.Chopped:Fire(
+				player,
+				node.nodeType,
+				node.cell,
+				if typeof(look) == "string" then look else node.nodeType,
+				pivot
+			)
+		end
 	elseif action == "Take" and def.harvest then
 		local harvest = harvestItems(node)
 		if held then
@@ -723,7 +816,9 @@ function WorldService.restore(index: number, saved: Plot.SavedCrop): boolean
 	if cell.Y <= Plot.FLOOR or cell.Y >= Plot.HEIGHT then
 		return false
 	end
-	if not WorldService.canPlant(cell, crop.seed) then
+	-- Only its own cell: a tree saved before trees kept their column clear may have blocks built
+	-- above it, and keeps growing through them rather than being lost.
+	if not canStand(cell, crop.seed, false) then
 		return false
 	end
 	if typeof(saved.plantedAt) ~= "number" or not (saved.plantedAt >= 0 and saved.plantedAt <= wallTime()) then

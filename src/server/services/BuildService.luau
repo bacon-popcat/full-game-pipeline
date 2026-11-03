@@ -139,6 +139,11 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	if Build.clipsCharacter(itemId, pivot) or not Soil.canPlant(itemId, origin) then
 		return
 	end
+	-- A tree's seed needs its whole column clear and on owned land (World.plantColumn).
+	local column = World.plantColumn(itemId)
+	if column and not (Build.canEdit(player, origin, column) and Build.isFree(origin, column, overlapParams)) then
+		return
+	end
 	if Factory.get(itemId) and (not Factory.originFrame(template) or not Factory.extents(itemId)) then
 		return
 	end

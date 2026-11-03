@@ -9,7 +9,9 @@
 -- picks one in the save menu (Remotes.SaveMenu), and quitting to the menu saves and releases
 -- the garden exactly as leaving does. Slot 1's key is the one every save had before slots, so
 -- a garden from then is Slot 1. A key whose session is still ending is waited on before it
--- is read, reopened or removed, so a quick quit-and-reload sees the garden just saved.
+-- is read, reopened or removed, so a quick quit-and-reload sees the garden just saved. On join
+-- the slot played last (its saved `loadedAt`, else its last save time) opens by itself; the
+-- menu shows only while it loads, after a failure, or when every slot is empty.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -58,6 +60,8 @@ type Data = {
 	-- Item ids the player has had, for the Index.
 	indexed: { [string]: boolean },
 	onboarding: number,
+	-- Unix seconds this save was last opened, so a join reopens the one played last (zero: never).
+	loadedAt: number,
 }
 local starter = Inventory.emptySlots()
 for _, stack in
@@ -79,6 +83,7 @@ local PROFILE_TEMPLATE: Data = {
 	discovered = {},
 	indexed = {},
 	onboarding = 1,
+	loadedAt = 0,
 }
 
 ProfileStore.SetConstant("AUTO_SAVE_PERIOD", SNAPSHOT_EVERY)
@@ -501,9 +506,11 @@ local function toHub(player: Player)
 	end
 end
 
--- Sends the player what each save file holds, for the menu.
-local function sendSlots(player: Player, message: string?)
+-- What each save file holds, for the menu, and which filled slot was played last: the latest
+-- `loadedAt`, or for a save from before it was kept, the latest save.
+local function readSlots(player: Player): ({ any }, number?)
 	local slots = {}
+	local last: number?, lastAt = nil, -1
 	for slot = 1, SLOTS do
 		local key = keyFor(player, slot)
 		settle(key)
@@ -511,18 +518,31 @@ local function sendSlots(player: Player, message: string?)
 		local data = if profile then profile.Data else nil
 		if typeof(data) == "table" then
 			local info = profile.KeyInfo
+			local savedAt = if info then info.UpdatedTime / 1000 else nil
 			slots[slot] = {
 				empty = false,
 				level = (Economy.progress(if typeof(data.xp) == "number" then data.xp else 0)),
 				coins = if typeof(data.coins) == "number" then data.coins else 0,
-				savedAt = if info then info.UpdatedTime / 1000 else nil,
+				savedAt = savedAt,
 			}
+			local playedAt = if typeof(data.loadedAt) == "number" and data.loadedAt > 0
+				then data.loadedAt
+				else savedAt or 0
+			if playedAt > lastAt then
+				last, lastAt = slot, playedAt
+			end
 		else
 			slots[slot] = { empty = true }
 		end
 	end
+	return slots, last
+end
+
+-- Sends the player what each save file holds, for the menu; `loading` is a slot already opening.
+local function sendSlots(player: Player, message: string?, loading: number?, slots: { any }?)
+	local list = slots or (readSlots(player))
 	if player.Parent == Players then
-		Remotes.SaveSlots:FireClient(player, { slots = slots, message = message })
+		Remotes.SaveSlots:FireClient(player, { slots = list, message = message, loading = loading })
 	end
 end
 
@@ -622,6 +642,7 @@ local function load(player: Player, slot: number)
 		return
 	end
 	session.loaded = true
+	profile.Data.loadedAt = os.time()
 	player:SetAttribute("DataReady", true)
 	session.spawning = player.CharacterAdded:Connect(function(character: Model)
 		if character:WaitForChild("HumanoidRootPart", 10) and sessions[player] == session then
@@ -686,9 +707,23 @@ local function onSaveMenu(player: Player, action: unknown, slot: unknown)
 	end
 end
 
+-- A join opens the save played last straight away, as a menu request would, so the menu
+-- ignores clicks until it lands; a player with no save yet picks a slot.
 local function onPlayer(player: Player)
 	player:SetAttribute("DataReady", false)
-	sendSlots(player)
+	busy[player] = true
+	local ok, message = pcall(function()
+		local slots, last = readSlots(player)
+		sendSlots(player, nil, last, slots)
+		if last then
+			load(player, last)
+		end
+	end)
+	busy[player] = nil
+	if not ok then
+		warn(`DataService: opening {player.UserId}'s last garden failed: {message}`)
+		sendSlots(player, "Something went wrong. Please try again.")
+	end
 end
 
 function DataService.init()

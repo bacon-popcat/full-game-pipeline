@@ -7,7 +7,8 @@
 -- what the server's latest SaveSlots holds. Play loads a slot (an empty one starts a new
 -- garden); Delete asks first in Window.Confirm. Only one request is out at a time: the cards
 -- go quiet and Window.Body.Status says what's happening until the server answers with
--- DataReady or a new SaveSlots.
+-- DataReady or a new SaveSlots. On join the server opens the garden played last by itself
+-- (SaveSlots `loading`), so a returning player only sees the menu while it opens.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -145,7 +146,11 @@ function SaveMenuController.init()
 			onActivate = function()
 				local slot = slots[index]
 				if slot and not pending then
-					request("Load", index, if slot.empty then `Planting Garden {index}…` else `Opening Garden {index}…`)
+					request(
+						"Load",
+						index,
+						if slot.empty then `Planting Garden {index}…` else `Opening Garden {index}…`
+					)
 				end
 			end,
 		}))
@@ -184,7 +189,8 @@ function SaveMenuController.init()
 			addCard(index)
 		end
 		message = if typeof(payload.message) == "string" then payload.message else nil
-		pending = nil
+		-- On join the server is already opening the garden played last; wait for it.
+		pending = if typeof(payload.loading) == "number" then `Opening Garden {payload.loading}…` else nil
 		render()
 		focus()
 	end)

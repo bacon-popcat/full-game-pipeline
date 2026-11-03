@@ -37,6 +37,12 @@ DataService -> snapshot/restore crop cycle and rain credit
   capacity is checked for the entire yield before changing the plant.
 - Harvest XP is awarded once per harvest to the plot owner, including machine harvests;
   unripe digging and soil removal give no XP. Discovery is saved on the first harvest.
+- **Trees keep their column clear.** Apple and Starfruit grow four cells tall (`World.CROPS`
+  `height`). From planting, each keeps that column, one cell wide, above its own cell: a seed
+  (by hand or Seed Planter) won't plant unless the whole column is clear and on owned land
+  (`World.plantColumn`, checked by BuildService, the placing ghost and `WorldService.canPlant`),
+  and WorldService stretches those crops' template hitboxes to the column at startup, so no
+  block can be placed in it. A tree saved before this rule loads even with blocks over it.
 
 The initial grow time is four equal quarters. Sprout, Young and Mature use the first three;
 the fourth is final ripening, still showing Mature art until the full listed duration is

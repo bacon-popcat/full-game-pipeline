@@ -79,13 +79,14 @@ local function machine(id: string, name: string, description: string, stack: num
 	}
 end
 
-local function resource(id: string, name: string, description: string): Item
-	return { id = id, name = name, kind = "Resource", stack = RESOURCE_STACK, description = description }
+local function resource(id: string, name: string, description: string, art: string?): Item
+	return { id = id, name = name, kind = "Resource", stack = RESOURCE_STACK, description = description, art = art }
 end
 
 local ITEMS: { Item } = {
 	tool("Hammer", "Hammer", "Swing at a block you placed to pick it back up, contents and all.", true),
 	tool("Pickaxe", "Pickaxe", "Mines rocks and your garden's ground, and breaks the blocks you placed."),
+	tool("Axe", "Axe", "Chops the forest's trees for Wood."),
 	tool("Hoe", "Hoe", "Tills grass and dirt on your plot into Farmland, ready for seeds.", nil, true),
 	tool(
 		"WateringCan",
@@ -180,6 +181,8 @@ local ITEMS: { Item } = {
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
 	resource("IronBar", "Iron Bar", "Smelted iron for future crafting."),
 	resource("CopperBar", "Copper Bar", "Smelted copper for future crafting."),
+	resource("Wood", "Wood", "Chopped from the forest's trees. Saw it into planks at a Crafting Bench.", "Log"),
+	resource("TimberFrame", "Timber Frame", "Planks braced with iron, for crafting machines.", "Pallet"),
 }
 
 local cropIds: { string } = {}

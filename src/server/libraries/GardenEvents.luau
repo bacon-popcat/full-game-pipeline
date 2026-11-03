@@ -28,6 +28,13 @@ local GardenEvents = {
 	LevelUp = Signal.new(),
 	-- (player, cell: Vector3) a growing crop splashed with the watering can
 	Watered = Signal.new(),
+	-- (player, nodeType: string, cell: Vector3, look: string, pivot: CFrame) a forest tree chopped
+	-- down with the Axe: which look of its art it was (Assets.World) and where it stood
+	Chopped = Signal.new(),
+	-- (player, recipeId: string, times: number) a recipe crafted at a Crafting Bench (Shared/Crafting)
+	Crafted = Signal.new(),
+	-- (player, researchId: string) a research project finished (Shared/Research)
+	ResearchDone = Signal.new(),
 }
 
 return GardenEvents

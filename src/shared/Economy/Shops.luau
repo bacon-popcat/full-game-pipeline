@@ -41,6 +41,7 @@ local SHOPS: { [string]: Shop } = {
 			offer("WateringCan", 150, 1, "Tool"),
 			offer("Hoe", 25, 1, "Tool"),
 			offer("Pickaxe", 50, 1, "Tool"),
+			offer("Axe", 60, 1, "Tool"),
 			offer("Hammer", 50, 1, "Tool"),
 			offer("Grass", 5, 1, "Block"),
 			offer("Dirt", 5, 1, "Block"),

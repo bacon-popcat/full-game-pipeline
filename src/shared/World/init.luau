@@ -36,6 +36,10 @@ export type Node = {
 	tills: boolean?,
 	-- The block (Assets.Blocks) its art is, for ground that looks like the block it digs into.
 	art: string?,
+	-- Research that adds to one of its drops (Shared/Research stats): `stat` more of `item`.
+	boost: { stat: string, item: string }?,
+	-- Art (Assets.World) left standing as scenery while a broken node waits to respawn.
+	stump: string?,
 }
 
 export type Crop = {
@@ -51,10 +55,14 @@ export type Crop = {
 	regrow: number?,
 	art: string,
 	color: Color3,
+	-- Cells tall it grows. A tree (more than one) reserves that column from the moment it is
+	-- planted: a seed won't plant under anything, and nothing can be built in the column.
+	height: number,
 }
 
--- What a placed item turns into: the node it plants as, and whether that needs soil below.
-export type Plant = { node: string, soil: boolean }
+-- What a placed item turns into: the node it plants as, whether that needs soil below, and the
+-- column of cells it keeps clear above its own (one for most crops; its crop's height).
+export type Plant = { node: string, soil: boolean, height: number }
 
 local NODES: { [string]: Node } = {
 	StoneRock = {
@@ -63,6 +71,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { Stone = 2 },
 		respawn = 30,
+		boost = { stat = "mineYield", item = "Stone" },
 	},
 	CoalRock = {
 		name = "Coal Rock",
@@ -70,6 +79,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { Coal = 2, Stone = 1 },
 		respawn = 30,
+		boost = { stat = "mineYield", item = "Coal" },
 	},
 	IronRock = {
 		name = "Iron Rock",
@@ -77,6 +87,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { IronOre = 2, Stone = 1 },
 		respawn = 45,
+		boost = { stat = "mineYield", item = "IronOre" },
 	},
 }
 
@@ -86,7 +97,25 @@ NODES.CopperRock = {
 	tool = "Pickaxe",
 	drops = { CopperOre = 2, Stone = 1 },
 	respawn = 45,
+	boost = { stat = "mineYield", item = "CopperOre" },
 }
+
+-- The forest round the map (World/Layout): shared like the quarry, chopped with the Axe for Wood,
+-- leaving a stump until the tree grows back.
+local function tree(name: string, wood: number): Node
+	return {
+		name = name,
+		hint = "Chop it with an Axe for wood.",
+		tool = "Axe",
+		drops = { Wood = wood },
+		respawn = 90,
+		boost = { stat = "chopYield", item = "Wood" },
+		stump = "ForestStump",
+	}
+end
+NODES.ForestOak = tree("Oak Tree", 3)
+NODES.ForestPine = tree("Pine Tree", 4)
+NODES.ForestBirch = tree("Birch Tree", 2)
 
 local STAGES = { "Sprout", "Young", "Mature", "Ripe" }
 
@@ -114,6 +143,7 @@ local function defineCrop(
 		regrow = regrow,
 		art = art,
 		color = color,
+		height = 1,
 	}
 end
 
@@ -141,6 +171,9 @@ local CROPS: { [string]: Crop } = {
 	Grape = defineCrop("Grape", "Legendary", 10000, 260, 480, 4, 120, "Wheat", Color3.fromRGB(179, 141, 215)),
 	Starfruit = defineCrop("Starfruit", "Mythic", 30000, 1800, 720, 2, 150, "Carrot", Color3.fromRGB(247, 228, 141)),
 }
+-- The trees.
+CROPS.Apple.height = 4
+CROPS.Starfruit.height = 4
 
 local function ground(name: string, hint: string, drop: string, tills: boolean?, art: string?): Node
 	return {
@@ -165,7 +198,7 @@ NODES.Farmland.soil = true
 local PLANTS: { [string]: Plant } = {}
 
 for cropId, crop in CROPS do
-	PLANTS[crop.seed] = { node = cropId .. STAGES[1], soil = true }
+	PLANTS[crop.seed] = { node = cropId .. STAGES[1], soil = true, height = crop.height }
 	for stage, suffix in STAGES do
 		local ripe = stage == #STAGES
 		NODES[cropId .. suffix] = {
@@ -193,6 +226,13 @@ function World.getNode(nodeType: string): Node
 	local node = NODES[nodeType]
 	assert(node, `World.getNode: unknown node type "{nodeType}"`)
 	return node
+end
+
+-- The cells a seed keeps clear when planted at its origin: its crop's column, one cell wide.
+-- Nil for anything that doesn't plant.
+function World.plantColumn(itemId: string): Vector3?
+	local plant = PLANTS[itemId]
+	return if plant then Vector3.new(1, plant.height, 1) else nil
 end
 
 -- The node type of a crop's stage.

@@ -293,11 +293,14 @@ local function choosePlacement(item: Inventory.Item, model: Model, result: Rayca
 	if not result or not footprint or not from or not origin or not pivot then
 		return nil
 	end
+	local column = World.plantColumn(item.id)
 	local valid = Build.inReach(from, origin, footprint)
 		and Build.canEdit(player, origin, footprint)
 		and Build.isFree(origin, footprint, overlapParams, item.id, rotation)
 		and not Build.clipsCharacter(item.id, pivot)
 		and Soil.canPlant(item.id, origin)
+		-- The server's rule: a tree's seed needs its whole column clear (World.plantColumn).
+		and (not column or (Build.canEdit(player, origin, column) and Build.isFree(origin, column, overlapParams)))
 	local normal = result.Normal
 	local axis = math.max(math.abs(normal.X), math.abs(normal.Y), math.abs(normal.Z))
 	local against = if math.abs(normal.Y) == axis

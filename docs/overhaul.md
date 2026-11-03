@@ -176,9 +176,135 @@ contents are saved as their item counts. A profile autosaves every 2 minutes and
 ## What is cut
 
 Oil, petroleum and fuel barrels, the pumpjack and drill and deposits, maple sap and every wood tube,
-trees and the lumber chain, animals and their machines (milker, trough, wool vacuum, truffle
-barrel), the stone polishing and cutting chain, the steel, bronze and press chain, and the Axe.
-Git history keeps all of it.
+the lumber chain (sawmill, lumbermill), animals and their machines (milker, trough, wool vacuum, truffle
+barrel), the stone polishing and cutting chain, and the steel, bronze and press chain.
+Git history keeps all of it. Trees and the Axe came back in phase 7, as a forest round the map
+that gives Wood for the Crafting Bench.
+
+## Research, wood and the world (phase 7)
+
+Asked for on 2026-11-03: a research system, wood from trees chopped round a new map and crafted
+at a crafting bench, a level curve that's easier through 1-50, tree crops at least four cells
+tall with room to grow, the apple tree's art fixed, a more industrial look for machines and
+belts, the last garden loading on join, a new harvest effect and sound, more music, and a
+now-playing notice.
+
+| Question | Choice |
+|---|---|
+| Where research happens | A Research button in the HUD's side column opens the Research window from anywhere, like Shop and Sell; there is no lab block |
+| How many at once | One project at a time. It runs on wall-clock time, so it keeps going while the player is away |
+| Paying | Coins, and for some projects items, are taken when the project starts. Cancelling refunds all of it (items only if they fit) |
+| Finishing | A project finishes on its own when its time is up (checked every second and on load), with a sound and a toast; its effect applies at once |
+| Whose effect | Per player: a project changes only that player's plot, machines, harvests, sales and XP |
+| Crafting | A Crafting Bench block (Machine Shop, level 1, 100 coins) placed on your plot. Opening it shows its recipes; Craft turns inventory items into others at once. Research unlocks more recipes. The Workbench stays the belt-fed parts machine |
+| Wood | A forest round the map. An Axe (Gear Shop, 60 coins) chops a tree for Wood; the tree leaves a stump and grows back after 90 s, shared by everyone like the quarry |
+| Tree crops | Apple and Starfruit grow into trees four cells tall. Each reserves a column of four cells from planting, so nothing can be built in it and a seed won't plant under anything |
+| Loading | On join the save played last loads straight away; the save menu shows only while it loads, after a failure, or for a player with no save yet |
+| The map | The studded baseplate goes. The gardens and hub sit on smooth grass with paths; a forest ring with clearings and a pond surrounds them, and soft hills close the view at the edge |
+
+### Research projects
+
+`Shared/Research` will own this table. Each project needs its level and the project before it
+in its line (and any listed under Needs); minutes are before Efficient Study.
+
+| Id | Name | Level | Coins | Items | Minutes | Needs | Effect |
+|---|---|---:|---:|---|---:|---|---|
+| Learn1 | Quick Learner I | 2 | 150 | | 0.5 | | xpGain +10% |
+| Belts1 | Faster Belts I | 3 | 300 | | 1 | | beltSpeed +10% |
+| Axe1 | Sharp Axe I | 3 | 200 | 5 Wood | 1 | | chopYield +1 |
+| CrateMaking | Crate Making | 3 | 250 | 5 Wood | 0.75 | | recipe ShippingBin |
+| Yield1 | Rich Soil I | 4 | 600 | 20 Wheat | 2 | | cropYield +10% |
+| Carpentry | Carpentry | 4 | 400 | 10 Wood | 1 | | recipe StorageChest |
+| Haggle1 | Haggling I | 5 | 1,000 | | 2 | | sellPrice +5% |
+| Pick1 | Strong Pickaxe I | 5 | 800 | | 2 | | mineYield +1 |
+| Growth1 | Green Thumb I | 6 | 1,500 | | 3 | | growSpeed +5% |
+| WoodenBelts | Wooden Belts | 6 | 1,200 | 20 Wood Planks | 3 | Carpentry | recipe ConveyorBelt |
+| Reapers1 | Swift Reapers I | 7 | 2,000 | | 4 | | harvesterSpeed +15% |
+| Belts2 | Faster Belts II | 8 | 2,500 | | 5 | | beltSpeed +10% |
+| Seeds1 | Seed Contacts I | 8 | 3,000 | | 5 | | seedStock +1 |
+| HandTools | Hand-Cut Gears | 8 | 2,500 | | 4 | | recipe Gear |
+| Machines1 | Quick Machines I | 9 | 3,000 | | 5 | | machineSpeed +10% |
+| SprinklerPlans | Sprinkler Plans | 9 | 4,000 | 4 Timber Frame | 8 | Carpentry | recipe Sprinkler |
+| Yield2 | Rich Soil II | 10 | 4,000 | | 8 | | cropYield +10% |
+| Study1 | Efficient Study I | 10 | 5,000 | | 6 | | researchSpeed +15% |
+| Luck1 | Lucky Harvest I | 11 | 6,000 | | 8 | | mutationChance +20% |
+| Sprinklers1 | Wide Sprinklers I | 12 | 8,000 | 4 Copper Wire | 10 | | sprinklerRadius +1 |
+| PlanterPlans | Planter Plans | 12 | 8,000 | | 10 | WoodenBelts | recipe SeedPlanter |
+| Haggle2 | Haggling II | 13 | 8,000 | | 10 | | sellPrice +5% |
+| Growth2 | Green Thumb II | 14 | 10,000 | | 10 | | growSpeed +5% |
+| Learn2 | Quick Learner II | 15 | 12,000 | | 12 | | xpGain +10% |
+| Axe2 | Sharp Axe II | 15 | 10,000 | 20 Wood Planks | 10 | | chopYield +1 |
+| Belts3 | Faster Belts III | 16 | 15,000 | 10 Gear | 15 | | beltSpeed +10% |
+| HarvesterPlans | Harvester Plans | 17 | 18,000 | 2 Circuit | 15 | PlanterPlans | recipe Harvester |
+| Yield3 | Rich Soil III | 18 | 25,000 | 10 Corn | 20 | | cropYield +10% |
+| Reapers2 | Swift Reapers II | 18 | 20,000 | | 15 | | harvesterSpeed +15% |
+| Pick2 | Strong Pickaxe II | 19 | 15,000 | 6 Iron Bar | 12 | | mineYield +1 |
+| Machines2 | Quick Machines II | 20 | 25,000 | 6 Gear | 20 | | machineSpeed +10% |
+| Haggle3 | Haggling III | 22 | 40,000 | | 25 | | sellPrice +5% |
+| Seeds2 | Seed Contacts II | 23 | 45,000 | | 25 | | seedStock +1 |
+| Growth3 | Green Thumb III | 24 | 50,000 | 20 Blueberry | 30 | | growSpeed +5% |
+| Luck2 | Lucky Harvest II | 25 | 60,000 | 10 Apple | 35 | | mutationChance +20% |
+| Belts4 | Faster Belts IV | 26 | 70,000 | | 40 | | beltSpeed +10% |
+| Study2 | Efficient Study II | 27 | 75,000 | | 30 | | researchSpeed +15% |
+| Yield4 | Rich Soil IV | 28 | 100,000 | | 45 | | cropYield +10% |
+| Sprinklers2 | Wide Sprinklers II | 28 | 80,000 | 4 Circuit | 40 | | sprinklerRadius +1 |
+| Reapers3 | Swift Reapers III | 30 | 100,000 | 4 Circuit | 45 | | harvesterSpeed +15% |
+| Learn3 | Quick Learner III | 32 | 120,000 | | 45 | | xpGain +10% |
+| Machines3 | Quick Machines III | 34 | 150,000 | 6 Circuit, 4 Steel Frame | 60 | | machineSpeed +10% |
+| Growth4 | Green Thumb IV | 36 | 200,000 | | 60 | | growSpeed +5% |
+| Belts5 | Faster Belts V | 38 | 250,000 | 10 Circuit | 90 | | beltSpeed +10% |
+| Haggle4 | Haggling IV | 40 | 300,000 | | 75 | | sellPrice +5% |
+| Yield5 | Rich Soil V | 42 | 400,000 | 10 Pumpkin | 90 | | cropYield +10% |
+| Luck3 | Lucky Harvest III | 44 | 500,000 | | 90 | | mutationChance +20% |
+| Study3 | Efficient Study III | 45 | 600,000 | | 90 | | researchSpeed +15% |
+| Master | Master Gardener | 50 | 1,500,000 | 20 Circuit, 20 Steel Frame | 120 | Yield5, Growth4, Haggle4 | cropYield +10%, growSpeed +5%, sellPrice +5% |
+
+What each effect does, summed over a player's finished projects:
+
+| Effect | Does |
+|---|---|
+| beltSpeed | Every lane on the owner's plot (belts, routers, machine belts) runs 1 + beltSpeed times as fast, on the server, for the drawn items and for players riding it |
+| machineSpeed | Processors, the Workbench and the Smelter take their batch time / (1 + machineSpeed) |
+| harvesterSpeed | Harvesters and Seed Planters wait their interval / (1 + harvesterSpeed) |
+| sprinklerRadius | Sprinklers reach this many more cells |
+| cropYield | A harvest, by hand or machine, gives yield x (1 + cropYield): the whole part always, the fraction as the chance of one more |
+| growSpeed | Crops on the plot grow 1 + growSpeed times as fast, multiplying with sprinklers and rain, banked like a sprinkler's speed |
+| mutationChance | Every mutation's chance on the plot is multiplied by 1 + mutationChance |
+| sellPrice | Sell Stand and Shipping Bin coins are multiplied by 1 + sellPrice |
+| xpGain | All XP the player earns is multiplied by 1 + xpGain, the fraction carried |
+| seedStock | Each seed that rolls in stock at a restock has this many more |
+| researchSpeed | A project started takes its time / (1 + researchSpeed) |
+| chopYield, mineYield | A chopped tree gives this much more Wood; a mined quarry rock this much more of its first drop (ore, coal or stone) |
+| recipe | Unlocks that Crafting Bench recipe |
+
+### Wood and crafting
+
+- **Trees** are World nodes like the quarry rocks: ForestOak (3 Wood), ForestPine (4 Wood),
+  ForestBirch (2 Wood), tool Axe, respawn 90 s, placed by `World/Layout` in the forest ring.
+  A chopped tree leaves a `ForestStump` until it grows back.
+- **Wood** is a resource with no sell value (like ore, Sell All keeps it). **Timber Frame** is a
+  part (its art borrows the Pallet). The **Crafting Bench** is a block that opens the Crafting
+  window for its owner within reach.
+
+| Recipe | Makes | From | Research |
+|---|---|---|---|
+| WoodPlanks | 4 Wood Planks | 1 Wood | |
+| TimberFrame | 1 Timber Frame | 4 Wood Planks, 1 Iron Bar | |
+| ShippingBin | 1 Shipping Bin | 10 Wood Planks | Crate Making |
+| StorageChest | 1 Storage Chest | 12 Wood Planks, 1 Iron Bar | Carpentry |
+| ConveyorBelt | 8 Conveyor | 4 Wood Planks, 1 Iron Bar | Wooden Belts |
+| Gear | 1 Gear | 2 Iron Bar | Hand-Cut Gears |
+| Sprinkler | 1 Sprinkler | 2 Timber Frame, 3 Copper Bar | Sprinkler Plans |
+| SeedPlanter | 1 Seed Planter | 3 Timber Frame, 2 Gear | Planter Plans |
+| Harvester | 1 Harvester | 4 Timber Frame, 2 Circuit | Harvester Plans |
+
+### Who builds what
+
+Codex builds the research server, its saving and every effect hook, from this section. Claude
+builds the crafting, the forest, the map, the tree-crop column, loading the last save, the
+Research, Crafting and now-playing screens, and the harvest effect. Subagents generate the
+music and sounds, retune the level curve, and rebuild the machine, conveyor, tree-crop, forest
+and bench art in Blender.
 
 ## Phases
 
@@ -194,6 +320,10 @@ Git history keeps all of it.
    router, stall and plot prop has art of its own (below). What is left is the quarry's copper
    rock (still a placeholder cube) and any polish.
 6. [x] **Polish.** Onboarding, sounds, VFX, balance (notes below).
+7. [ ] **Research, wood and the world.** The research system, the forest and Wood, the Crafting
+   Bench, the new map, tree crops four cells tall, the new level curve, loading the last save,
+   industrial machine art, a new harvest effect and sound, more music and a now-playing notice
+   (§ Research, wood and the world).
 
 ### Art progress
 

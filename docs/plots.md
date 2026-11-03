@@ -7,7 +7,7 @@ header owns its rules; this page maps initialization, permissions and persistenc
 
 ```text
 join -> SaveSlots (what each of the three save files holds) -> save menu
-                 | player picks a slot (Remotes.SaveMenu "Load")
+                 | the slot played last opens by itself, or the player picks one (Remotes.SaveMenu "Load")
                  v
 DataService -> ProfileStore.StartSessionAsync -> reconcile/validate
                  | failure / session lost -> release runtime state, back to the menu with why
@@ -35,9 +35,13 @@ leave or "Save & quit to menu" -> clear crops -> unregister/remove blocks -> cle
 
 Each player has three save files, each its own profile key in `GardenFoundation_v1`: slot 1
 is `<UserId>`, the key every save had before slots, so older gardens are Slot 1; slots 2 and 3
-are `<UserId>_2` and `<UserId>_3`. Nothing loads on join: `SaveMenuController` shows the
-authored `StarterGui.SaveMenu` whenever DataReady isn't true, with one card per slot (level,
-coins and when it was last saved, read with `GetAsync` without taking the session lock). An
+are `<UserId>_2` and `<UserId>_3`. On join the slot played last opens by itself: each save
+keeps `loadedAt`, the Unix time it was last opened, and DataService picks the filled slot with
+the latest one (a save from before `loadedAt` counts its last save time instead). While it
+opens, and whenever DataReady isn't true, `SaveMenuController` shows the authored
+`StarterGui.SaveMenu`, with one card per slot (level, coins and when it was last saved, read
+with `GetAsync` without taking the session lock); SaveSlots' `loading` tells it a garden is
+already opening, so the cards stay quiet. A player with no save yet picks a slot. An
 empty slot starts a new garden; a filled one can be deleted (`RemoveAsync`) after a confirm.
 `Settings.Body.SaveQuit` saves and releases the garden exactly as leaving does and reopens the
 menu, so a player can switch saves without rejoining.
@@ -151,6 +155,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | discovered | Crop id to boolean, marked by a successful hand or machine harvest |
 | indexed | Item id to boolean for the Index, marked when an item is given or harvested; unknown ids are dropped on load |
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
+| loadedAt | Unix seconds this save was last opened (0 before then), so a join reopens the one played last |
 | plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below); not in the template |
 
 Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an

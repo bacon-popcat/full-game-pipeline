@@ -77,10 +77,12 @@ return {
 	-- (it lingers briefly, out of play, for the animation); false means part of a stack went
 	-- and the drop stays. Cosmetic only.
 	DropCollected = get("DropCollected"),
-	-- server -> client: ({ slots: { SaveSlot }, message: string? }) the player's save files, one
-	-- per slot in order, where SaveSlot is { empty: true } or { empty: false, level: number,
-	-- coins: number, savedAt: number? } (Unix seconds of its last save). Sent on join, after
-	-- quitting to the menu or deleting a slot, and when a load fails (`message` says why).
+	-- server -> client: ({ slots: { SaveSlot }, message: string?, loading: number? }) the player's
+	-- save files, one per slot in order, where SaveSlot is { empty: true } or { empty: false,
+	-- level: number, coins: number, savedAt: number? } (Unix seconds of its last save). Sent on
+	-- join, after quitting to the menu or deleting a slot, and when a load fails (`message` says
+	-- why). `loading` is the slot the server is already opening on join (the one played last);
+	-- the menu waits for DataReady or a later SaveSlots.
 	SaveSlots = get("SaveSlots"),
 	-- client -> server: (action: "Load" | "Delete" | "Quit", slot: number?) load or delete save
 	-- file `slot` (1 to DataService's slot count) while no garden is loaded, or "Quit" to save
