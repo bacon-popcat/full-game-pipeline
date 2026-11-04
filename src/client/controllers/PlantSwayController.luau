@@ -22,8 +22,9 @@ local World = require(ReplicatedStorage.Shared.World)
 
 -- Art keys (the `_<Key>` suffix of a part's name) that never move.
 local STILL = { Stake = true, Tuber = true }
--- How far each crop gives, relative to a soft plant (1). Trees and trained vines give less.
-local FLEX: { [string]: number } = { Apple = 0.4, Starfruit = 0.55, Grape = 0.3, Tomato = 0.55, Corn = 0.85 }
+-- How far each crop gives, relative to a soft plant (1). Trees and trained vines give less; the
+-- tilt is an angle, so the 13-stud trees (Apple, Starfruit) give far less to sweep as gently.
+local FLEX: { [string]: number } = { Apple = 0.16, Starfruit = 0.22, Grape = 0.3, Tomato = 0.55, Corn = 0.85 }
 
 local FAR = 120
 local NEAR = 60

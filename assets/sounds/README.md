@@ -27,3 +27,22 @@ swap a take, upload the new file the same way and replace that role's id.
 | Water | Garden_Water.mp3 (Water_2) | gentle splash from a small watering can onto soil |
 | Step | Garden_Step.mp3 (Step_1) | soft warm two-note wooden marimba confirmation |
 | LevelUp | Garden_LevelUp.mp3 (LevelUp_1) | sparkling upward shimmer of soft chimes |
+
+## Phase 7 roles (synthesized)
+
+ElevenLabs sound generation failed on every attempt while phase 7 was built (its shared pool
+refused or failed each take), so these roles are synthesized by `tools/sounds/synth.py` with the
+standard library, in the same family: decaying sine partials for chimes, a struck tone with a
+filtered noise click for wood, band-passed noise for leaves. `python tools/sounds/synth.py`
+rebuilds the WAVs exactly; `python tools/sounds/upload.py <file> "<name>" "<description>"` uploads
+one. The new Harvest replaces the ElevenLabs pluck (140384005911871); put that id back in
+`Sounds.luau` to return to it. None of these was chosen by ear.
+
+| Role | File | Asset id | Sound |
+|---|---|---|---|
+| Harvest | Garden_Harvest.wav | 85383832508508 | a leafy rustle, a rounded pop (pitch falling 900 to 340 Hz) and a tiny high sparkle, 0.4 s |
+| HarvestRare | Garden_HarvestRare.wav | 126550585056131 | three soft chimes rising (G6, B6, D7), layered over Harvest for a mutated crop, 1 s |
+| Chop | Garden_Chop.wav | 136761976782388 | a soft low wooden thock with a little crack, 0.4 s |
+| TreeFall | Garden_TreeFall.wav | 118623246906163 | a low creak, a leafy whoosh and a soft thud, 1.7 s |
+| Craft | Garden_Craft.wav | 104446383390823 | two quick wooden taps and a click, 0.5 s |
+| ResearchDone | Garden_ResearchDone.wav | 82850696869958 | a rising two-note chime (E5, B5) over a warm fifth that swells and fades, 1.9 s |
