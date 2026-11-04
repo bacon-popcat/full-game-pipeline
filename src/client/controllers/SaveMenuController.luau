@@ -17,6 +17,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = script.Parent.Parent.Libraries
 local Hud = require(Libraries.Hud)
+local HudVisibility = require(Libraries.HudVisibility)
 local UI = require(Libraries.UI)
 
 type Slot = { empty: boolean, level: number?, coins: number?, savedAt: number? }
@@ -64,7 +65,8 @@ function SaveMenuController.init()
 	end
 	assert(status:IsA("TextLabel") and confirmText:IsA("TextLabel"), "SaveMenu labels must be TextLabels")
 	assert(yes:IsA("TextButton") and no:IsA("TextButton"), "SaveMenu confirm buttons must be TextButtons")
-	local hud = playerGui:WaitForChild("HUD", 10)
+	-- HudVisibility hides the HUD while the menu is open; wait for it to be there to hide.
+	playerGui:WaitForChild("HUD", 10)
 	local controls = nil
 	local playerModule = player:WaitForChild("PlayerScripts"):FindFirstChild("PlayerModule")
 	if playerModule and playerModule:IsA("ModuleScript") then
@@ -87,9 +89,7 @@ function SaveMenuController.init()
 	local function render()
 		local open = isOpen()
 		screen.Enabled = open
-		if hud and hud:IsA("ScreenGui") then
-			hud.Enabled = not open
-		end
+		HudVisibility.hide("SaveMenu", open)
 		if controls then
 			if open then
 				controls:Disable()

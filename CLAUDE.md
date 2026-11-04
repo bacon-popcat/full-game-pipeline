@@ -11,7 +11,11 @@ Phases 1-4 (foundation, garden loop, automation, crafting) and 6 (polish: onboar
 effects, sounds, music, balance) are built and playtested. Phase 5 (art) is nearly done;
 the quarry's copper rock is still a placeholder. Phase 7 (research, wood and the world) is
 built and playtested: research, crafting, the forest map and chopping, tree crops, the level
-curve, the industrial machine and conveyor art, the new effects, sounds and music.
+curve, the industrial machine and conveyor art, the new effects, sounds and music. Since then:
+research is a full-screen upgrade tree per category, with info on hover and click, and a
+finished timer waits for Complete (with a burst on the tile and the `ResearchComplete` VFX); grass and dirt wear the game's
+own textures (`World/GroundLook`); the map is built from parts, not Terrain; and Harvest
+sounds like a plant pulled from soil.
 
 ## Domain docs
 
@@ -34,6 +38,8 @@ curve, the industrial machine and conveyor art, the new effects, sounds and musi
 | `default.project.json` | The Rojo tree, including every RemoteEvent |
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
+| `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
+| `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI
 templates) and the `IslandsMachines/` art pipeline live outside git.

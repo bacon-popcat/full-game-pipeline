@@ -3,9 +3,10 @@
 -- twinkles springing out, and the produce bouncing up and floating into whoever picked it, a
 -- mutated one shimmering in its colours); coins sparkling round you when you sell (a Shipping
 -- Bin's sales only sparkle, with no sound, so a busy factory stays quiet); a chopped tree tipping
--- over and settling away; wood shavings when you craft; a warm ring when you level up or finish
--- research. Reduced motion keeps the sounds and colours but drops the movement. Nothing here
--- changes the game.
+-- over and settling away; wood shavings when you craft; a warm ring when you level up; and when
+-- you complete research, the ResearchComplete effect (Shared/VFX) round you: a gold ring, motes
+-- spiralling up and a column of light. Reduced motion keeps the sounds and colours but drops the
+-- movement. Nothing here changes the game.
 local Debris = game:GetService("Debris")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
@@ -17,6 +18,7 @@ local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local VFXPlayer = require(ReplicatedStorage.Shared.VFX.VFXPlayer)
 local World = require(ReplicatedStorage.Shared.World)
 local Sound = require(Players.LocalPlayer.PlayerScripts.Libraries.Sound)
 
@@ -27,7 +29,6 @@ local COIN = Color3.fromRGB(246, 214, 120)
 local GLOW = Color3.fromRGB(255, 236, 190)
 local LEAF = Color3.fromRGB(132, 190, 104)
 local WOOD = Color3.fromRGB(196, 150, 104)
-local RESEARCH = Color3.fromRGB(240, 178, 140)
 local TWINKLE = "rbxasset://textures/particles/sparkles_main.dds"
 -- Studs past which nobody needs to see someone else's farm moment.
 local SHOW_WITHIN = 140
@@ -373,7 +374,13 @@ local function show(fx: { [string]: any })
 		end
 		Sound.play("Craft")
 	elseif kind == "Research" then
-		ring(RESEARCH)
+		local root = rootOf(Players.LocalPlayer)
+		if root then
+			VFXPlayer.Play("ResearchComplete", root.CFrame, {
+				Character = Players.LocalPlayer.Character,
+				Reduced = GuiService.ReducedMotionEnabled,
+			})
+		end
 		Sound.play("ResearchDone")
 	elseif kind == "LevelUp" then
 		ring(GLOW)

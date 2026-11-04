@@ -17,11 +17,14 @@ end
 return {
 	-- server -> client: ({ done: { string }, active: { id: string, endsAt: number, seconds: number }?,
 	-- bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().
-	-- Sent on load, start, cancel, finish and every refused research request.
+	-- active stays until completed, past endsAt (Research.isReady). Sent on load, start, cancel,
+	-- complete, when a timer runs out, and for every refused research request.
 	ResearchSync = get("ResearchSync"),
-	-- client -> server: (action: "Start" | "Cancel", id: string?); Start names a Shared/Research
-	-- project. The server rechecks DataReady, cooldown, level, prerequisites, items and coins;
-	-- Cancel refunds only when all items fit. Every request answers with Notify and ResearchSync.
+	-- client -> server: (action: "Start" | "Cancel" | "Complete", id: string?); Start names a
+	-- Shared/Research project. The server rechecks DataReady, cooldown, level, prerequisites, items
+	-- and coins; Cancel refunds only when all items fit and the timer is still running; Complete
+	-- finishes the running project once its timer has run out. Every request answers with Notify
+	-- and ResearchSync.
 	Research = get("Research"),
 	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.

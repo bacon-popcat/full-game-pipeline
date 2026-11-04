@@ -2,9 +2,9 @@
 -- Map: where the land round the gardens and the hub lies, in studs on the ground plane (X, Z),
 -- built outward from the gardens' own extent (Shared/Plot), so moving a garden moves the map
 -- with it. PlotService lays exact grass ground over the gardens and GROUND_MARGIN past them.
--- MapService grows Terrain past that: a flat forest ring FOREST wide, where World/Layout stands
--- the choppable trees, crossed by paths and dotted with ponds that the trees keep clear of; then
--- HILLS of soft hills closing the view, with a wall at the very edge.
+-- MapService builds the land past that out of parts: a flat forest ring FOREST wide, where
+-- World/Layout stands the choppable trees, crossed by paths and dotted with ponds that the trees
+-- keep clear of; then HILLS of soft low-poly hills closing the view, with a wall at the very edge.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -18,9 +18,9 @@ local Map = {}
 
 -- Studs of PlotService's grass round the gardens on every side.
 Map.GROUND_MARGIN = 36
--- The meadow grass of the ground round the gardens and the Terrain past it, one colour so the
--- seam between them doesn't show. The Grass building cube, and so a garden's grass ground, is
--- this colour too (docs/inventory.md).
+-- The meadow grass of the ground round the gardens and the land past it, one colour so the seam
+-- between them doesn't show: the colour under World/GroundLook's grass texture, and the hills'
+-- base green.
 Map.GRASS = Color3.fromRGB(142, 186, 112)
 -- Studs of flat forest past that ground, then of hills past the forest.
 Map.FOREST = 150

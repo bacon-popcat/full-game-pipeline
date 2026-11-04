@@ -10,7 +10,8 @@
 -- the gardens is laid as grass pieces that leave a hole for each garden (reaching Map's
 -- GROUND_MARGIN past them all, and as deep as the floor so a hole dug at a garden's edge meets a
 -- wall), and every garden has bedrock under its floor. The place's Baseplate is removed; past
--- this ground MapService's Terrain takes over, in the same grass. A purchase stands the new section's ground (GroundService.extend); a freed garden's
+-- this ground MapService's land takes over, in the same grass (World/GroundLook's textures:
+-- grass on top, dirt down the sides). A purchase stands the new section's ground (GroundService.extend); a freed garden's
 -- ground goes back to untouched (GroundService.reset).
 --
 -- A garden's scenery (its Boundary model) is rebuilt whenever its owner or sections change,
@@ -27,6 +28,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local Build = require(ReplicatedStorage.Shared.Build)
+local GroundLook = require(ReplicatedStorage.Shared.World.GroundLook)
 local Map = require(ReplicatedStorage.Shared.World.Map)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -45,7 +47,7 @@ local COOLDOWN = 0.5
 local LOCKED = Color3.fromRGB(119, 132, 105)
 local FENCE = Color3.fromRGB(225, 211, 178)
 local BEDROCK = Color3.fromRGB(74, 70, 76)
--- The ground round the gardens, the same grass as MapService's Terrain past it.
+-- The ground round the gardens, the same grass as MapService's land past it.
 local MEADOW = Map.GRASS
 -- Studs from the top of the ground (y = 0) to the bottom of its lowest level, and the bedrock
 -- under that.
@@ -119,7 +121,7 @@ local function ground()
 	local function piece(x0: number, x1: number, z0: number, z1: number)
 		local size = Vector3.new(x1 - x0, depth, z1 - z0)
 		local centre = Vector3.new((x0 + x1) / 2, -depth / 2, (z0 + z1) / 2)
-		part(folder, "Ground", size, centre, MEADOW, true).Material = Enum.Material.Grass
+		GroundLook.grassy(part(folder, "Ground", size, centre, MEADOW, true))
 	end
 	local function inGarden(x: number, z: number): boolean
 		for index = 1, Plot.COUNT do

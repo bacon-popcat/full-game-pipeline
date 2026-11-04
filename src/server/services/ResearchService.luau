@@ -1,5 +1,8 @@
 -- ResearchService: owns one paid, wall-clock project per loaded profile. Requests validate
--- before spending or refunding without yielding; completion alone announces ResearchDone.
+-- before spending or refunding without yielding. A project whose timer has run out waits,
+-- saved as active, until its player completes it; completing alone applies its bonus and
+-- announces ResearchDone. The one-second loop only tells the player, once a session, that it
+-- is ready.
 -- DataService loads before machines/crops and releases before the plot. Invalid saved entries
 -- are skipped with a warning, so a retired project can never prevent a garden from loading.
 
@@ -20,6 +23,8 @@ local PlotService = require(script.Parent.PlotService)
 local COOLDOWN = 0.3
 local states: { [Player]: Research.Saved } = {}
 local lastAction: { [Player]: number } = {}
+-- The running project each player has already been told is ready, so the loop says it once.
+local announced: { [Player]: string } = {}
 local ResearchService = {}
 
 local function wallTime(): number
@@ -33,6 +38,11 @@ end
 local function plotOf(player: Player): Model?
 	local index = PlotService.get(player)
 	return if index then Plot.model(index) else nil
+end
+
+-- Whether a running project's timer has run out (with Research.READY_EARLY to spare).
+local function isReady(active: Research.Active): boolean
+	return Research.isReady(active.startedAt + active.seconds, wallTime() + Research.READY_EARLY)
 end
 
 local function publish(player: Player, state: Research.Saved)
@@ -107,6 +117,7 @@ function ResearchService.load(player: Player, saved: any)
 	end
 	states[player] = state
 	lastAction[player] = nil
+	announced[player] = nil
 	publish(player, state)
 	sync(player)
 end
@@ -128,6 +139,7 @@ function ResearchService.release(player: Player)
 	end
 	states[player] = nil
 	lastAction[player] = nil
+	announced[player] = nil
 	Bonuses.clear(player)
 end
 
@@ -142,7 +154,10 @@ local function start(player: Player, state: Research.Saved, id: unknown): string
 		return "Your garden is still loading."
 	end
 	local reason = Research.blocker(project, state.done, economy.level, if state.active then state.active.id else nil)
-	if reason then
+	if reason and state.active and isReady(state.active) then
+		local running = Research.get(state.active.id)
+		return `Complete {if running then running.name else "your research"} first.`
+	elseif reason then
 		return reason
 	end
 	local held: { [string]: number } = {}
@@ -171,6 +186,8 @@ local function cancel(player: Player, state: Research.Saved): string
 	local active = state.active
 	if not active then
 		return "No research is running."
+	elseif isReady(active) then
+		return "This research is done. Complete it instead."
 	end
 	local project = Research.get(active.id)
 	assert(project, "ResearchService: active project must exist")
@@ -187,6 +204,24 @@ local function cancel(player: Player, state: Research.Saved): string
 	return `Research cancelled. Refunded {project.coins} coins.`
 end
 
+-- Finishes a project whose timer has run out: its bonus applies and ResearchDone fires.
+local function complete(player: Player, state: Research.Saved): string
+	local active = state.active
+	if not active then
+		return "No research is running."
+	elseif not isReady(active) then
+		return "That research isn't finished yet."
+	end
+	local project = Research.get(active.id)
+	assert(project, "ResearchService: active project must exist")
+	state.done[active.id] = true
+	state.active = nil
+	announced[player] = nil
+	publish(player, state)
+	GardenEvents.ResearchDone:Fire(player, active.id)
+	return `Research complete: {project.name}!`
+end
+
 local function onResearch(player: Player, action: unknown, id: unknown)
 	local state = states[player]
 	local now = os.clock()
@@ -201,26 +236,30 @@ local function onResearch(player: Player, action: unknown, id: unknown)
 			message = start(player, state, id)
 		elseif action == "Cancel" then
 			message = cancel(player, state)
+		elseif action == "Complete" then
+			message = complete(player, state)
 		else
-			message = "Choose Start or Cancel."
+			message = "Choose Start, Cancel or Complete."
 		end
 	end
 	Remotes.Notify:FireClient(player, message)
 	sync(player)
 end
 
-local function finish(player: Player, state: Research.Saved)
+-- Tells the player, once, that their running project's timer has run out.
+local function announce(player: Player, state: Research.Saved)
 	local active = state.active
-	if not active or wallTime() < active.startedAt + active.seconds then
+	if
+		not active
+		or announced[player] == active.id
+		or not Research.isReady(active.startedAt + active.seconds, wallTime())
+	then
 		return
 	end
+	announced[player] = active.id
 	local project = Research.get(active.id)
 	assert(project, "ResearchService: active project must exist")
-	state.done[active.id] = true
-	state.active = nil
-	publish(player, state)
-	GardenEvents.ResearchDone:Fire(player, active.id)
-	Remotes.Notify:FireClient(player, `Research done: {project.name}!`)
+	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`)
 	sync(player)
 end
 
@@ -230,7 +269,7 @@ function ResearchService.init()
 		task.wait(1)
 		for player, state in states do
 			if player.Parent == Players and player:GetAttribute("DataReady") == true then
-				finish(player, state)
+				announce(player, state)
 			end
 		end
 	end

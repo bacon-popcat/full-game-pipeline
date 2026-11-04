@@ -97,8 +97,9 @@ layer of blocks and digging uncovers the cells round the hole. `GroundService` o
   and is not saved.
 - **Art.** Grass, dirt and stone ground are copies of the Grass, Dirt and Stone blocks
   (`Assets.Blocks`, the node's `art`). Farmland is built in code by `server/libraries/GroundArt`:
-  a furrow-brown cube with three raised ridges in the Dirt block's own colour (read from its
-  template), darkened when wet. `Assets.World.Farmland`, the old dark art, is no longer used.
+  a cube of the game's dirt texture (World/GroundLook, Texture objects on its top and sides)
+  shaded down into furrows, with three raised ridges in the dirt's own colour, all darkened when
+  wet. `Assets.World.Farmland`, the old dark art, is no longer used.
 - **Saving.** Only where a garden differs from untouched is kept: dug cells and tilled cells, plot
   relative ([plots.md](plots.md#profile-contents)). Building and restoring stand the exposed
   cells round each change; BuildService refuses any placement that takes solid ground

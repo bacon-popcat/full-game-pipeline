@@ -3,10 +3,10 @@ standard library only, so they rebuild exactly: `python tools/sounds/synth.py`.
 
 They are made to sit in the ElevenLabs palette's family (warm wood, soil, soft chimes; no voice or
 melody, quiet, short): bell-like chimes are a few decaying sine partials, wood is a struck tone
-with a filtered noise click, leaves are band-passed noise. Every sound has a soft attack, ends in
+with a filtered noise click, leaves are band-passed noise, scattered as tiny grains for a rustle. Every sound has a soft attack, ends in
 silence and peaks at PEAK so none of them is harsh played over and over.
 
-Roles: Harvest (a leafy pluck, a rounded pop and a tiny sparkle), HarvestRare (a shimmer of three
+Roles: Harvest (leaves rustling, a green stem snapping and soil crumbling off the roots), HarvestRare (a shimmer of three
 soft chimes, layered over Harvest for a mutated crop), Chop (a soft wooden thock), TreeFall (a creak,
 a leafy whoosh and a soft thud), Craft (two quick wooden taps and a click), ResearchDone (a rising
 two-note chime over a warm swell).
@@ -109,21 +109,34 @@ def finish(samples, tail=0.05):
     return samples + silence(0.02)
 
 
+def grains(seconds, count, spread, low, high, length=(0.006, 0.022), fall=0.12):
+    """A rustle: `count` tiny band-passed noise grains scattered over `spread` seconds, each a
+    leaf or blade brushing past, quieter the later they come."""
+    out = silence(seconds)
+    for _ in range(count):
+        at = random.uniform(0, spread)
+        size = random.uniform(*length)
+        centre = random.uniform(low, high)
+        grain = shaped(bandpass(noise(size + 0.01), centre * 0.6, centre * 1.4), size * 0.3, size * 0.4)
+        mix(out, grain, at, random.uniform(0.5, 1.0) * math.exp(-at / fall))
+    return out
+
+
 def harvest():
-    out = silence(0.42)
-    rustle = shaped(bandpass(noise(0.16), 2200, 7000), 0.01, 0.045)
-    mix(out, rustle, 0, 0.22)
-    # A rounded pop: a sine whose pitch drops quickly, like a stem letting go.
-    n = int(0.12 * RATE)
-    pop, phase = [], 0.0
-    for i in range(n):
-        t = i / RATE
-        f = 340 + 560 * math.exp(-t / 0.018)
-        phase += math.tau * f / RATE
-        pop.append(math.sin(phase) * min(1, i / (0.002 * RATE)) * math.exp(-t / 0.05))
-    mix(out, pop, 0.03, 1.0)
-    mix(out, bell(2637, 0.3, 0.09), 0.075, 0.12)
-    return finish(out)
+    """A plant pulled from the ground: leaves rustling as it is grasped, a green stem snapping,
+    soil crumbling off the roots, and the leaves settling. No tones: it should sound like the
+    garden, not a game."""
+    out = silence(0.6)
+    mix(out, grains(0.3, 26, 0.16, 1800, 6500), 0, 0.5)
+    # The stem: a crisp, dry click with a short woody knock under it.
+    mix(out, shaped(highpass(noise(0.02), 2500), 0.0003, 0.0025), 0.11, 0.55)
+    mix(out, tone(1150, 0.06, 0.008, 0.0005, ((1, 1.0), (2.3, 0.4))), 0.11, 0.18)
+    # Soil letting go: a soft low thump and a few crumbs pattering down.
+    mix(out, shaped(lowpass(noise(0.14), 260), 0.004, 0.035), 0.12, 0.9)
+    mix(out, grains(0.35, 14, 0.24, 300, 1200, (0.004, 0.012), 0.12), 0.15, 0.55)
+    # The leaves swaying back after the pull.
+    mix(out, grains(0.3, 12, 0.2, 2500, 7000, fall=0.1), 0.2, 0.22)
+    return finish(out, 0.08)
 
 
 def harvest_rare():

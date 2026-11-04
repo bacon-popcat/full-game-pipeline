@@ -40,7 +40,7 @@ one. The new Harvest replaces the ElevenLabs pluck (140384005911871); put that i
 
 | Role | File | Asset id | Sound |
 |---|---|---|---|
-| Harvest | Garden_Harvest.wav | 85383832508508 | a leafy rustle, a rounded pop (pitch falling 900 to 340 Hz) and a tiny high sparkle, 0.4 s |
+| Harvest | Garden_Harvest.wav | 121632984070614 | leaves rustling (scattered noise grains), a dry green stem snap, a soft soil thump with crumbs pattering down, and the leaves settling; no tones, 0.6 s. Replaced the phase 7 rustle-pop-sparkle (85383832508508) to sound more like nature |
 | HarvestRare | Garden_HarvestRare.wav | 126550585056131 | three soft chimes rising (G6, B6, D7), layered over Harvest for a mutated crop, 1 s |
 | Chop | Garden_Chop.wav | 136761976782388 | a soft low wooden thock with a little crack, 0.4 s |
 | TreeFall | Garden_TreeFall.wav | 118623246906163 | a low creak, a leafy whoosh and a soft thud, 1.7 s |

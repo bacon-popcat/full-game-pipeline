@@ -2,6 +2,11 @@
 -- Research: owns the project catalogue, additive effects and shared eligibility and timing
 -- rules. Costs are paid by the server; crafting recipes (Shared/Crafting) name the project
 -- that unlocks them, so a crafting project here has no effects of its own.
+--
+-- Each category is one upgrade tree: a single root project (no needs) and every other project
+-- needing one in its own category first, so the Research window can draw it as branches. Only
+-- Master reaches across trees, for its extra needs. A project's timer running out does not
+-- finish it: the player completes it (Research.isReady), which is when its bonus applies.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
@@ -127,7 +132,7 @@ local PROJECTS: { Project } = {
 		coins = 400,
 		items = { Wood = 10 },
 		seconds = 60,
-		needs = {},
+		needs = { "CrateMaking" },
 		effects = {},
 	},
 	{
@@ -139,7 +144,7 @@ local PROJECTS: { Project } = {
 		coins = 1000,
 		items = {},
 		seconds = 120,
-		needs = {},
+		needs = { "Learn1" },
 		effects = { sellPrice = 0.05 },
 	},
 	{
@@ -151,7 +156,7 @@ local PROJECTS: { Project } = {
 		coins = 800,
 		items = {},
 		seconds = 120,
-		needs = {},
+		needs = { "Axe1" },
 		effects = { mineYield = 1 },
 	},
 	{
@@ -163,7 +168,7 @@ local PROJECTS: { Project } = {
 		coins = 1500,
 		items = {},
 		seconds = 180,
-		needs = {},
+		needs = { "Yield1" },
 		effects = { growSpeed = 0.05 },
 	},
 	{
@@ -187,7 +192,7 @@ local PROJECTS: { Project } = {
 		coins = 2000,
 		items = {},
 		seconds = 240,
-		needs = {},
+		needs = { "Belts1" },
 		effects = { harvesterSpeed = 0.15 },
 	},
 	{
@@ -211,7 +216,7 @@ local PROJECTS: { Project } = {
 		coins = 3000,
 		items = {},
 		seconds = 300,
-		needs = {},
+		needs = { "Learn1" },
 		effects = { seedStock = 1 },
 	},
 	{
@@ -223,7 +228,7 @@ local PROJECTS: { Project } = {
 		coins = 2500,
 		items = {},
 		seconds = 240,
-		needs = {},
+		needs = { "Carpentry" },
 		effects = {},
 	},
 	{
@@ -235,7 +240,7 @@ local PROJECTS: { Project } = {
 		coins = 3000,
 		items = {},
 		seconds = 300,
-		needs = {},
+		needs = { "Belts1" },
 		effects = { machineSpeed = 0.1 },
 	},
 	{
@@ -271,7 +276,7 @@ local PROJECTS: { Project } = {
 		coins = 5000,
 		items = {},
 		seconds = 360,
-		needs = {},
+		needs = { "Learn1" },
 		effects = { researchSpeed = 0.15 },
 	},
 	{
@@ -283,7 +288,7 @@ local PROJECTS: { Project } = {
 		coins = 6000,
 		items = {},
 		seconds = 480,
-		needs = {},
+		needs = { "Yield1" },
 		effects = { mutationChance = 0.2 },
 	},
 	{
@@ -295,7 +300,7 @@ local PROJECTS: { Project } = {
 		coins = 8000,
 		items = { CopperWire = 4 },
 		seconds = 600,
-		needs = {},
+		needs = { "Belts1" },
 		effects = { sprinklerRadius = 1 },
 	},
 	{
@@ -665,6 +670,19 @@ for _, project in PROJECTS do
 	end
 end
 
+-- Every project but a category's root needs one in its own category, so each tab is one tree.
+local roots: { [string]: string } = {}
+for _, project in PROJECTS do
+	local sameCategory = false
+	for _, id in project.needs do
+		sameCategory = sameCategory or byId[id].category == project.category
+	end
+	if not sameCategory then
+		assert(not roots[project.category], `Research: "{project.id}" is a second root of {project.category}`)
+		roots[project.category] = project.id
+	end
+end
+
 local Research = { PROJECTS = PROJECTS, STATS = STATS }
 
 function Research.get(id: string): Project?
@@ -700,6 +718,14 @@ function Research.blocker(project: Project, done: { [string]: boolean }, level: 
 		end
 	end
 	return nil
+end
+
+-- Whether a running project's timer has run out, so it can be completed. `now` and `endsAt`
+-- are on the same clock; the server allows completing up to READY_EARLY seconds before, so a
+-- press the moment a client's countdown ends is never refused.
+Research.READY_EARLY = 0.5
+function Research.isReady(endsAt: number, now: number): boolean
+	return now >= endsAt
 end
 
 function Research.duration(project: Project, researchSpeed: number): number

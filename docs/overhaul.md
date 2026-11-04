@@ -25,8 +25,8 @@ conveyors play, never for their models.
 ## The map
 
 Cells are `Build` cells (3 studs). The gardens reach x -115 ... 114 cells. PlotService lays
-grass ground round them (plots.md), and since phase 7 MapService grows Terrain past it: a
-forest ring with paths and ponds, then hills (`Shared/World/Map`); the gardens themselves are
+grass ground round them (plots.md), and since phase 7 MapService builds the land past it out
+of parts: a forest ring with paths and ponds, then low-poly hills (`Shared/World/Map`); the gardens themselves are
 diggable ground, 8 levels deep (farming.md).
 
 ```text

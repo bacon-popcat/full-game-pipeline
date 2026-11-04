@@ -1,7 +1,7 @@
 --!strict
 -- ResearchClient: the latest ResearchSync, what this player has researched and what is running
--- (ResearchService). Screens read it and hear `changed`. The server sends a fresh one on load
--- and after every start, cancel and finish, so nothing here predicts.
+-- (ResearchService). Screens read it and hear `changed`. The server sends a fresh one on load,
+-- after every start, cancel and complete, and when a timer runs out, so nothing here predicts.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Research = require(ReplicatedStorage.Shared.Research)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)

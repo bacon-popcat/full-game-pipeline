@@ -11,8 +11,9 @@ export type Role = { id: string, volume: number, spatial: boolean }
 local ROLES: { [string]: Role } = {
 	-- a seed pressed into soil
 	Plant = { id = "rbxassetid://90385484162031", volume = 0.35, spatial = true },
-	-- a crop picked or reaped (the ElevenLabs pluck before phase 7 was rbxassetid://140384005911871)
-	Harvest = { id = "rbxassetid://85383832508508", volume = 0.45, spatial = true },
+	-- a crop picked or reaped: leaves, a stem snapping, soil crumbling (the phase 7 pop was
+	-- rbxassetid://85383832508508, the ElevenLabs pluck before it rbxassetid://140384005911871)
+	Harvest = { id = "rbxassetid://121632984070614", volume = 0.5, spatial = true },
 	-- layered over Harvest when the crop came out mutated
 	HarvestRare = { id = "rbxassetid://126550585056131", volume = 0.3, spatial = true },
 	-- an axe biting into a forest tree, and the tree coming down

@@ -74,7 +74,7 @@ ChildAdded notification or init scan is harmless. No load assumes a sibling init
   PlotService lays grass pieces round the gardens (and removes the place's Baseplate), reaching
   `Map.GROUND_MARGIN` (36 studs) past them all and as deep as the ground plus 4 studs of bedrock,
   so a hole dug at a garden's edge meets a wall; each garden has a bedrock slab under
-  `Plot.FLOOR`. Past that ground the map is MapService's Terrain (§ The map round the gardens). Owned
+  `Plot.FLOOR`. Past that ground the map is MapService's parts (§ The map round the gardens). Owned
   sections are diggable ground, grass on top; each locked section is one solid slab as deep.
 - New gardens are all grass; the Hoe tills it into Farmland, flush with the ground, so crops
   grow at y = 0, the level of machines standing on the grass beside them. Gardens used to start
@@ -191,7 +191,7 @@ Active recipe ingredients are refunded into saved input counts and processing re
 after loading. Partial job progress and sensor pulses do not persist. Stored fuel time,
 outputs, router settings and lane counts persist; lane ordering/positions are reconstructed
 at legal spacing. Loose drops are not saved and are cleared on departure. Only crops grow
-offline; research timers also elapse offline and finish in the live loop after DataReady.
+offline; research timers also elapse offline and then wait for the player to complete them.
 Current timing, multi regrowth and weather credit are in [farming.md](farming.md).
 Old crops default missing growthBonus to zero and mutationRolled to false (or true when
 a mutation is already stored); the profile store stays unchanged.
@@ -255,25 +255,30 @@ Local formatter, lint and type checks do not substitute for these runtime checks
 `Shared/World/Map` owns the layout, built outward from the gardens' extent: `GROUND` (the gardens
 plus the margin), a flat forest ring `FOREST` (150) studs wide, then `HILLS` (240) studs of hills
 to `EDGE`; its `PATHS` (a road out of each end of the hub road, joining a loop through the
-middle of the forest) and `PONDS`; and the meadow colour both PlotService and the Terrain use.
-`MapService` grows it at startup, never saved:
+middle of the forest) and `PONDS`; and the meadow colour both PlotService and the land past it use. `MapService` builds it at
+startup out of anchored parts in `Workspace.Map` (no Terrain), never saved:
 
-- **Meadow.** Grass Terrain from PlotService's ground out to the edge, top at y = 0, and a ring
-  tucked under the ground's edge a stud below its top, where the parts hide it, so no gap opens
-  at the seam (voxels are 4 studs; the gardens' edges aren't on that grid).
-- **Paths and ponds.** Paths are a voxel deep of Ground (dirt), rounded at the ends. Each pond is
-  a sand disc, a bowl carved by an air ball and water up to a stud and a bit below the meadow.
-- **Hills.** One smooth heightmap written with WriteVoxels a 64-stud chunk a frame: rising
-  from the forest's edge (corners rounded) to about 130 studs at the map's edge, in broad noise
-  swells with small bumps, rock on the bumpiest high tops. The top voxel of each column is
-  partly filled, so slopes aren't stepped.
+- **Forest floor.** Four 16-stud-deep strips from PlotService's ground out to the forest's edge,
+  top at y = 0, wearing World/GroundLook's grass on top and dirt down the sides, tiled one per
+  3 studs like a garden's cubes, so the meadow meets the gardens' ground with no seam. The ground
+  round the gardens (PlotService) wears the same.
+- **Paths and ponds.** Paths are dirt-textured strips with rounded disc ends, standing 0.12 studs
+  proud of the floor (each 0.03 higher than the last so crossings never flicker): a texture is
+  drawn with a depth bias that beats a surface a few hundredths of a stud above it. Each pond is a
+  sand disc, a darker bed and a shallow, see-through water disc that can be waded through.
+- **Hills.** Soft low-poly hills: a grid about 40 studs square over the whole map, skipping the
+  forest, each square two flat triangles (two WedgeParts each, sunk under their surface, the
+  diagonal alternating), about 2,900 wedges built 200 a frame. Heights rise from the forest's edge
+  (corners rounded) to about 130 studs at the map's edge, in broad noise swells with small bumps;
+  each triangle is the meadow green, lighter up high and a touch lighter or darker by a slow
+  noise, or rock on the bumpiest high tops.
 - **Edge and sky.** Invisible walls at `EDGE`; an Atmosphere (soft haze) when the place has none.
 - **Trees.** `World/Layout` scatters about 90 ForestOak, ForestPine and ForestBirch nodes over the
   forest on a seeded, jittered grid, thicker in noise groves and clear of paths and ponds
   (factory.md § The forest).
 
-Playtested: the meadow meets the gardens' ground with no seam, paths and ponds show, the hills
-close the view, and 89 trees stand.
+Playtested: the meadow meets the gardens' ground with no seam, paths and ponds (with their sand
+rims) show, the low-poly hills close the view, and the trees stand.
 
 ## Plot and hub props
 

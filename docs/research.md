@@ -5,19 +5,31 @@ effect numbers and shared start/duration rules. Crafting recipes (`Shared/Crafti
 project that unlocks them; research stores no recipe links. The Research window shows it all
 (§ Window).
 
+Each category is one upgrade tree: a single root project and every other project needing one in
+its own category (Farming from Rich Soil I, Automation from Faster Belts I, Economy from Quick
+Learner I, Tools from Sharp Axe I, Crafting from Crate Making). Only Master Gardener reaches
+across trees, for its Farming needs. `Shared/Research` asserts the shape at load. Finished saves
+stay valid however the links change, because needs are checked only when a project starts.
+
 ## Flow
 
 ```text
 DataService: assign plot -> ResearchService.load -> restore ground, blocks, crops
     -> inventory/economy/garden/onboarding -> DataReady
 Research Start -> readiness/cooldown/id/level/prerequisites/items/coins -> pay -> active -> sync
-Research Cancel -> all refund items fit -> refund coins/items -> clear active -> sync
-one-second loop, DataReady only -> elapsed project -> done -> Bonuses + BeltSpeed
-    -> GardenEvents.ResearchDone -> Notify -> sync
+Research Cancel -> timer still running -> all refund items fit -> refund coins/items -> clear active -> sync
+one-second loop, DataReady only -> timer just ran out -> Notify "ready" once a session -> sync
+Research Complete -> timer ran out -> done -> Bonuses + BeltSpeed -> GardenEvents.ResearchDone
+    -> Notify -> sync
 DataService: snapshot research with balances -> clear research before releasing the plot
 ```
 
-One project runs at a time on fractional Unix seconds. Duration is fixed when it starts,
+One project runs at a time on fractional Unix seconds. When its timer runs out it is not done:
+it stays active (and saved) until the player presses Complete, which is when its bonus applies
+and the completion effects play. `Research.isReady` is the rule; the server accepts a Complete up
+to `Research.READY_EARLY` (0.5 s) before the deadline, so a press as a client's countdown ends is
+never refused. A ready project cannot be cancelled, and starting another one says to complete it
+first. Duration is fixed when it starts,
 using the current research-speed bonus. Starting and cancelling validate before changing
 anything and do not yield between checks and mutation. Requests share a per-player cooldown;
 each one, including a refusal or malformed payload, gets a toast and authoritative snapshot.
@@ -34,9 +46,11 @@ completion, then removes it before release.
 
 `Shared/Remotes` owns payload contracts; `default.project.json` authors the events.
 
-- `Research`, client to server: `("Start" | "Cancel", id?)`. Start requires a known id.
+- `Research`, client to server: `("Start" | "Cancel" | "Complete", id?)`. Start requires a known
+  id; Complete finishes the running project once its timer has run out.
 - `ResearchSync`, server to client: `{done = {id, ...}, active = {id, endsAt, seconds}?,
-  bonuses = {[stat] = number}}`. Sent on load, start, cancel, finish and every refusal.
+  bonuses = {[stat] = number}}`. Sent on load, start, cancel, complete, when a timer runs out,
+  and every refusal. `active` stays past `endsAt` until completed.
   Finished ids follow catalogue order. The deadline converts saved Unix seconds to
   `workspace:GetServerTimeNow()`, so device clocks do not affect the countdown.
 - `Notify` explains successful actions and refusals and announces completion.
@@ -47,8 +61,8 @@ The profile's `research` defaults to `{done = {}, active = nil}`. Done is an id-
 map; active holds `{id, startedAt, seconds}`. Snapshots copy both tables. Research loads
 immediately after plot assignment, before machines and crops, so restored crops' offline
 mutation rolls see finished bonuses. Load never announces garden actions or finishes a
-project: the same one-second loop completes an overdue project once DataReady is true,
-giving the arriving player its toast once.
+project: a project that ran out offline waits for its Complete, and the one-second loop tells
+the arriving player it is ready once DataReady is true.
 
 Unknown finished ids, malformed entries and unknown/malformed active projects are dropped
 with warnings. Active timestamps and durations must be finite, the timestamp nonnegative
@@ -85,29 +99,76 @@ change play even with zero research. Their item simulation and drawing still use
 
 ## Window
 
-`UIController/ResearchScreen` binds the authored `HUD.Research` window, opened by
-`SideButtons.Research` from anywhere (HubWindow, with no stalls). `client/libraries/ResearchClient`
-keeps the latest ResearchSync. `Body.Tabs.Farming`, `Automation`, `Economy`, `Tools` and
-`Crafting` pick a category; its projects are rows cloned from `Assets.UI.Research.Row` (Icon,
-Name, Description, Cost, Needs, Start with its Label), lowest level first and finished ones last
-and faded. Needs shows the time and any items, or `Research.blocker`'s reason; the button reads
-Research, Locked, Busy, Running, Done, Need coins or Need items. `Body.Active` shows the running
-project (Text, Time, a Bar with its Fill) and its Cancel. A press waits for the next sync. A
-row's icon is an item standing for its line (Belts a belt, Rich Soil a carrot, a crafting
-project its recipe's output). A finished project also gets a warm ring and the ResearchDone
-sound (FxService `Research`).
+`UIController/ResearchScreen` binds the Research window, opened by `SideButtons.Research` from
+anywhere (HubWindow, with no stalls and not modal, so nothing blurs behind it).
+`client/libraries/ResearchClient` keeps the latest ResearchSync. The window is a full-screen
+black view in its own ScreenGui, `StarterGui.ResearchView`. While it is open,
+`client/libraries/HudVisibility` hides the HUD, Roblox's player list and chat, leaving only the
+close button, the category tabs along the top and the running project's strip along the bottom.
+HudVisibility arbitrates `HUD.Enabled` by named requests, so the save menu (HUD only) and the
+Research view never fight over it. `Body.Tabs.Farming`, `Automation`, `Economy`, `Tools` and
+`Crafting` pick a category, whose tree is drawn on `Research.Canvas`:
+
+- **Layout.** A project's column is how many projects lead to it in its tree; it hangs off its
+  latest need. Children that continue its line (Yield1 -> Yield2) run straight along its row;
+  each other child starts a row of its own below. Tiles are cloned from
+  `Assets.UI.Research.Node`, 140 px apart across and 136 down, with the name under each.
+- **Lines.** Each need in the same tree is joined to the project by an elbowed line of
+  `Assets.UI.Research.Link` pieces: across, down at the gap before the project, across into it.
+  Lines out of a finished project are lit green.
+- **States.** A tile's border says its state: green done, yellow can start, red locked (its item
+  and name faded), blue running (with a progress bar), gold and pulsing ready to complete.
+- **Cost badge.** Open and locked tiles show the optional `Node.Cost` label: plain coins below
+  1,000, then K/M with one decimal and no trailing .0. Red when unaffordable, otherwise its
+  authored text colour; updates with the wallet. Hidden for running, ready and done projects.
+- **Info.** Pressing a tile selects it: the canvas glides to bring it just below the middle of the
+  screen and `Research.Info` stands above it, with its name (in its state's colour), description,
+  level and state, cost (red when you can't afford it), and the time, items and blocker, and an
+  Action button: Research, Complete, Running, Busy, Locked, Need coins, Need items or Done.
+  Hovering (or gamepad-selecting) another tile shows the same in `Research.Tooltip` above that
+  one, without the button. On opening a tab, the running project is selected, else the first that
+  can start, else the root.
+- **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill) with Cancel;
+  once its timer runs out it reads "<name> is ready!" and `Complete` (gold, pulsing) replaces
+  Cancel.
+- **Panning and zoom.** Dragging the background pans the canvas; the mouse wheel zooms it
+  (`Canvas.UIScale`, 0.6 to 1.4). Two fingers pinch to zoom without also panning. While open,
+  the gamepad's right stick pans smoothly (0.2 dead zone); ButtonL2/ButtonR2 zoom out/in.
+  The left stick and D-pad keep their tile selection.
+
+A press waits for the next sync. A tile's icon is an item standing for its line (Belts a belt,
+Rich Soil a carrot, a crafting project its recipe's output).
+
+**Completing.** When a sync adds a finished project while the window is open, the screen switches
+to its tree, glides to it and bursts it: the tile pops, a gold flash and a green ring spread from
+it, sparks fly out, and the lines to what it unlocks light up one after another. These are
+transient frames; under reduced motion only the flash and ring play, without moving. In the
+world, FxService sends `Research` and FxController plays the `ResearchComplete` effect
+(`Shared/VFX/Effects`, through `VFXPlayer`) round the player: a soft flash, a gold ground ring and
+glow, two strands of motes spiralling up (gold and leaf green), a slow column of light motes,
+rising sparkles, a warm Highlight and a light, with the ResearchDone sound.
 
 ```text
-StarterGui.HUD.Research [Frame]          cloned from Shop: Header.Title/Close, UIScale
-  Body.Tabs.<Category> [TextButton]
-  Body.Active [Frame]  Text, Time [TextLabel]; Bar.Fill [Frame]; Cancel [TextButton]
-  Body.List [ScrollingFrame]
-ReplicatedStorage.Assets.UI.Research.Row [Frame]  Icon, Name, Description, Cost, Needs, Start.Label
+StarterGui.ResearchView [ScreenGui]      ResetOnSpawn off, IgnoreGuiInset, ScreenInsets None,
+                                         DisplayOrder 5
+  Research [Frame]   full screen, black, Active; UIScale; Header.Close
+    Body.Tabs.<Category> [TextButton]
+    Body.Active [Frame]  Text, Time [TextLabel]; Bar.Fill [Frame]; Cancel, Complete [TextButton]
+    Canvas [Frame]  UIScale; Links, Nodes [Frame]
+    Info [Frame]     auto-height list: Name, Description, Level, Cost, Needs [TextLabel];
+                     Action [TextButton] with Label
+    Tooltip [Frame]  the same without Action
+ReplicatedStorage.Assets.UI.Research.Node [TextButton]  84 px; UIStroke (the state border),
+                     UIScale, Icon [ViewportFrame], Name, Cost [TextLabel], Progress.Fill [Frame]
+ReplicatedStorage.Assets.UI.Research.Link [Frame]  one 4 px line piece; its colour is the unlit one
 StarterGui.HUD.SideButtons.Research [TextButton]  a flask icon, Tooltip
 ```
 
-Played through in Studio: the window and tabs, a start and its 30 s finish (toast, sync, ring),
-a cancel with its exact refund, and research-locked recipes at the Crafting Bench.
+Played through in Studio: the trees, the HUD hiding and coming back, hover and selected info, a
+ready project's gold state and Complete, completing it (the view switching to its tree, the tile
+turning green, its lines lit and three projects unlocking), an early Complete refused, and a start
+and cancel with its exact refund. The ready project was loaded from a snapshot. The save's
+research was restored afterwards, and a fresh session confirmed it had saved.
 
 ## Studio playtest
 
@@ -118,7 +179,8 @@ a cancel with its exact refund, and research-locked recipes at the Crafting Benc
    project, already-finished id and DataReady false. Refusals must resync without spending.
 3. Cancel with room and a full inventory, including multi-item refunds. Verify exact refunds
    once or no changes, then retry after making room.
-4. Finish online and offline, quit/reload another slot and lose the session. Check one
+4. Let a timer run out online and offline, then Complete it; quit/reload another slot and lose
+   the session before completing. Check one ready toast, Cancel refused once ready, one
    completion event/toast, saved duration, separate slot bonuses and BeltSpeed removal.
    Load malformed research, unknown ids, NaN/infinite times and already-done active ids;
    expect warnings and a playable garden.
