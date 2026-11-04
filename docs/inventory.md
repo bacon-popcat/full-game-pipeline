@@ -41,7 +41,7 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage`, `InfoRow` (a Key/Value row ItemDetails clones into a panel's `Rows`, ahead of its `Description` at LayoutOrder 100) |
 | `ReplicatedStorage.Assets.UI.Stack` | `Count`, a BillboardGui with a TextLabel `Label` inside, cloned over every stack of more than one item, loose or on a belt, to show "x24"; until it is authored StackLabel draws a plain dark pill, without a warning |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
-| Cube studs | Each building cube (Grass, Dirt, Stone, Bricks...) is Plastic with `TopSurface = Studs` (Roblox's built-in surface, which only draws on Plastic), Grow a Garden style; `IslandsMachines/build/studio_studs.luau` sets it, and nothing else is studded |
+| Cube materials | Each building cube (Grass, Dirt, Stone, Bricks...) has a Roblox material that says what it is (Grass, Ground, Slate, Concrete, Cobblestone, Brick, WoodPlanks) and Smooth surfaces, no studs; the Grass cube is `Map.GRASS`, so a garden's grass ground (copies of it) meets the meadow. `IslandsMachines/build/studio_cubes.luau` sets it |
 | `ReplicatedStorage.Assets.Tools` | `Hammer`, `Pickaxe`, `WateringCan` Tools, and optionally a `Hoe` (until then ItemArt builds a plain wooden one); the unused Axe template is harmless |
 
 The RemoteEvents are the exception: they are declared in `default.project.json`.

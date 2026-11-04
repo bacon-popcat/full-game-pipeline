@@ -19,7 +19,8 @@ local Map = {}
 -- Studs of PlotService's grass round the gardens on every side.
 Map.GROUND_MARGIN = 36
 -- The meadow grass of the ground round the gardens and the Terrain past it, one colour so the
--- seam between them doesn't show.
+-- seam between them doesn't show. The Grass building cube, and so a garden's grass ground, is
+-- this colour too (docs/inventory.md).
 Map.GRASS = Color3.fromRGB(142, 186, 112)
 -- Studs of flat forest past that ground, then of hills past the forest.
 Map.FOREST = 150
