@@ -10,8 +10,8 @@ Work is on the `garden-overhaul` branch, following [docs/overhaul.md](docs/overh
 Phases 1-4 (foundation, garden loop, automation, crafting) and 6 (polish: onboarding,
 effects, sounds, music, balance) are built and playtested. Phase 5 (art) is nearly done;
 the quarry's copper rock is still a placeholder. Phase 7 (research, wood and the world) is
-being built: research, crafting, the forest map, tree crops and the level curve are in;
-its art and new audio are in progress.
+built and playtested: research, crafting, the forest map and chopping, tree crops, the level
+curve, the industrial machine and conveyor art, the new effects, sounds and music.
 
 ## Domain docs
 

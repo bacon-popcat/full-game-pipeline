@@ -323,7 +323,7 @@ and bench art in Blender.
    router, stall and plot prop has art of its own (below). What is left is the quarry's copper
    rock (still a placeholder cube) and any polish.
 6. [x] **Polish.** Onboarding, sounds, VFX, balance (notes below).
-7. [ ] **Research, wood and the world.** The research system, the forest and Wood, the Crafting
+7. [x] **Research, wood and the world.** The research system, the forest and Wood, the Crafting
    Bench, the new map, tree crops four cells tall, the new level curve, loading the last save,
    industrial machine art, a new harvest effect and sound, more music and a now-playing notice
    (§ Research, wood and the world).
@@ -342,7 +342,10 @@ and bench art in Blender.
 - **Farm machines (done).** Seed Planter, Sprinkler, Harvester, Shipping Bin and Storage Chest
   have models of their own in `IslandsMachines/build/garden_machines.py`, imported as the
   GardenMachines set under their item ids, so they no longer borrow Islands art (tier 2 uses
-  tier 1's model). Cream rounded bodies, sage, warm wood, terracotta and brass. Each is one cell
+  tier 1's model). Since phase 7 they look calmly industrial: painted sheet steel in a warm light
+  grey with panel seams, rivets and louvre vents on slate plinths, riveted slate collars at the
+  ports, and each machine's own accent (sage, warm wood, terracotta, brass) built from steel pipes,
+  a small stack, a gauge and a little safety yellow (a hazard bar, a lever). Each is one cell
   wide and two deep (two tall; the sprinkler is one cell), smaller than the old 3 x 2 x 3
   Islands bodies. Belts are the kit's conveyor, so they meet every other conveyor, and each
   ends at a soft arch the finish script measures as a 1.1-stud port. The planter's patch is
@@ -353,22 +356,27 @@ and bench art in Blender.
   (a stone kiln with a glowing window and a coal basket) and Workbench (a wooden bench with a
   vise, gear, hammer and copper bars), in `garden_machines.py` as the GardenProcessors set.
   Each takes items in at -Z and puts products out at +Z, so each is one cell wide and three
-  deep, with a belt and arch at both ends (1.1-stud ports). Mill II draws the Mill.
+  deep, with a belt and arch at both ends (1.1-stud ports). Mill II draws the Mill. They share
+  the farm machines' steel body since phase 7, each keeping its identity piece on top.
   Playtested: wheat -> Mill -> Flour riding straight into a Shipping Bin.
 - **Conveyors (done).** Plain belts, turns, ramps (tier 1 and 2) and the sensor are our own in
   `IslandsMachines/build/garden_conveyors.py`, imported as the GardenConveyors set under their
   item ids, so they replace the Islands templates. Only the geometry the game needs is kept:
   belt top 1.59, belt 2.3 wide, ends on cell faces, the ramps' 6-long 3-high climb, every
-  footprint unchanged. The look is new: a smooth sage body (sky blue for tier 2) with a cream
-  band (terracotta for tier 2), round cream rails (brass for tier 2) instead of lips, cream
-  end rollers, soft pill arrows on a warm taupe belt, round ramp legs, no bolts or glass walls,
-  and a sensor of cream posts with a mint curtain. The farm machines and processors use the
-  same belt. Playtested: a carrot riding belt -> tier 2 belt -> sensor (lit) -> Shipping Bin.
+  footprint unchanged. Since phase 7 the look is a tidy industrial belt in calm colours: a dark
+  rubber belt with pale chevron cleats, painted steel C-channel sides (machine green for tier 1,
+  slate blue for tier 2) under a guard rail (pale steel, or safety yellow for tier 2) with hex
+  bolts along it, a drip pan, square steel legs on base plates with an X brace, and steel roller
+  hubs cut in half at every cell face, so two belts end to end make one whole roller. The sensor
+  is two steel posts with a mint curtain. The farm machines and processors use the same belt.
+  Playtested: a carrot riding belt -> tier 2 belt -> sensor (lit) -> Shipping Bin. The phase 7
+  restyle kept every footprint and port and was playtested on a running line: Harvesters ->
+  tier 2 belts and a ramp -> Juicers -> Merger -> Shipping Bin.
 - **Routers (done).** Split, Merger, Filter and Randomizer keep islandskit.junction's geometry (a
   3.8-stud hub with a belt arm to each connected cell face) and so their 3 x 2 x 3 footprints, but
-  are drawn in the garden style: a soft cream hub with a sage band and a rounded cap, the new belt
-  and an arch on each arm, and a pastel icon on the cap (a sage fork, a blue V, a terracotta
-  funnel, a die). In `garden_machines.py` as the GardenRouters set. Playtested: a carrot through
+  are drawn in the garden style: since phase 7 a painted steel junction box on a slate plinth band
+  with a riveted steel lid, the new belt and a slate collar and arch on each arm, and a pastel icon
+  on a plate in the lid (a sage fork, a blue V, a terracotta funnel, a die). In `garden_machines.py` as the GardenRouters set. Playtested: a carrot through
   a Split, straight on into a Shipping Bin.
 - **Hub and plots (done).** The four stalls are market stalls with striped awnings in their own
   colours (sage, butter, sky, lilac), an emblem on a sign (sprout, coin, watering can, gear) and
