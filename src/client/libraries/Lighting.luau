@@ -28,10 +28,12 @@ type Preset = {
 	depthOfField: boolean,
 }
 
--- The time of day is a chain of keyframes, blended smoothly by setClock: a warm sun by day
--- with long shadows by late afternoon, golden sunrise and sunset, and a moonlit night. Night
--- is lit, not dark: a bright blue OutdoorAmbient, a moon-tinted ColorShift and raised exposure
--- keep crops, machines and paths easy to read, so play never waits for morning.
+-- The time of day is a chain of keyframes, blended smoothly by setClock: by day a soft,
+-- filmic warmth, with gentle contrast, muted earthy colour and a creamy golden mist that
+-- swallows the distance, shadows lengthening into the afternoon; golden sunrise and sunset;
+-- and a moonlit night. Night is lit, not dark: a bright blue OutdoorAmbient, a moon-tinted
+-- ColorShift and raised exposure keep crops, machines and paths easy to read, so play never
+-- waits for morning.
 type Key = {
 	hour: number,
 	brightness: number,
@@ -83,17 +85,17 @@ local KEYS: { Key } = {
 	NIGHT,
 	key(5.2, 1.8, rgb(64, 68, 96), rgb(104, 110, 148), rgb(176, 172, 222), 0.45, rgb(222, 220, 250), rgb(104, 106, 142), rgb(72, 66, 98)),
 	key(6.5, 2.6, rgb(60, 56, 64), rgb(104, 96, 108), rgb(255, 172, 124), 0.15, rgb(255, 232, 216), rgb(236, 198, 178), rgb(150, 110, 100)),
-	key(9, 3.2, rgb(46, 50, 60), rgb(78, 88, 108), rgb(255, 228, 198), -0.1, rgb(255, 246, 236), rgb(196, 210, 228), rgb(120, 116, 110)),
-	key(13, 2.8, rgb(46, 50, 60), rgb(76, 86, 106), rgb(255, 236, 214), -0.35, rgb(255, 246, 236), rgb(176, 196, 222), rgb(110, 110, 108)),
-	key(16.3, 3.4, rgb(42, 46, 56), rgb(70, 80, 100), rgb(255, 200, 140), -0.15, rgb(255, 238, 216), rgb(196, 208, 226), rgb(128, 112, 96)),
+	key(9, 2.7, rgb(60, 56, 50), rgb(100, 98, 92), rgb(255, 222, 180), 0, rgb(255, 238, 210), rgb(232, 224, 204), rgb(170, 156, 124)),
+	key(13, 2.8, rgb(60, 56, 48), rgb(104, 100, 90), rgb(255, 226, 186), -0.05, rgb(255, 238, 206), rgb(234, 226, 204), rgb(176, 160, 124)),
+	key(16.3, 2.8, rgb(60, 56, 48), rgb(104, 100, 90), rgb(255, 216, 168), 0, rgb(255, 236, 202), rgb(234, 224, 198), rgb(176, 158, 120)),
 	key(17.6, 2.8, rgb(56, 52, 62), rgb(96, 88, 106), rgb(255, 160, 108), 0, rgb(255, 226, 206), rgb(226, 178, 158), rgb(140, 100, 92)),
 	key(18.6, 1.9, rgb(66, 70, 100), rgb(110, 120, 164), rgb(178, 180, 230), 0.65, rgb(228, 228, 255), rgb(96, 100, 140), rgb(56, 58, 92)),
 	key(24, NIGHT.brightness, NIGHT.ambient, NIGHT.outdoor, NIGHT.shift, NIGHT.exposure, NIGHT.tint, NIGHT.haze, NIGHT.decay),
 }
 local GRADE = {
 	brightness = 0,
-	contrast = 0.25,
-	saturation = 0.2,
+	contrast = 0.06,
+	saturation = 0,
 }
 local PRESETS: { [Quality]: Preset } = {
 	-- Colour grade and plain haze only: no shadow maps, no bloom pass, no reflections.
@@ -103,7 +105,7 @@ local PRESETS: { [Quality]: Preset } = {
 		diffuse = 0.6,
 		specular = 0,
 		glare = 0,
-		haze = 1,
+		haze = 1.2,
 		bloom = false,
 		sunRays = false,
 		depthOfField = false,
@@ -113,8 +115,8 @@ local PRESETS: { [Quality]: Preset } = {
 		shadowSoftness = 0.25,
 		diffuse = 1,
 		specular = 0.7,
-		glare = 0.8,
-		haze = 1.2,
+		glare = 0.25,
+		haze = 1.4,
 		bloom = true,
 		sunRays = false,
 		depthOfField = false,
@@ -124,8 +126,8 @@ local PRESETS: { [Quality]: Preset } = {
 		shadowSoftness = 0.12,
 		diffuse = 1,
 		specular = 1,
-		glare = 1.2,
-		haze = 1.4,
+		glare = 0.3,
+		haze = 1.6,
 		bloom = true,
 		sunRays = true,
 		depthOfField = true,
@@ -177,11 +179,12 @@ sky.SunAngularSize = 14
 sky.MoonAngularSize = 11
 sky.StarCount = 3000
 sky.CelestialBodiesShown = true
-atmosphere.Density = 0.3
-atmosphere.Offset = 0.1
-bloom.Intensity = 0.8
-bloom.Size = 30
-bloom.Threshold = 0.95
+atmosphere.Density = 0.36
+atmosphere.Offset = 0.25
+-- Only light well past white blooms, so lit white surfaces (hands, road arrows) don't halo.
+bloom.Intensity = 0.3
+bloom.Size = 20
+bloom.Threshold = 1.8
 sunRays.Intensity = 0.12
 sunRays.Spread = 0.8
 -- Far blur only, starting well past the plot, so the garden stays sharp and the hills soften.

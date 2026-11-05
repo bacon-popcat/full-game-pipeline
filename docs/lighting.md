@@ -1,6 +1,7 @@
 # Lighting
 
-The look follows a day and night cycle: a warm sun with crisp shadows that lengthen into
+The look follows a day and night cycle. By day it is soft and filmic: gentle contrast, muted
+earthy colour and a creamy golden mist over the distance, with shadows that lengthen into
 the afternoon, golden sunrise and sunset, and a moonlit night under stars. Every time of day
 stays easy to read. Night is lit with a bright blue ambient, a moon-tinted sun colour and
 raised exposure, so crops, machines and paths are always clear. Players pick how much of the
@@ -42,8 +43,8 @@ sits before it. `DayTint` is its own ColorCorrection, so weather requests, which
 |---|---|---|---|
 | Shadows | off | on, softness 0.25 | on, softness 0.12 |
 | Environment diffuse / specular | 0.6 / 0 | 1 / 0.7 | 1 / 1 |
-| Atmosphere glare / haze | 0 / 1 | 0.8 / 1.2 | 1.2 / 1.4 |
-| Bloom | off | on | on |
+| Atmosphere glare / haze | 0 / 1.2 | 0.25 / 1.4 | 0.3 / 1.6 |
+| Bloom (threshold 1.8, so only light well past white glows) | off | on | on |
 | SunRays | off | off | on |
 | DepthOfField (far only, past the plot) | off | off | on |
 
