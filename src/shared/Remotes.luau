@@ -107,4 +107,8 @@ return {
 	-- within reach. The server checks DataReady, the recipe's research, every input and room for
 	-- the output, then trades them in one step. Answered with Notify.
 	Craft = get("Craft"),
+	-- client -> server: (name: Settings.Name, value: string) change one saved player preference
+	-- (Shared/Settings), from anywhere, at any time. The server checks the value is allowed,
+	-- saves it (SettingsService) and mirrors it as the Player attribute `name`; no other answer.
+	Settings = get("Settings"),
 }

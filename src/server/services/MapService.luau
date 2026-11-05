@@ -2,13 +2,12 @@
 -- anchored parts in Workspace.Map (no Terrain): a flat forest floor of grass past PlotService's
 -- ground, out to the forest's edge, where World/Layout stands the choppable trees; dirt paths and
 -- ponds with sandy rims through it; soft low-poly hills past the forest, triangles of wedges in
--- gently varied greens with rock on their bumpiest tops; an invisible wall at the very edge; and
--- a soft haze so the hills fade into the sky. Grass and dirt wear the game's own textures
--- (World/GroundLook), tiled like a garden's cubes, so the meadow carries on from the gardens'
--- ground without a seam. The floor is flat at y = 0, the level the trees and gardens stand at.
--- Nothing here is saved or belongs to anyone.
+-- gently varied greens with rock on their bumpiest tops; and an invisible wall at the very edge
+-- (the haze that fades the hills into the sky is the client's libraries/Lighting). Grass and
+-- dirt wear the game's own textures (World/GroundLook), tiled like a garden's cubes, so the
+-- meadow carries on from the gardens' ground without a seam. The floor is flat at y = 0, the
+-- level the trees and gardens stand at. Nothing here is saved or belongs to anyone.
 
-local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GroundLook = require(ReplicatedStorage.Shared.World.GroundLook)
@@ -274,21 +273,7 @@ local function walls()
 	edgeFolder.Parent = workspace
 end
 
-local function haze()
-	if not Lighting:FindFirstChildOfClass("Atmosphere") then
-		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.22
-		atmosphere.Offset = 0.25
-		atmosphere.Color = Color3.fromRGB(206, 222, 236)
-		atmosphere.Decay = Color3.fromRGB(140, 160, 180)
-		atmosphere.Glare = 0
-		atmosphere.Haze = 0.9
-		atmosphere.Parent = Lighting
-	end
-end
-
 function MapService.init()
-	haze()
 	floor()
 	paths()
 	ponds()

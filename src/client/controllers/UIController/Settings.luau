@@ -1,18 +1,24 @@
 -- Settings: binds the authored side button and the session music and sound-effect volumes.
 -- Each volume row (Body.MusicVolume, Body.SfxVolume) has a Track to click or drag and a Value
--- box to type 0-100 into; both stay in step. Screens owns window exclusivity; AudioSettings
--- owns audio state independently of this screen's lifecycle. Body.SaveQuit saves the garden
--- and goes back to the save menu (SaveMenuController).
+-- box to type 0-100 into; both stay in step. Body.LightingQuality has one button per
+-- Shared/Settings lighting quality (Low, Medium, High), each with a Selected child shown on the
+-- current one; a press applies the preset at once (libraries/Lighting) and asks SettingsService
+-- to save it. Screens owns window exclusivity; AudioSettings owns audio state independently of
+-- this screen's lifecycle. Body.SaveQuit saves the garden and goes back to the save menu
+-- (SaveMenuController).
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local GameSettings = require(ReplicatedStorage.Shared.Settings)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = script.Parent.Parent.Parent.Libraries
 local AudioSettings = require(Libraries.AudioSettings)
 local Controls = require(Libraries.Controls)
 local Hud = require(Libraries.Hud)
+local Lighting = require(Libraries.Lighting)
 local Screens = require(Libraries.Screens)
 local UI = require(Libraries.UI)
 local PopupMotion = require(Libraries.PopupMotion)
@@ -68,6 +74,19 @@ function Settings.init(hud: ScreenGui)
 			)
 		end
 	end
+	type Choice = { quality: string, button: GuiButton, selected: GuiObject? }
+	local choices: { Choice } = {}
+	for _, quality in GameSettings.LIGHTING_QUALITIES do
+		local button = Hud.find(hud, `Settings.Body.LightingQuality.{quality}`, "GuiButton")
+		if button and button:IsA("GuiButton") then
+			local selected = button:FindFirstChild("Selected")
+			table.insert(choices, {
+				quality = quality,
+				button = button,
+				selected = if selected and selected:IsA("GuiObject") then selected else nil,
+			})
+		end
+	end
 	local music: GuiObject? = if sliders[1] then sliders[1].track else nil
 	local trove = Trove.new()
 	local prior: GuiObject? = nil
@@ -81,6 +100,11 @@ function Settings.init(hud: ScreenGui)
 			slider.knob.Position = UDim2.fromScale(value, 0.5)
 			if not slider.box:IsFocused() then
 				slider.box.Text = tostring(math.round(value * 100))
+			end
+		end
+		for _, choice in choices do
+			if choice.selected then
+				choice.selected.Visible = choice.quality == Lighting.quality()
 			end
 		end
 		if controlsHint and controlsHint:IsA("TextLabel") then
@@ -139,6 +163,19 @@ function Settings.init(hud: ScreenGui)
 			end,
 		}))
 	end
+	for _, choice in choices do
+		trove:Add(UI.bindButton(choice.button, {
+			onActivate = function()
+				Lighting.setQuality(choice.quality)
+				Remotes.Settings:FireServer("LightingQuality", choice.quality)
+				render()
+			end,
+		}))
+	end
+	-- The saved quality can arrive while the window is open (LightingController applies it).
+	trove:Connect(Players.LocalPlayer:GetAttributeChangedSignal("LightingQuality"), function()
+		task.defer(render)
+	end)
 	local dragging: Slider? = nil
 	local function slideTo(slider: Slider, x: number)
 		local width = slider.track.AbsoluteSize.X

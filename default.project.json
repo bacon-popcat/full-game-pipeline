@@ -34,7 +34,8 @@
         "DropCollected": { "$className": "RemoteEvent" },
         "SaveSlots": { "$className": "RemoteEvent" },
         "SaveMenu": { "$className": "RemoteEvent" },
-        "Craft": { "$className": "RemoteEvent" }
+        "Craft": { "$className": "RemoteEvent" },
+        "Settings": { "$className": "RemoteEvent" }
       }
     },
 

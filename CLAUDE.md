@@ -28,6 +28,7 @@ in its info and a glow that runs out to each unlock; harvesting plays the `Harve
 - [docs/research.md](docs/research.md) — projects, saved timers, remotes, bonuses and their gameplay hooks.
 - [docs/factory.md](docs/factory.md) — conveyors, routers, machines (Seed Planter, Harvester, processors, Shipping Bin), loose drops, the shared quarry and forest, the Crafting Bench and owner-only interactions.
 - [docs/economy.md](docs/economy.md) — seed stock, shops, selling, XP, section prices, hub stalls, the authored garden HUD contract, balance and onboarding.
+- [docs/lighting.md](docs/lighting.md) — the lighting look and day/night cycle, the Low/Medium/High quality presets, the saved setting and which pieces live only in the place file.
 - [docs/inventory.md](docs/inventory.md) — inventory, hotbar/backpack UI and block placement: the server/client flow and which pieces live only in the place file.
 - [conventions.md](conventions.md) — naming, module shape, startup, types, UI and comment rules.
 

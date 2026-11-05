@@ -159,8 +159,8 @@ wakes late. No weather event harms crops.
 `ReplicatedStorage.Weather` is a runtime Folder. `Event` is an event name or an empty string;
 `EndsAt` is its end in server-time seconds (zero when clear). No weather remote is needed.
 `WeatherController` reads those attributes for camera-local rain and eased lighting requests.
-`libraries/Lighting` composes named weather/lightning requests into its own colour-correction
-effect, preserving authored Lighting. Rain stops under cover. Lightning is infrequent and
+`libraries/Lighting` composes named weather/lightning requests on top of the look's colour
+grade ([lighting.md](lighting.md)). Rain stops under cover. Lightning is infrequent and
 subtle, and is disabled for reduced motion. Rain rate also decreases with reduced motion.
 
 ## Art and client effects

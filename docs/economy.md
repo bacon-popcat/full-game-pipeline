@@ -132,13 +132,14 @@ there, since the arrangement is the desktop one.
 `SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
 `Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
 `Fill` and `Knob`, and a `Value` TextBox), `Body.Note`, `Body.ControlsHint` and the
+`Body.LightingQuality` (Low, Medium and High buttons; lighting.md), the
 `Body.SaveQuit` button (back to the save menu, plots.md § Save files). Clicking or
 dragging a track, or typing 0-100 in its box, sets that session volume (`libraries/AudioSettings`:
 music and every `Sound.play` effect each play through their own SoundGroup).
 Settings has music and sound volume sliders and input-specific quick controls. The five main windows
 (Backpack, MachinePanel, Shop, Sell, Settings) are centred on the screen (anchor 0.5, 0.5,
-size 0.94 x 0.72 scale, UISizeConstraint caps of 1040x580, 880x500, 700x520, 510x300 and
-530x380), with BackgroundTransparency 0.2, and share authored header subtitles, dividers and a
+size 0.94 x 0.72 scale (Settings 0.8), UISizeConstraint caps of 1040x580, 880x500, 700x520,
+510x300 and 530x470), with BackgroundTransparency 0.2, and share authored header subtitles, dividers and a
 garden-green top accent. The Backpack (and the MachinePanel, which copies it) stays centred but
 is sized by InventoryScreen to end 12 px above the hotbar. While any of them is open,
 `libraries/Backdrop` darkens the world through the authored `HUD.Backdrop` frame (ZIndex 0,
