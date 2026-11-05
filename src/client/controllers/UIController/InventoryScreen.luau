@@ -13,6 +13,10 @@
 -- only). Resting looks are captured from those instances; selected and lifted looks are
 -- attributes on the Slot template. The sidebar's facts about an item are ItemDetails' rows.
 --
+-- The backpack's `Body.Main.Search` box (optional: without it there is no search) narrows
+-- the grid to stacks whose name or kind contains the typed text; empty slots hide while a
+-- search is on. The hotbar is never filtered. Closing the window clears the search.
+--
 -- Invariants:
 --   * `view` plus InventoryClient is the only input to `render`.
 --   * One cell per slot, created once at init and only repainted after.
@@ -59,6 +63,8 @@ type View = {
 	dragging: boolean,
 	-- Slot the sidebar describes: last hovered or focused.
 	inspected: number?,
+	-- Lowercased search text; "" shows every slot.
+	query: string,
 }
 
 local TOGGLE_ACTION = "ToggleBackpack"
@@ -79,7 +85,7 @@ local MAX_COLUMNS = 9
 
 local InventoryScreen = {}
 
-local view: View = { open = false, held = nil, dragging = false, inspected = nil }
+local view: View = { open = false, held = nil, dragging = false, inspected = nil, query = "" }
 local trove = Trove.new()
 local cells: { [number]: Cell } = {}
 -- Latest pointer position in GUI space (the space AbsolutePosition uses).
@@ -155,8 +161,27 @@ local function bind(hud: ScreenGui): boolean
 			return false
 		end
 	end
+	-- The search bar is optional; a place without it keeps a working backpack.
+	local search = findNode(hud, "Backpack.Body.Main.Search")
+	local box = if search then search:FindFirstChild("Box") else nil
+	if box and box:IsA("TextBox") then
+		nodes.searchBox = box
+		nodes.searchClear = search:FindFirstChild("Clear")
+	end
 	ui = nodes
 	return true
+end
+
+local function matchesQuery(stack: Inventory.Stack?): boolean
+	if view.query == "" then
+		return true
+	end
+	if not stack then
+		return false
+	end
+	local item = Inventory.getItem(stack.itemId)
+	return string.find(string.lower(item.name), view.query, 1, true) ~= nil
+		or string.find(string.lower(item.kind), view.query, 1, true) ~= nil
 end
 
 local function bracketBars(root: Instance): { Frame }
@@ -279,7 +304,15 @@ local function render()
 	end
 	local selected = InventoryClient.getSelected()
 	for index, cell in cells do
-		paintCell(cell, InventoryClient.getSlot(index), index == selected, index == view.held)
+		local stack = InventoryClient.getSlot(index)
+		paintCell(cell, stack, index == selected, index == view.held)
+		if index > Inventory.HOTBAR_SIZE then
+			-- The lifted stack stays visible so it can still be put back.
+			cell.button.Visible = index == view.held or matchesQuery(stack)
+		end
+	end
+	if ui.searchClear then
+		ui.searchClear.Visible = view.query ~= ""
 	end
 
 	local lifted = if view.held then InventoryClient.getSlot(view.held) else nil
@@ -526,6 +559,11 @@ function InventoryScreen.close()
 	view.held = nil
 	view.dragging = false
 	ContextActionService:UnbindAction(BACK_ACTION)
+	if ui.searchBox then
+		ui.searchBox:ReleaseFocus()
+		ui.searchBox.Text = "" -- its Text signal resets view.query
+		view.query = ""
+	end
 
 	local current = GuiService.SelectedObject
 	if current and current:IsDescendantOf(ui.window) then
@@ -568,6 +606,30 @@ function InventoryScreen.init(hud: ScreenGui)
 		end,
 	}))
 	trove:Add(UI.bindButton(ui.close, { hoverScale = 1.15, onActivate = InventoryScreen.close }))
+
+	local searchBox: TextBox? = ui.searchBox
+	if searchBox then
+		searchBox.SelectionImageObject = ui.selectionImage
+		trove:Connect(searchBox:GetPropertyChangedSignal("Text"), function()
+			local query = string.lower((string.gsub(searchBox.Text, "^%s+", "")))
+			query = string.gsub(query, "%s+$", "")
+			if query ~= view.query then
+				view.query = query
+				ui.grid.CanvasPosition = Vector2.zero
+				render()
+			end
+		end)
+		local clear = ui.searchClear
+		if clear and clear:IsA("GuiButton") then
+			clear.SelectionImageObject = ui.selectionImage
+			trove:Add(UI.bindButton(clear, {
+				hoverScale = 1.15,
+				onActivate = function()
+					searchBox.Text = ""
+				end,
+			}))
+		end
+	end
 
 	trove:Connect(UserInputService.InputBegan, function(input: InputObject)
 		if isPointerPress(input) then

@@ -37,7 +37,7 @@ These are authored in Studio and are **not** in git (see `conventions.md`, UI):
 
 | Instance | What it is |
 |---|---|
-| `StarterGui.HUD` | `Hotbar`, `Backpack` window (its sidebar is Preview and Information; the Controls panel is gone), `Index` window (item list in `Body.Main`, the `Body.Showcase` with its `View` viewport, `ItemName`, `Kind`, `Glow` and `Hint`, and facts in `Body.Sidebar.Information`), `DragGhost`, `ItemName`, `SideButtons.Backpack`, `SideButtons.Index` (a book icon) |
+| `StarterGui.HUD` | `Hotbar`, `Backpack` window (its sidebar is Preview and Information; the Controls panel is gone; `Body.Main.Search` is a 34px bar above `GridPanel` holding a frame-drawn magnifier `Icon`, the TextBox `Box` and a `Clear` cross, and InventoryScreen's header says how it filters), `Index` window (item list in `Body.Main`, the `Body.Showcase` with its `View` viewport, `ItemName`, `Kind`, `Glow` and `Hint`, and facts in `Body.Sidebar.Information`), `DragGhost`, `ItemName`, `SideButtons.Backpack`, `SideButtons.Index` (a book icon) |
 | `ReplicatedStorage.Assets.UI.Inventory` | `Slot` cell template, `SelectionImage`, `InfoRow` (a Key/Value row ItemDetails clones into a panel's `Rows`, ahead of its `Description` at LayoutOrder 100) |
 | `ReplicatedStorage.Assets.UI.Stack` | `Count`, a BillboardGui with a TextLabel `Label` inside, cloned over every stack of more than one item, loose or on a belt, to show "x24"; until it is authored StackLabel draws a plain dark pill, without a warning |
 | `ReplicatedStorage.Assets.Blocks` | One Model per placeable item, named by item id, each with a hitbox `PrimaryPart` (below): the retained building cubes, machines and seed ghosts; unused templates do not create items |
