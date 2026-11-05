@@ -2,9 +2,10 @@
 
 The look follows a day and night cycle. By day it is soft and filmic: gentle contrast, muted
 earthy colour and a creamy golden mist over the distance, with shadows that lengthen into
-the afternoon, golden sunrise and sunset, and a moonlit night under stars. Every time of day
-stays easy to read. Night is lit with a bright blue ambient, a moon-tinted sun colour and
-raised exposure, so crops, machines and paths are always clear. Players pick how much of the
+the afternoon, then a golden sunrise and sunset. Night is moonlit: a large pale moon and stars
+over an indigo horizon mist, with colour drained to a blue monochrome. Every time of day
+stays easy to read. Night is lit with a blue ambient, a moon-tinted sun colour and raised
+exposure, so crops, machines and paths are always clear. Players pick how much of the
 look to pay for: Low, Medium or High.
 
 ## Who owns what
@@ -32,7 +33,11 @@ copy) and creates whichever is missing. It also removes extra copies of any clas
 pre-dawn 5.2, sunrise 6.5, morning 9, noon 13 (dimmer and darker-exposed so the high sun
 doesn't wash the pale grass out), golden afternoon 16.3, sunset 17.6 and dusk 18.6. Each key
 sets Brightness, Ambient, OutdoorAmbient, ColorShift_Top, ExposureCompensation, the `DayTint`
-colour and the Atmosphere's colour and decay. The sun sets at about 18:00, so the sunset key
+colour, saturation and contrast, and the Atmosphere's colour and decay. Day keys leave
+saturation and contrast at 0. Dusk, night and pre-dawn desaturate (night -0.35) for the blue
+moonlit look, so the change comes in through dusk and leaves through dawn. They take a touch
+of negative contrast and high exposure (night 0.8) so dark soil and leaves stay readable at
+every quality level. The moon is drawn large (`MoonAngularSize` 24). The sun sets at about 18:00, so the sunset key
 sits before it. `DayTint` is its own ColorCorrection, so weather requests, which tween
 `GardenGrade`, never fight the clock. For checking one time of day in Studio, set a number
 `FixedClock` attribute on Lighting on the client; the controller holds the clock there.

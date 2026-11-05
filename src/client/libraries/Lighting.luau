@@ -31,9 +31,10 @@ type Preset = {
 -- The time of day is a chain of keyframes, blended smoothly by setClock: by day a soft,
 -- filmic warmth, with gentle contrast, muted earthy colour and a creamy golden mist that
 -- swallows the distance, shadows lengthening into the afternoon; golden sunrise and sunset;
--- and a moonlit night. Night is lit, not dark: a bright blue OutdoorAmbient, a moon-tinted
--- ColorShift and raised exposure keep crops, machines and paths easy to read, so play never
--- waits for morning.
+-- and a moonlit night under a large moon and stars, drained to an indigo-blue monochrome
+-- (DayTint saturation) with a blue mist on the horizon. Night is lit, not dark:
+-- a blue OutdoorAmbient, a moon-tinted ColorShift and raised exposure keep crops, machines
+-- and paths easy to read, so play never waits for morning.
 type Key = {
 	hour: number,
 	brightness: number,
@@ -42,55 +43,114 @@ type Key = {
 	shift: Color3,
 	exposure: number,
 	tint: Color3,
+	saturation: number,
+	contrast: number,
 	haze: Color3,
 	decay: Color3,
 }
-local function key(
-	hour: number,
-	brightness: number,
-	ambient: Color3,
-	outdoor: Color3,
-	shift: Color3,
-	exposure: number,
-	tint: Color3,
-	haze: Color3,
-	decay: Color3
-): Key
+local rgb = Color3.fromRGB
+local DAY = { saturation = 0, contrast = 0 }
+local function key(hour: number, look: { [string]: any }, grade: { saturation: number, contrast: number }): Key
 	return {
 		hour = hour,
-		brightness = brightness,
-		ambient = ambient,
-		outdoor = outdoor,
-		shift = shift,
-		exposure = exposure,
-		tint = tint,
-		haze = haze,
-		decay = decay,
+		brightness = look.brightness,
+		ambient = look.ambient,
+		outdoor = look.outdoor,
+		shift = look.shift,
+		exposure = look.exposure,
+		tint = look.tint,
+		saturation = grade.saturation,
+		contrast = grade.contrast,
+		haze = look.haze,
+		decay = look.decay,
 	}
 end
-local rgb = Color3.fromRGB
-local NIGHT = key(
-	0,
-	1.8,
-	rgb(62, 70, 100),
-	rgb(100, 114, 156),
-	rgb(168, 184, 228),
-	0.5,
-	rgb(226, 232, 255),
-	rgb(70, 84, 124),
-	rgb(44, 52, 86)
-)
+local NIGHT = {
+	brightness = 2,
+	ambient = rgb(64, 76, 128),
+	outdoor = rgb(104, 124, 186),
+	shift = rgb(160, 186, 255),
+	exposure = 0.8,
+	tint = rgb(176, 196, 255),
+	haze = rgb(84, 108, 190),
+	decay = rgb(44, 56, 120),
+}
+-- A touch of negative contrast lifts the darks (soil, leaves) so nothing is lost in shadow.
+local NIGHT_GRADE = { saturation = -0.35, contrast = -0.04 }
 -- In hour order, from midnight round to midnight again.
 local KEYS: { Key } = {
-	NIGHT,
-	key(5.2, 1.8, rgb(64, 68, 96), rgb(104, 110, 148), rgb(176, 172, 222), 0.45, rgb(222, 220, 250), rgb(104, 106, 142), rgb(72, 66, 98)),
-	key(6.5, 2.6, rgb(60, 56, 64), rgb(104, 96, 108), rgb(255, 172, 124), 0.15, rgb(255, 232, 216), rgb(236, 198, 178), rgb(150, 110, 100)),
-	key(9, 2.7, rgb(60, 56, 50), rgb(100, 98, 92), rgb(255, 222, 180), 0, rgb(255, 238, 210), rgb(232, 224, 204), rgb(170, 156, 124)),
-	key(13, 2.8, rgb(60, 56, 48), rgb(104, 100, 90), rgb(255, 226, 186), -0.05, rgb(255, 238, 206), rgb(234, 226, 204), rgb(176, 160, 124)),
-	key(16.3, 2.8, rgb(60, 56, 48), rgb(104, 100, 90), rgb(255, 216, 168), 0, rgb(255, 236, 202), rgb(234, 224, 198), rgb(176, 158, 120)),
-	key(17.6, 2.8, rgb(56, 52, 62), rgb(96, 88, 106), rgb(255, 160, 108), 0, rgb(255, 226, 206), rgb(226, 178, 158), rgb(140, 100, 92)),
-	key(18.6, 1.9, rgb(66, 70, 100), rgb(110, 120, 164), rgb(178, 180, 230), 0.65, rgb(228, 228, 255), rgb(96, 100, 140), rgb(56, 58, 92)),
-	key(24, NIGHT.brightness, NIGHT.ambient, NIGHT.outdoor, NIGHT.shift, NIGHT.exposure, NIGHT.tint, NIGHT.haze, NIGHT.decay),
+	key(0, NIGHT, NIGHT_GRADE),
+	key(5.2, {
+		brightness = 2,
+		ambient = rgb(68, 74, 120),
+		outdoor = rgb(108, 118, 176),
+		shift = rgb(184, 180, 240),
+		exposure = 0.7,
+		tint = rgb(200, 206, 252),
+		haze = rgb(110, 116, 176),
+		decay = rgb(76, 72, 120),
+	}, { saturation = -0.25, contrast = -0.02 }),
+	key(6.5, {
+		brightness = 2.6,
+		ambient = rgb(60, 56, 64),
+		outdoor = rgb(104, 96, 108),
+		shift = rgb(255, 172, 124),
+		exposure = 0.15,
+		tint = rgb(255, 232, 216),
+		haze = rgb(236, 198, 178),
+		decay = rgb(150, 110, 100),
+	}, DAY),
+	key(9, {
+		brightness = 2.7,
+		ambient = rgb(60, 56, 50),
+		outdoor = rgb(100, 98, 92),
+		shift = rgb(255, 222, 180),
+		exposure = 0,
+		tint = rgb(255, 238, 210),
+		haze = rgb(232, 224, 204),
+		decay = rgb(170, 156, 124),
+	}, DAY),
+	key(13, {
+		brightness = 2.8,
+		ambient = rgb(60, 56, 48),
+		outdoor = rgb(104, 100, 90),
+		shift = rgb(255, 226, 186),
+		exposure = -0.05,
+		tint = rgb(255, 238, 206),
+		haze = rgb(234, 226, 204),
+		decay = rgb(176, 160, 124),
+	}, DAY),
+	key(16.3, {
+		brightness = 2.8,
+		ambient = rgb(60, 56, 48),
+		outdoor = rgb(104, 100, 90),
+		shift = rgb(255, 216, 168),
+		exposure = 0,
+		tint = rgb(255, 236, 202),
+		haze = rgb(234, 224, 198),
+		decay = rgb(176, 158, 120),
+	}, DAY),
+	key(17.6, {
+		brightness = 2.8,
+		ambient = rgb(56, 52, 62),
+		outdoor = rgb(96, 88, 106),
+		shift = rgb(255, 160, 108),
+		exposure = 0,
+		tint = rgb(255, 226, 206),
+		haze = rgb(226, 178, 158),
+		decay = rgb(140, 100, 92),
+	}, DAY),
+	key(18.6, {
+		brightness = 2,
+		ambient = rgb(66, 76, 124),
+		outdoor = rgb(106, 122, 180),
+		shift = rgb(176, 184, 245),
+		exposure = 0.75,
+		tint = rgb(190, 202, 255),
+		haze = rgb(92, 110, 184),
+		decay = rgb(50, 58, 118),
+	}, { saturation = -0.25, contrast = -0.02 }),
+	key(24, NIGHT, NIGHT_GRADE),
 }
 local GRADE = {
 	brightness = 0,
@@ -176,7 +236,7 @@ if not dayTint then
 end
 assert(dayTint, "DayTint was just ensured")
 sky.SunAngularSize = 14
-sky.MoonAngularSize = 11
+sky.MoonAngularSize = 24
 sky.StarCount = 3000
 sky.CelestialBodiesShown = true
 atmosphere.Density = 0.36
@@ -259,6 +319,8 @@ function Lighting.setClock(hour: number)
 	LightingService.ColorShift_Top = from.shift:Lerp(to.shift, t)
 	LightingService.ExposureCompensation = from.exposure + (to.exposure - from.exposure) * t
 	dayTint.TintColor = from.tint:Lerp(to.tint, t)
+	dayTint.Saturation = from.saturation + (to.saturation - from.saturation) * t
+	dayTint.Contrast = from.contrast + (to.contrast - from.contrast) * t
 	atmosphere.Color = from.haze:Lerp(to.haze, t)
 	atmosphere.Decay = from.decay:Lerp(to.decay, t)
 end
