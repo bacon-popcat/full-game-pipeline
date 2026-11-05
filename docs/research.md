@@ -108,34 +108,51 @@ close button and the running project's strip along the bottom. HudVisibility arb
 `HUD.Enabled` by named requests, so the save menu (HUD only) and the Research view never fight
 over it.
 
-**Opening and closing.** The view fades in over 0.4 s while settling from 4% larger, and fades
-out over 0.28 s the same way, so the world and the tree cross-fade (the HUD returns as it starts
-to fade). The screen animates itself through HubWindow's optional `animate` argument: it takes
-every transparency under the view (backgrounds, text, strokes, images and the tiles'
-ViewportFrames) from where it stands and eases it to clear and back. A CanvasGroup was tried and
-does not work here: Studio rendered its children unfaded and unclipped, and ViewportFrames ignore
-`GroupTransparency`. The canvas also glides in from 82% zoom. Reduced motion shows and hides it at
-once.
+**Opening and closing.** The screen animates itself through HubWindow's optional `animate`
+argument, as a ripple: every transparency under the view (backgrounds, text, strokes, images and
+the tiles' ViewportFrames) is taken from where it stands and eased to clear and back, each piece
+of the tree at its own moment by its distance from the middle. Opening, the backdrop and strip
+come first, then the hub, then the guide rings, lines and tiles outward over 0.55 s, each taking
+0.34 s, tiles growing in from 30% with a bounce; the canvas also glides in from 80% of its zoom.
+Closing runs the other way: the furthest pieces go first (0.32 s spread, 0.22 s each, tiles
+shrinking), the backdrop last. A CanvasGroup was tried and does not work here: Studio rendered
+its children unfaded and unclipped, and ViewportFrames ignore `GroupTransparency`. Reduced motion
+shows and hides it at once.
 
-All the projects form one tree on `Research.Canvas`, growing out of a round hub in its middle (the
-side button's flask). The view always opens centred on the hub with nothing selected.
+All the projects form one five-fold tree on `Research.Canvas`. The view always opens centred on
+its middle with nothing selected, at 0.72 zoom.
 
-- **Arms.** Each category is an arm out of the hub: Farming up, Automation right, Economy down,
-  Crafting left, and Tools up and to the left (its first project 2.2 hub-steps out on both axes,
-  growing up, its first branch to the left). An arm's first project sits 150 px from the hub.
-- **Layout along an arm.** A project's step out is how many projects lead to it in its category,
-  140 px apart; it hangs off its latest need. Children that continue its line (Yield1 -> Yield2)
-  run straight on; the other branches take alternate sides of the arm, nearest first, 136 px
-  apart. Tiles are cloned from `Assets.UI.Research.Node`, with the name under each.
-- **Lines.** Each arm's first project is joined to the hub by a straight line. Each need in the
-  same category is joined to the project by an elbowed line of `Assets.UI.Research.Link` pieces:
-  on along the need's branch, across at the gap before the project, on into it. Each piece is a
-  turned Link holding a green `Lit` fill; lines out of a finished project are lit (a line from the
-  hub once its project is done). Master Gardener's needs in other categories draw no line.
-- **Only what is in reach.** A tile shows when it is an arm's first project, done, running, or
-  needs a finished project in its own category. Lines show when both ends do.
-- **States.** A tile's border says its state: green done, yellow can start, red locked (its item
-  and name faded), blue running (with a progress bar), gold and pulsing ready to complete.
+- **Hub.** A round tile with the side button's flask and a soft gold glow, a ring of dots
+  turning slowly round it and a fainter ring with three bright motes turning the other way. Its
+  border breathes. Faint guide rings mark each step out from it.
+- **Fans.** Each category is a fan in its own fifth of the circle, clockwise from the top:
+  Farming, Automation, Economy, Tools, Crafting. Each has a colour (green, sky blue, gold, coral,
+  violet) carried by its tag, its tiles' fill, a finished tile's ring, its lit lines, the unlock
+  glow and the sap. A fan's first project sits on its middle line 260 px from the hub, on a stem
+  that carries the category's tag.
+- **Layout along a fan.** A project's ring is how many projects lead to it in its category, 180 px
+  apart; it hangs off its latest need. Children that continue its line (Yield1 -> Yield2), or a
+  need's only child, run straight on; the other lines fan out evenly either side of the middle,
+  18 degrees apart.
+- **Tiles.** Cloned from `Assets.UI.Research.Node`, a clear button holding `Shape`, a rounded
+  square turned 45 degrees into a diamond (filled dark in the category's colour, brighter once
+  finished) with its ring, the item picture upright on top and the name under it. A tile that
+  can be researched (or completed) has a larger diamond halo breathing round it.
+- **Lines.** A stem joins the hub to each first project; each need in the same category is
+  joined to the project by a line of `Assets.UI.Research.Link` pieces that leaves the need heading
+  for the project's line and flows into it (a quadratic curve, eight pieces), or runs straight
+  when they share a line. Each piece is a turned Link holding a `Lit` fill in the category's
+  colour; lines out of a finished project are lit. Motes of sap drift outward along lit lines,
+  one setting off every 0.3 s, at most 12 at once. Master Gardener's needs in other categories
+  draw no line.
+- **What shows.** A tile is shown when it is a fan's first project, done, running, or needs a
+  finished project in its own category. One step further, a project whose need is shown appears
+  undiscovered: a dark diamond with "?", no name, picture or cost, on a fainter line. Its info
+  says which project to research to discover it, and its button reads "Undiscovered". Nothing
+  further out is drawn.
+- **States.** A shown tile's ring says its state: its category's colour when done, yellow can
+  start, red locked (its item and name faded), blue running (with a progress bar), gold and
+  pulsing ready to complete.
 - **Cost badge.** Open and locked tiles show the optional `Node.Cost` label: plain coins below
   1,000, then K/M with one decimal and no trailing .0. Red when unaffordable, otherwise its
   authored text colour; updates with the wallet. Hidden for running, ready and done projects.
@@ -156,7 +173,7 @@ side button's flask). The view always opens centred on the hub with nothing sele
   once its timer runs out it reads "<name> is ready!" and `Complete` (gold, pulsing) replaces
   Cancel.
 - **Panning and zoom.** Dragging the background pans the canvas; the mouse wheel zooms it
-  (`Canvas.UIScale`, 0.5 to 1.4). Two fingers pinch to zoom without also panning. While open,
+  (`Canvas.UIScale`, 0.4 to 1.4). Two fingers pinch to zoom without also panning. While open,
   the gamepad's right stick pans smoothly (0.2 dead zone); ButtonL2/ButtonR2 zoom out/in.
   The left stick and D-pad keep their tile selection.
 
@@ -166,10 +183,11 @@ Rich Soil a carrot, a crafting project its recipe's output).
 **Completing.** When a sync adds a finished project while the window is open, the view glides to
 take in it and everything it leads to, and puts the info away. The tile bursts: it pops, a gold
 flash and a green ring spread from it, and sparks fly out. After 0.35 s a glow (a white-hot head
-in a pulsing gold halo) runs down every line out of it, drawing the line in gold turning green as
-it goes, at 420 px a second (each line 0.3 to 0.75 s). Each project it reaches that was out of
-reach before pops in: it grows from a fifth of its size with a bounce, a pale flash and a gold
-ring spread from it, and sparks scatter. These are transient frames. Under reduced motion only the
+in a pulsing halo of the category's colour) runs down every line out of it, drawing the line from
+white to the category's colour as it goes, at 420 px a second (each line 0.3 to 0.75 s). Each
+undiscovered project it reaches turns over into itself: it springs up from a fifth of its size
+with a bounce, a pale flash and a gold ring spread from it, and sparks scatter, and what lies one
+step past it grows in as a new "?". These are transient frames. Under reduced motion only the
 flashes and rings play, the lines light at once and nothing moves. In the world, FxService sends
 `Research` and FxController plays the `ResearchComplete` effect (`Shared/VFX/Effects`, through
 `VFXPlayer`) round the player: a soft flash, a gold ground ring and glow, two strands of motes
@@ -181,27 +199,30 @@ StarterGui.ResearchView [ScreenGui]      ResetOnSpawn off, IgnoreGuiInset, Scree
                                          DisplayOrder 5
   Research [Frame]   full screen, black, Active; UIScale (the fade's settle); Header.Close
     Body.Active [Frame]  Text, Time [TextLabel]; Bar.Fill [Frame]; Cancel, Complete [TextButton]
-    Canvas [Frame]  UIScale; Links, Nodes [Frame] (the hub and tiles are drawn round 0,0)
+    Canvas [Frame]  UIScale; Links, Nodes [Frame] (rings, hub, orbits, tags, lines and tiles are
+                     drawn round 0,0 by the screen)
     Info [Frame]     400 px, opaque, auto-height list: Name, Description, Level, Cost,
                      Requirements [TextLabel], Items [Frame, wrapping row], Time, Needs
                      [TextLabel]; Action [TextButton] with Label
     Tooltip [Frame]  the same without Action
-ReplicatedStorage.Assets.UI.Research.Node [TextButton]  84 px; UIStroke (the state border),
-                     UIScale, Icon [ViewportFrame], Name, Cost [TextLabel], Progress.Fill [Frame]
-ReplicatedStorage.Assets.UI.Research.Link [Frame]  one 4 px line piece; its colour is the unlit one
+ReplicatedStorage.Assets.UI.Research.Node [TextButton]  80 px, clear; Shape [Frame] (74%, turned
+                     45 degrees, UICorner, UIGradient, UIStroke: the state ring), UIScale, Icon
+                     [ViewportFrame], Name, Cost, Mystery ("?") [TextLabel], Progress.Fill [Frame]
+ReplicatedStorage.Assets.UI.Research.Link [Frame]  one 3 px line piece; its colour is the unlit one
 ReplicatedStorage.Assets.UI.Research.Requirement [Frame]  92 x 104: Box [Frame] with UIStroke
                      (the outline) and Icon [ViewportFrame]; Label [TextLabel] under it
 StarterGui.HUD.SideButtons.Research [TextButton]  a flask icon (cloned for the hub), Tooltip
 ```
 
-Played through in Studio: the fade in and out, the tree opening on the hub with only what is in
-reach, selecting a tile and pressing empty space, the info beside a tile with a requirement card
-green (enough Wheat) and white (no Wood), and the hourglass time. Unlocks were driven by a
-client-only fake ResearchSync from a temporary server script, so nothing was saved: Sharp Axe I
-revealing Sharp Axe II and Strong Pickaxe I, Crate Making revealing Carpentry, and Carpentry's
-three glows (one straight, two elbowed) with Wooden Belts popping in as its glow arrived. Earlier
-(category tabs): a ready project's gold state and Complete, an early Complete refused, and a start
-and cancel with its exact refund.
+Played through in Studio: the ripple in and out, the five fans with their colours, tags and
+spacing, undiscovered "?" tiles past each shown one, the diamonds' rings (a template stroke with
+a mitred join drew squares round rounded shapes; the screen now sets Round), selecting a tile and
+pressing empty space, and the info beside a tile with a requirement card green (enough Wheat) and
+white (no Wood). Unlocks were driven by a client-only fake ResearchSync from a temporary server
+script, so nothing was saved: Sharp Axe I turning Strong Pickaxe I and Sharp Axe II from "?" into
+tiles with a new "?" past the pickaxe, Crate Making revealing Carpentry, and Carpentry's three
+glows. Earlier (category tabs): a ready project's gold state and Complete, an early Complete
+refused, and a start and cancel with its exact refund.
 
 ## Studio playtest
 

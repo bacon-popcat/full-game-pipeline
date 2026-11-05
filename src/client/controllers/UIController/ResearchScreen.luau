@@ -1,37 +1,43 @@
--- ResearchScreen: the Research window, a full-screen black view of one upgrade tree. It lives in
--- its own ScreenGui (StarterGui.ResearchView, authored) and, while open, hides the HUD, player
--- list and chat (HudVisibility), leaving the close button and the running project's strip along
--- the bottom. SideButtons.Research opens it from anywhere; it fades in, settling from a touch
--- larger, and fades back out (the screen animates itself through HubWindow's `animate`).
+-- ResearchScreen: the Research window, a full-screen dark view of one upgrade tree drawn like a
+-- seed's constellation. It lives in its own ScreenGui (StarterGui.ResearchView, authored) and,
+-- while open, hides the HUD, player list and chat (HudVisibility), leaving the close button and
+-- the running project's strip along the bottom. SideButtons.Research opens it from anywhere; the
+-- screen animates itself through HubWindow's `animate`: opening ripples out from the middle (the
+-- hub, then the rings, lines and tiles in order of distance), closing draws it back in, the
+-- furthest first.
 --
--- The tree grows from a hub in the middle of Research.Canvas, where the view always opens. Each
--- category is an arm out of it (ARMS): Farming up, Automation right, Economy down, Crafting left
--- and Tools up and to the left. Along an arm, a project's step out is how many projects lead to
--- it in its category, and it hangs off its latest need: children continuing its line
--- (Yield1 -> Yield2) run straight on, the others branch to alternate sides. Tiles are cloned from
--- Assets.UI.Research.Node; each need in the same category is joined to it by an elbowed line of
--- Assets.UI.Research.Link pieces (straight from the hub), lit green once the need is done.
--- Only what is in reach shows: each arm's first project, what is done or running, and whatever
--- a finished project leads to. A tile's border says its state: green done, yellow can start, red
--- locked, blue running (with a bar), gold and pulsing ready to complete. Open and locked tiles
--- show a short coin-cost badge, red when the wallet falls short.
+-- The tree is five-fold: a glowing hub sits in the middle of Research.Canvas, two orbits turning
+-- round it, and each category (CATEGORIES) is a fan in its own fifth of the circle, Farming at the
+-- top. A project's ring is how many projects lead to it in its category (faint guide rings mark
+-- them); it hangs off its latest need, children continuing its line (Yield1 -> Yield2) run
+-- straight on, and the other branches fan out evenly either side of the fan's middle. Each fan's
+-- first project sits on its middle line, joined to the hub by a stem carrying the category's tag.
+-- Tiles are round, cloned from Assets.UI.Research.Node; each need in the same category is joined
+-- to it by a curved line of Assets.UI.Research.Link pieces, lit green once the need is done, with
+-- motes of sap drifting outward along the lit ones.
+--
+-- What shows: each fan's first project, anything done or running, and whatever a finished
+-- project leads to. One step further, what those lead to shows as an undiscovered "?" tile. A
+-- tile's ring says its state: green done, yellow can start (with a breathing halo), red locked,
+-- blue running (with a bar), gold and pulsing ready to complete. Open and locked tiles show a
+-- short coin-cost badge, red when the wallet falls short.
 --
 -- Pressing a tile selects it: the canvas glides it just left of the middle and Research.Info
 -- stands beside it with its name, description, level and cost, a card per required item (its
 -- picture with "x20 Wheat" under it, outlined and named in green once you carry enough), the
--- time behind an hourglass, and an Action button (Research, Complete...). Pressing empty space
--- puts the info away and centres the tile; pressing the hub glides home. Hovering another tile
--- shows the same in Research.Tooltip, without the button. The canvas pans
--- by dragging or the gamepad's right stick, and zooms with the wheel, a two-finger pinch, or
--- ButtonL2/ButtonR2. Pinching never also drags it.
+-- time behind an hourglass, and an Action button (Research, Complete...). An undiscovered tile
+-- says what to research to find it. Pressing empty space puts the info away and centres the
+-- tile; pressing the hub glides home. Hovering another tile shows the same in Research.Tooltip,
+-- without the button. The canvas pans by dragging or the gamepad's right stick, and zooms with
+-- the wheel, a two-finger pinch, or ButtonL2/ButtonR2. Pinching never also drags it.
 --
 -- Body.Active shows the running project's countdown and Cancel; once its timer runs out its
 -- Complete button glows. Completing a project bursts its tile, then a glow runs down each line
--- out of it, drawing the line as it goes, and every project it reaches that was hidden pops in
--- with a flash, a ring and sparks; FxController plays the world effect round the player.
--- Whether a project can start is Research.blocker's to say, with the wallet and inventory here;
--- the server checks it all again and answers with Notify and a fresh ResearchSync, which ends
--- the wait.
+-- out of it, drawing the line as it goes, and each undiscovered project it reaches turns over
+-- into itself with a flash, a ring and sparks, its own next step appearing as "?" behind it;
+-- FxController plays the world effect round the player. Whether a project can start is
+-- Research.blocker's to say, with the wallet and inventory here; the server checks it all again
+-- and answers with Notify and a fresh ResearchSync, which ends the wait.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -71,21 +77,30 @@ local ICONS: { [string]: string } = {
 	Pick = "Pickaxe",
 	Master = "Starfruit+Golden",
 }
--- Each category's arm: where its first project sits (in HUB_REACH units from the hub), the way
--- it grows, and which side its first branch takes (1 = the arm's left as it grows, -1 right).
-type Arm = { origin: Vector2, direction: Vector2, side: number }
-local ARMS: { [string]: Arm } = {
-	Farming = { origin = Vector2.new(0, -1), direction = Vector2.new(0, -1), side = 1 },
-	Automation = { origin = Vector2.new(1, 0), direction = Vector2.new(1, 0), side = 1 },
-	Economy = { origin = Vector2.new(0, 1), direction = Vector2.new(0, 1), side = 1 },
-	Crafting = { origin = Vector2.new(-1, 0), direction = Vector2.new(-1, 0), side = 1 },
-	Tools = { origin = Vector2.new(-2.2, -2.2), direction = Vector2.new(0, -1), side = -1 },
+-- The fans round the hub, clockwise from the top, each in its own colour: its tag, its tiles'
+-- fill, a finished tile's ring, its lit lines, the unlock glow and the sap.
+local CATEGORIES: { { name: string, color: Color3 } } = {
+	{ name = "Farming", color = Color3.fromRGB(110, 220, 120) },
+	{ name = "Automation", color = Color3.fromRGB(80, 190, 255) },
+	{ name = "Economy", color = Color3.fromRGB(255, 196, 70) },
+	{ name = "Tools", color = Color3.fromRGB(255, 120, 96) },
+	{ name = "Crafting", color = Color3.fromRGB(196, 130, 255) },
 }
--- Pixels from the hub to an arm's first project, between steps along an arm, and between its
--- branches.
-local HUB_REACH, COLUMN, ROW = 150, 140, 136
--- The hub's diameter in pixels.
-local HUB_SIZE = 92
+local TINTS: { [string]: Color3 } = {}
+for _, category in CATEGORIES do
+	TINTS[category.name] = category.color
+end
+-- Pixels from the hub's middle to the first ring and between rings, and degrees between the
+-- lines of a fan.
+local FIRST_RING, RING_GAP, FAN_STEP = 260, 180, 18
+-- How dark a tile's fill is against its category's colour: still to research, and finished.
+local FILL_DARK, FILL_DONE = 0.8, 0.55
+-- The hub's diameter, and its two orbits' diameters, dots and turning speeds (degrees a second).
+local HUB_SIZE = 100
+local ORBIT_SIZE, ORBIT_DOTS, ORBIT_SPEED = 150, 24, 7
+local OUTER_SIZE, OUTER_MOTES, OUTER_SPEED = 196, 3, -11
+-- Pieces a curved line is drawn with.
+local CURVE_PIECES = 8
 local COLORS = {
 	Done = Color3.fromRGB(120, 220, 110),
 	Ready = Color3.fromRGB(255, 214, 110),
@@ -94,6 +109,9 @@ local COLORS = {
 	Locked = Color3.fromRGB(196, 78, 78),
 }
 local HOT = Color3.fromRGB(255, 246, 222)
+-- An undiscovered tile's ring, and how much fainter the line to it is than a known one.
+local MYSTERY = Color3.fromRGB(78, 80, 96)
+local MYSTERY_LINE = 0.55
 -- Before the research time in the info.
 local HOURGLASS = utf8.char(0x231B)
 -- How far a locked tile's item and name fade.
@@ -101,12 +119,20 @@ local LOCKED_FADE = 0.55
 -- The canvas: how quickly it glides to where it is going (per second), how far the wheel zooms,
 -- and pixels left of the screen's middle the selected tile sits, leaving room for its info.
 local GLIDE = 8
-local NEAREST, FARTHEST = 0.5, 1.4
+local NEAREST, FARTHEST = 0.4, 1.4
 local SIT_LEFT = 210
--- Opening: the zoom the canvas starts at (as a share of its own) and glides in from.
-local OPEN_ZOOM = 0.82
--- The view's fade: seconds in and out, and how much larger it is while faded.
-local FADE_IN, FADE_OUT, FADE_SCALE = 0.4, 0.28, 1.04
+-- Opening: the zoom the view opens at, and the share of it the canvas glides in from.
+local OVERVIEW, OPEN_ZOOM = 0.72, 0.8
+-- The ripple: seconds each piece takes to appear or go, and the spread of start times from the
+-- middle to the furthest shown piece (out on opening, in on closing). Closing fades the backdrop
+-- last, after this long.
+local APPEAR, APPEAR_SPREAD = 0.34, 0.55
+local VANISH, VANISH_SPREAD, BACKDROP_AFTER = 0.22, 0.32, 0.3
+-- A tile's size as a share of its own as it starts to appear.
+local APPEAR_SCALE = 0.3
+-- Sap: a mote sets off down a lit line this often (seconds), at this speed (pixels a second),
+-- with at most this many on the way.
+local SAP_EVERY, SAP_SPEED, SAP_MOST = 0.3, 150, 12
 -- Pixels a press may move and still count as a press rather than a drag.
 local DRAG_START = 6
 -- Screen pixels per second the right stick pans at full tilt, independent of zoom.
@@ -132,9 +158,14 @@ local REVEAL_SPARKS, REVEAL_REACH = 10, 80
 local REVEAL_COLORS = { COLORS.Open, HOT, COLORS.Done }
 
 type State = "Done" | "Ready" | "Running" | "Open" | "Locked"
+-- Shown in full, undiscovered ("?"), or not drawn.
+type Kind = "Shown" | "Mystery" | "Hidden"
 type Node = {
 	project: Research.Project,
 	frame: GuiButton,
+	-- the diamond (Node.Shape, turned 45 degrees) and its ring; the button itself is clear
+	shape: GuiObject,
+	tint: Color3,
 	stroke: UIStroke?,
 	scale: UIScale?,
 	icon: ViewportFrame,
@@ -142,12 +173,16 @@ type Node = {
 	cost: TextLabel?,
 	progress: GuiObject?,
 	fill: GuiObject?,
+	mystery: GuiObject?,
+	halo: Frame,
+	haloStroke: UIStroke,
 	centre: Vector2,
 	state: State,
+	kind: Kind,
 }
 type Piece = { holder: Frame, fill: Frame, from: Vector2, to: Vector2, length: number }
--- `need` is nil for a line from the hub; it is lit once `lit` is done.
-type Link = { need: string?, child: string, lit: string, pieces: { Piece }, length: number }
+-- `need` is nil for a stem from the hub; it is lit, in its category's colour, once `lit` is done.
+type Link = { need: string?, child: string, lit: string, pieces: { Piece }, length: number, color: Color3 }
 type Panel = {
 	frame: GuiObject,
 	name: TextLabel,
@@ -164,6 +199,8 @@ type Panel = {
 	cardsFor: string?,
 }
 type Card = { frame: GuiObject, icon: ViewportFrame?, stroke: UIStroke?, label: TextLabel? }
+-- One transparency the ripple eases, and when (a share of the spread) its piece moves.
+type FadeEntry = { instance: Instance, property: string, base: number, at: number }
 
 local ResearchScreen = {}
 
@@ -256,7 +293,7 @@ local function treeNeeds(project: Research.Project): { string }
 	return needs
 end
 
--- Whether a project is in reach, given the finished ids: an arm's first project, a finished or
+-- Whether a project is in reach, given the finished ids: a fan's first project, a finished or
 -- running one, or one a finished project in its category leads to.
 local function inReach(project: Research.Project, done: { [string]: boolean }): boolean
 	local active = ResearchClient.get().active
@@ -275,7 +312,7 @@ local function inReach(project: Research.Project, done: { [string]: boolean }): 
 	return false
 end
 
--- Where each project of `category` sits in its tree, as a step out and a branch.
+-- Where each project of `category` sits in its tree, as a ring and a line of the fan.
 local function layout(category: string): { [string]: Vector2 }
 	local order: { [string]: number } = {}
 	local members: { Research.Project } = {}
@@ -355,12 +392,16 @@ local function layout(category: string): { [string]: Vector2 }
 	return cells
 end
 
--- Branch 0 runs down the arm's middle; the rest alternate sides, nearest first.
+-- Line 0 is the fan's main line; the rest alternate sides, nearest first.
 local function sideOf(row: number): number
 	if row == 0 then
 		return 0
 	end
 	return (row + 1) // 2 * (if row % 2 == 1 then 1 else -1)
+end
+
+local function polar(angle: number, radius: number): Vector2
+	return Vector2.new(math.cos(angle), math.sin(angle)) * radius
 end
 
 local function panelOf(frame: Instance?): Panel?
@@ -431,6 +472,44 @@ local function over(object: GuiObject, point: Vector2): boolean
 	return point.X >= low.X and point.Y >= low.Y and point.X <= low.X + size.X and point.Y <= low.Y + size.Y
 end
 
+-- A round frame (a disc, or a ring when `stroke` is given) centred at `at` under `parent`.
+local function circle(
+	parent: Instance,
+	at: UDim2,
+	size: UDim2,
+	color: Color3,
+	transparency: number,
+	zIndex: number,
+	stroke: number?
+): Frame
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = at
+	frame.Size = size
+	frame.BackgroundColor3 = color
+	frame.BackgroundTransparency = if stroke then 1 else transparency
+	frame.BorderSizePixel = 0
+	frame.ZIndex = zIndex
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.5, 0)
+	corner.Parent = frame
+	if stroke then
+		local line = Instance.new("UIStroke")
+		line.Color = color
+		line.Thickness = stroke
+		line.Transparency = transparency
+		line.Parent = frame
+	end
+	frame.Parent = parent
+	return frame
+end
+
+local function backOut(alpha: number): number
+	local s = 1.6
+	local t = alpha - 1
+	return 1 + (s + 1) * t * t * t + s * t * t
+end
+
 function ResearchScreen.init(hud: ScreenGui)
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 	local view = playerGui:WaitForChild("ResearchView", 10)
@@ -439,7 +518,6 @@ function ResearchScreen.init(hud: ScreenGui)
 		return
 	end
 	local root = Hud.find(view, "Research", "Frame")
-	local viewScale = Hud.find(view, "Research.UIScale", "UIScale")
 	local canvas = Hud.find(view, "Research.Canvas", "Frame")
 	local zoom = Hud.find(view, "Research.Canvas.UIScale", "UIScale")
 	local linkLayer = Hud.find(view, "Research.Canvas.Links", "Frame")
@@ -476,8 +554,6 @@ function ResearchScreen.init(hud: ScreenGui)
 	if
 		not root
 		or not root:IsA("Frame")
-		or not viewScale
-		or not viewScale:IsA("UIScale")
 		or not canvas
 		or not canvas:IsA("Frame")
 		or not zoom
@@ -516,6 +592,11 @@ function ResearchScreen.init(hud: ScreenGui)
 	local nodes: { [string]: Node } = {}
 	local links: { Link } = {}
 	local hub: GuiButton? = nil
+	local hubStroke: UIStroke? = nil
+	local orbits: { { frame: GuiObject, speed: number } } = {}
+	-- What sits on the canvas besides tiles and lines (guide rings, the hub, its orbits, tags),
+	-- with how far from the middle each is, for the ripple.
+	local distanceOf: { [Instance]: number } = {}
 	local selected: string? = nil
 	local hovered: string? = nil
 	local pending = false
@@ -525,6 +606,12 @@ function ResearchScreen.init(hud: ScreenGui)
 	local glowing: { [Link]: boolean } = {}
 	-- Baselines, captured from what is authored.
 	local nodeSize = nodeTemplate.Size
+	local tileRadius = nodeSize.X.Offset / 2
+	-- A diamond's fill before it is tinted, from the template (dark when it has none).
+	local templateShape = nodeTemplate:FindFirstChild("Shape")
+	local nodeColor = if templateShape and templateShape:IsA("GuiObject")
+		then templateShape.BackgroundColor3
+		else Color3.fromRGB(26, 28, 36)
 	local templateCost = nodeTemplate:FindFirstChild("Cost")
 	local nodeCostColor = if templateCost and templateCost:IsA("TextLabel") then templateCost.TextColor3 else nil
 	local templateStroke = nodeTemplate:FindFirstChildOfClass("UIStroke")
@@ -536,7 +623,6 @@ function ResearchScreen.init(hud: ScreenGui)
 	local levelColor = info.level.TextColor3
 	local completeStroke = completeButton:FindFirstChildOfClass("UIStroke")
 	local completeThickness = if completeStroke then completeStroke.Thickness else 1
-	local viewBaseline = viewScale.Scale
 	-- Clicks on the info panel stay on it rather than reaching the background below.
 	info.frame.Active = true
 	-- The finished ids at the last sync, so a newly completed one can burst.
@@ -549,13 +635,19 @@ function ResearchScreen.init(hud: ScreenGui)
 	local dragging = false
 	local touches: { InputObject } = {}
 	local pinchDistance: number? = nil
+	local saps: { Frame } = {}
+	local sapClock = 0
 
-	-- Opening and closing fade the whole view: every transparency under it is taken from where
-	-- it stands and eased to clear (and back), while the view settles from a touch larger. The
-	-- tiles' item pictures are ViewportFrames, faded the same way.
-	local fadeEntries: { { instance: Instance, property: string, base: number } } = {}
-	local fadeAmount = 1
+	-- The ripple. Every transparency under the view is taken from where it stands and eased to
+	-- clear and back, each piece of the tree at its own moment by its distance from the middle:
+	-- out from the hub on opening, in from the edge on closing, the backdrop and strip first in and
+	-- last out. Tiles also grow in with a bounce and shrink away. The tiles' item pictures are
+	-- ViewportFrames, faded the same way.
+	local fadeEntries: { FadeEntry } = {}
+	local fadeScales: { { scale: UIScale, at: number } } = {}
 	local stopFade: (() -> ())? = nil
+	local fadeOpening = true
+	local fadeClock = 1
 	local FADED = {
 		GuiObject = { "BackgroundTransparency" },
 		TextLabel = { "TextTransparency", "TextStrokeTransparency" },
@@ -566,15 +658,37 @@ function ResearchScreen.init(hud: ScreenGui)
 		ViewportFrame = { "ImageTransparency" },
 		UIStroke = { "Transparency" },
 	}
+	-- Where on the canvas `instance` belongs (its tile, line piece or decoration), or nil for the
+	-- backdrop and panels.
+	local function placeOf(instance: Instance): number?
+		local current: Instance? = instance
+		while current and current ~= root do
+			local known = distanceOf[current]
+			if known then
+				return known
+			end
+			current = current.Parent
+		end
+		return nil
+	end
 	local function capture()
 		table.clear(fadeEntries)
+		table.clear(fadeScales)
+		local farthest = 1
+		for instance, distance in distanceOf do
+			if instance:IsA("GuiObject") and instance.Visible then
+				farthest = math.max(farthest, distance)
+			end
+		end
 		local function add(instance: Instance)
+			local distance = placeOf(instance)
+			local at = if distance then math.clamp(distance / farthest, 0, 1) else -1
 			for className, properties in FADED do
 				if instance:IsA(className) then
 					for _, property in properties do
 						table.insert(
 							fadeEntries,
-							{ instance = instance, property = property, base = (instance :: any)[property] }
+							{ instance = instance, property = property, base = (instance :: any)[property], at = at }
 						)
 					end
 				end
@@ -584,14 +698,39 @@ function ResearchScreen.init(hud: ScreenGui)
 		for _, descendant in root:GetDescendants() do
 			add(descendant)
 		end
-	end
-	local function applyFade(amount: number)
-		for _, entry in fadeEntries do
-			if entry.instance.Parent then
-				(entry.instance :: any)[entry.property] = entry.base + (1 - entry.base) * amount
+		for _, node in nodes do
+			if node.scale and node.frame.Visible then
+				table.insert(
+					fadeScales,
+					{ scale = node.scale, at = math.clamp(node.centre.Magnitude / farthest, 0, 1) }
+				)
 			end
 		end
-		viewScale.Scale = viewBaseline * (1 + (FADE_SCALE - 1) * amount)
+	end
+	-- How far gone (0 shown, 1 clear) a piece at `at` is, `elapsed` seconds into the ripple.
+	local function goneAt(at: number, elapsed: number): number
+		if fadeOpening then
+			local start = if at < 0 then 0 else 0.05 + at * APPEAR_SPREAD
+			local alpha = math.clamp((elapsed - start) / APPEAR, 0, 1)
+			return 1 - (1 - (1 - alpha) ^ 2)
+		end
+		local start = if at < 0 then BACKDROP_AFTER else (1 - at) * VANISH_SPREAD
+		local alpha = math.clamp((elapsed - start) / VANISH, 0, 1)
+		return alpha * alpha
+	end
+	local function applyFade(elapsed: number)
+		for _, entry in fadeEntries do
+			local target: any = entry.instance
+			if target.Parent then
+				target[entry.property] = entry.base + (1 - entry.base) * goneAt(entry.at, elapsed)
+			end
+		end
+		for _, entry in fadeScales do
+			local gone = goneAt(entry.at, elapsed)
+			entry.scale.Scale = if fadeOpening
+				then APPEAR_SCALE + (1 - APPEAR_SCALE) * backOut(1 - gone)
+				else 1 - (1 - APPEAR_SCALE) * gone
+		end
 	end
 	local function restoreFade()
 		for _, entry in fadeEntries do
@@ -599,8 +738,11 @@ function ResearchScreen.init(hud: ScreenGui)
 				(entry.instance :: any)[entry.property] = entry.base
 			end
 		end
+		for _, entry in fadeScales do
+			entry.scale.Scale = 1
+		end
 		table.clear(fadeEntries)
-		viewScale.Scale = viewBaseline
+		table.clear(fadeScales)
 	end
 
 	-- The required items as cards: each item's picture in a box with "x20 Wheat" under it, the
@@ -669,7 +811,34 @@ function ResearchScreen.init(hud: ScreenGui)
 		return true
 	end
 
+	-- An undiscovered project's info: what to research to find it, and nothing else.
+	local function fillMystery(panel: Panel, project: Research.Project)
+		local names = {}
+		for _, id in treeNeeds(project) do
+			local need = Research.get(id)
+			if need then
+				table.insert(names, need.name)
+			end
+		end
+		showCards(panel, project, false)
+		panel.name.Text = "???"
+		panel.name.TextColor3 = MYSTERY:Lerp(Color3.new(1, 1, 1), 0.5)
+		panel.description.Text = `Research {table.concat(names, " and ")} to discover it.`
+		panel.level.Text = "Undiscovered"
+		panel.level.TextColor3 = levelColor
+		panel.cost.Visible = false
+		if panel.time then
+			panel.time.Visible = false
+		end
+		panel.needs.Visible = false
+	end
+
 	local function fillPanel(panel: Panel, project: Research.Project)
+		local node = nodes[project.id]
+		if node and node.kind == "Mystery" then
+			fillMystery(panel, project)
+			return
+		end
 		local economy = EconomyClient.get()
 		local snapshot = ResearchClient.get()
 		local done = ResearchClient.done()
@@ -735,7 +904,10 @@ function ResearchScreen.init(hud: ScreenGui)
 		local _, hasItems = itemsOf(project)
 		local enoughCoins = economy.coins >= project.coins
 		local ready = activeId == project.id and activeReady()
+		local node = nodes[project.id]
+		local mystery = node ~= nil and node.kind == "Mystery"
 		local enabled = not pending
+			and not mystery
 			and (ready or (blocked == nil and enoughCoins and hasItems and activeId ~= project.id))
 		action.Active = enabled
 		action.Selectable = enabled
@@ -747,6 +919,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			else actionLook.text + (1 - actionLook.text) * 0.5
 		actionLabel.Text = if pending
 			then "..."
+			elseif mystery then "Undiscovered"
 			elseif done[project.id] then "Done"
 			elseif ready then "Complete"
 			elseif activeId == project.id then "Running"
@@ -757,44 +930,97 @@ function ResearchScreen.init(hud: ScreenGui)
 			else "Research"
 	end
 
-	local function visible(id: string, done: { [string]: boolean }): boolean
-		local node = nodes[id]
-		return node ~= nil and not revealing[id] and inReach(node.project, done)
+	-- Every tile's kind: in reach, one step past it, or neither. A tile the unlock glow has yet
+	-- to reach stays undiscovered, and so hides what lies past it.
+	local function kinds(done: { [string]: boolean }): { [string]: Kind }
+		local result: { [string]: Kind } = {}
+		for id, node in nodes do
+			result[id] = if not revealing[id] and inReach(node.project, done) then "Shown" else "Hidden"
+		end
+		for id, node in nodes do
+			if result[id] == "Hidden" then
+				for _, need in treeNeeds(node.project) do
+					if result[need] == "Shown" then
+						result[id] = "Mystery"
+						break
+					end
+				end
+			end
+		end
+		return result
+	end
+
+	-- A tile coming into view on its own (an undiscovered one past a new unlock): it grows in.
+	local function appear(node: Node)
+		local tileScale = node.scale
+		if not tileScale or GuiService.ReducedMotionEnabled or stopFade then
+			return
+		end
+		tileScale.Scale = 0
+		task.delay(0.15, function()
+			if node.frame.Parent then
+				TweenService:Create(tileScale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+					Scale = 1,
+				}):Play()
+			end
+		end)
 	end
 
 	local function paintTiles()
 		local done = ResearchClient.done()
 		local coins = EconomyClient.get().coins
+		local kind = kinds(done)
 		for id, node in nodes do
 			local state = stateOf(node.project)
+			local was = node.kind
 			node.state = state
-			node.frame.Visible = visible(id, done)
-			if node.stroke then
-				node.stroke.Color = COLORS[state]
-				node.stroke.Thickness = strokeThickness
+			node.kind = kind[id]
+			local mystery = node.kind == "Mystery"
+			node.frame.Visible = node.kind ~= "Hidden"
+			if was == "Hidden" and node.kind == "Mystery" and shown then
+				appear(node)
 			end
+			if node.stroke then
+				node.stroke.Color = if mystery then MYSTERY elseif state == "Done" then node.tint else COLORS[state]
+				node.stroke.Thickness = if mystery then 2 else strokeThickness
+			end
+			node.shape.BackgroundColor3 = if mystery
+				then nodeColor:Lerp(Color3.new(0, 0, 0), 0.4)
+				else node.tint:Lerp(Color3.new(0, 0, 0), if state == "Done" then FILL_DONE else FILL_DARK)
+			node.icon.Visible = not mystery
 			node.icon.ImageTransparency = if state == "Locked" then LOCKED_FADE else 0
+			node.name.Visible = not mystery
 			node.name.TextTransparency = if state == "Locked" then LOCKED_FADE else 0
+			if node.mystery then
+				node.mystery.Visible = mystery
+			end
 			if node.cost then
-				node.cost.Visible = state == "Open" or state == "Locked"
+				node.cost.Visible = not mystery and (state == "Open" or state == "Locked")
 				node.cost.Text = shortCost(node.project.coins)
 				if nodeCostColor then
 					node.cost.TextColor3 = if coins < node.project.coins then COLORS.Locked else nodeCostColor
 				end
 			end
 			if node.progress then
-				node.progress.Visible = state == "Running" or state == "Ready"
+				node.progress.Visible = not mystery and (state == "Running" or state == "Ready")
 			end
+			node.halo.Visible = not mystery and (state == "Open" or state == "Ready")
+			node.haloStroke.Color = if state == "Ready" then COLORS.Ready else COLORS.Open
 		end
 		for _, link in links do
 			if glowing[link] then
 				continue
 			end
-			local shows = visible(link.child, done) and (link.need == nil or visible(link.need, done))
+			local childKind = kind[link.child]
+			local needKind = if link.need then kind[link.need] else "Shown"
+			local shows = childKind ~= "Hidden" and needKind ~= "Hidden"
 			local lit = done[link.lit] == true
+			local faint = if childKind == "Mystery"
+				then linkTransparency + (1 - linkTransparency) * MYSTERY_LINE
+				else linkTransparency
 			for _, piece in link.pieces do
 				piece.holder.Visible = shows
-				piece.holder.BackgroundTransparency = linkTransparency
+				piece.holder.BackgroundTransparency = faint
 				piece.fill.Size = UDim2.fromScale(if lit then 1 else 0, 1)
 			end
 		end
@@ -824,8 +1050,8 @@ function ResearchScreen.init(hud: ScreenGui)
 		completeButton.Visible = ready
 		completeButton.Active = ready and not pending
 		if stopFade then
-			-- mid-fade, what was just painted stays faded (the fade's end paints again)
-			applyFade(fadeAmount)
+			-- mid-ripple, what was just painted stays where the ripple has it (its end paints again)
+			applyFade(fadeClock)
 		end
 	end
 
@@ -865,7 +1091,7 @@ function ResearchScreen.init(hud: ScreenGui)
 
 	-- A straight piece of line on the canvas from `a` to `b`: a dim line turned to run along it,
 	-- holding the lit fill that grows from `a`.
-	local function segment(a: Vector2, b: Vector2): Piece
+	local function segment(a: Vector2, b: Vector2, distance: number): Piece
 		local holder = linkTemplate:Clone()
 		local delta = b - a
 		local length = delta.Magnitude
@@ -881,41 +1107,149 @@ function ResearchScreen.init(hud: ScreenGui)
 		lit.ZIndex = holder.ZIndex
 		lit.Parent = holder
 		holder.Parent = linkLayer
+		distanceOf[holder] = distance
 		treeTrove:Add(holder)
 		return { holder = holder, fill = lit, from = a, to = b, length = length }
 	end
 
-	local function addLink(need: string?, child: string, lit: string, points: { Vector2 })
+	local function addLink(
+		need: string?,
+		child: string,
+		lit: string,
+		points: { Vector2 },
+		distance: number,
+		color: Color3
+	)
 		local pieces = {}
 		local length = 0
 		for index = 1, #points - 1 do
-			local piece = segment(points[index], points[index + 1])
+			local piece = segment(points[index], points[index + 1], distance)
+			piece.fill.BackgroundColor3 = color
 			table.insert(pieces, piece)
 			length += piece.length
 		end
-		table.insert(links, { need = need, child = child, lit = lit, pieces = pieces, length = length })
+		table.insert(links, { need = need, child = child, lit = lit, pieces = pieces, length = length, color = color })
 	end
 
-	-- The hub: the flask from the side button on a round tile; pressing it glides home.
-	local function buildHub()
+	-- The curve from one tile to the next: it leaves the parent heading for the child's line and
+	-- flows into the child along it, trimmed to the tiles' rims. A child on the same line gets a
+	-- straight piece.
+	local function curve(from: Vector2, to: Vector2, fromRadius: number): { Vector2 }
+		local toAngle = math.atan2(to.Y, to.X)
+		local fromAngle = math.atan2(from.Y, from.X)
+		if math.abs(fromAngle - toAngle) < 1e-3 or from.Magnitude < 1 then
+			local way = (to - from).Unit
+			return { from + way * fromRadius, to - way * tileRadius }
+		end
+		local control = polar(toAngle, (from.Magnitude + to.Magnitude) / 2)
+		local samples = {}
+		local steps = CURVE_PIECES * 4
+		for index = 0, steps do
+			local t = index / steps
+			local point = from:Lerp(control, t):Lerp(control:Lerp(to, t), t)
+			if (point - from).Magnitude >= fromRadius and (point - to).Magnitude >= tileRadius then
+				table.insert(samples, point)
+			end
+		end
+		local points = {}
+		for index = 1, #samples, 4 do
+			table.insert(points, samples[index])
+		end
+		if samples[#samples] ~= points[#points] then
+			table.insert(points, samples[#samples])
+		end
+		return points
+	end
+
+	-- The middle of the canvas: faint guide rings, the hub with the side button's flask, and two
+	-- orbits turning round it. Pressing the hub glides home.
+	local function buildHub(rings: number)
+		for index = 0, rings do
+			local radius = FIRST_RING + index * RING_GAP
+			local guide = circle(
+				linkLayer,
+				UDim2.fromOffset(0, 0),
+				UDim2.fromOffset(radius * 2, radius * 2),
+				Color3.fromRGB(150, 156, 190),
+				0.9 + index * 0.012,
+				0,
+				1
+			)
+			guide.Name = "Ring" .. index
+			distanceOf[guide] = radius
+			treeTrove:Add(guide)
+		end
+		local glow = circle(
+			nodeLayer,
+			UDim2.fromOffset(0, 0),
+			UDim2.fromOffset(HUB_SIZE * 1.5, HUB_SIZE * 1.5),
+			COLORS.Ready,
+			0.9,
+			nodeTemplate.ZIndex
+		)
+		glow.Name = "HubGlow"
+		distanceOf[glow] = 0
+		treeTrove:Add(glow)
+		local orbit = Instance.new("Frame")
+		orbit.Name = "Orbit"
+		orbit.AnchorPoint = Vector2.new(0.5, 0.5)
+		orbit.Size = UDim2.fromOffset(ORBIT_SIZE, ORBIT_SIZE)
+		orbit.BackgroundTransparency = 1
+		for index = 1, ORBIT_DOTS do
+			local angle = index / ORBIT_DOTS * math.pi * 2
+			local spot = polar(angle, ORBIT_SIZE / 2)
+			circle(
+				orbit,
+				UDim2.new(0.5, spot.X, 0.5, spot.Y),
+				UDim2.fromOffset(if index % 6 == 0 then 6 else 3, if index % 6 == 0 then 6 else 3),
+				COLORS.Ready,
+				if index % 6 == 0 then 0.1 else 0.55,
+				nodeTemplate.ZIndex
+			)
+		end
+		orbit.Parent = nodeLayer
+		distanceOf[orbit] = 0
+		treeTrove:Add(orbit)
+		local outer = circle(
+			nodeLayer,
+			UDim2.fromOffset(0, 0),
+			UDim2.fromOffset(OUTER_SIZE, OUTER_SIZE),
+			COLORS.Ready,
+			0.82,
+			nodeTemplate.ZIndex,
+			1
+		)
+		outer.Name = "OuterOrbit"
+		for index = 1, OUTER_MOTES do
+			local spot = polar(index / OUTER_MOTES * math.pi * 2, OUTER_SIZE / 2)
+			circle(outer, UDim2.new(0.5, spot.X, 0.5, spot.Y), UDim2.fromOffset(8, 8), HOT, 0, nodeTemplate.ZIndex)
+		end
+		distanceOf[outer] = 0
+		treeTrove:Add(outer)
+		orbits = { { frame = orbit, speed = ORBIT_SPEED }, { frame = outer, speed = OUTER_SPEED } }
+
 		local tile = Instance.new("TextButton")
 		tile.Name = "Hub"
 		tile.Text = ""
 		tile.AutoButtonColor = false
 		tile.AnchorPoint = Vector2.new(0.5, 0.5)
-		tile.Position = UDim2.fromOffset(0, 0)
 		tile.Size = UDim2.fromOffset(HUB_SIZE, HUB_SIZE)
-		tile.BackgroundColor3 = nodeTemplate.BackgroundColor3
+		tile.BackgroundColor3 = nodeColor
 		tile.BorderSizePixel = 0
-		tile.ZIndex = nodeTemplate.ZIndex
+		tile.ZIndex = nodeTemplate.ZIndex + 1
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius = UDim.new(0.5, 0)
 		corner.Parent = tile
+		local shade = Instance.new("UIGradient")
+		shade.Rotation = 90
+		shade.Color = ColorSequence.new(Color3.fromRGB(255, 240, 210), Color3.fromRGB(140, 120, 90))
+		shade.Parent = tile
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = COLORS.Ready
-		stroke.Thickness = strokeThickness
+		stroke.Thickness = 3
 		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		stroke.Parent = tile
+		hubStroke = stroke
 		local flask = hud:FindFirstChild("SideButtons")
 		flask = if flask then flask:FindFirstChild("Research") else nil
 		flask = if flask then flask:FindFirstChild("Icon") else nil
@@ -927,6 +1261,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			icon.Parent = tile
 		end
 		tile.Parent = nodeLayer
+		distanceOf[tile] = 0
 		treeTrove:Add(tile)
 		treeTrove:Add(UI.bindButton(tile, {
 			onActivate = function()
@@ -938,61 +1273,89 @@ function ResearchScreen.init(hud: ScreenGui)
 		hub = tile
 	end
 
+	-- A category's tag, a small pill on the stem between the hub and the fan's first project.
+	local function tag(category: { name: string, color: Color3 }, angle: number)
+		local radius = (HUB_SIZE / 2 + FIRST_RING - tileRadius) / 2 + 6
+		local spot = polar(angle, radius)
+		local pill = Instance.new("TextLabel")
+		pill.Name = category.name .. "Tag"
+		pill.AnchorPoint = Vector2.new(0.5, 0.5)
+		pill.Position = UDim2.fromOffset(spot.X, spot.Y)
+		pill.Size = UDim2.fromOffset(0, 20)
+		pill.AutomaticSize = Enum.AutomaticSize.X
+		pill.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
+		pill.BorderSizePixel = 0
+		pill.Text = string.upper(category.name)
+		pill.TextColor3 = category.color
+		pill.TextSize = 12
+		pill.FontFace = Font.new(info.name.FontFace.Family, Enum.FontWeight.Bold)
+		pill.ZIndex = nodeTemplate.ZIndex
+		local padding = Instance.new("UIPadding")
+		padding.PaddingLeft = UDim.new(0, 9)
+		padding.PaddingRight = UDim.new(0, 9)
+		padding.Parent = pill
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = pill
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = category.color
+		stroke.Thickness = 1
+		stroke.Transparency = 0.4
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = pill
+		pill.Parent = nodeLayer
+		distanceOf[pill] = radius
+		treeTrove:Add(pill)
+	end
+
 	local function build()
 		treeTrove:Clean()
 		table.clear(nodes)
 		table.clear(links)
 		table.clear(revealing)
 		table.clear(glowing)
+		table.clear(distanceOf)
 		hovered = nil
 		canvas.Size = UDim2.fromOffset(0, 0)
-		buildHub()
-		local half = nodeSize.X.Offset / 2
-		-- Each project's place: its arm, step out and branch, and where that is on the canvas.
-		local spots: { [string]: { arm: Arm, along: number, across: number } } = {}
-		local function point(arm: Arm, along: number, across: number): Vector2
-			local side = Vector2.new(-arm.direction.Y, arm.direction.X) * arm.side
-			return arm.origin * HUB_REACH + arm.direction * along + side * across
-		end
-		for category, arm in ARMS do
-			for id, cell in layout(category) do
-				spots[id] = { arm = arm, along = cell.X * COLUMN, across = sideOf(cell.Y) * ROW }
+		-- Each project's place: its fan's middle, the angle of its line and its ring.
+		local spots: { [string]: Vector2 } = {}
+		local rings = 0
+		for index, category in CATEGORIES do
+			local middle = math.rad(-90 + (index - 1) * 360 / #CATEGORIES)
+			local cells = layout(category.name)
+			local sides: { [number]: number } = {}
+			local count, total = 0, 0
+			for _, cell in cells do
+				if not sides[cell.Y] then
+					sides[cell.Y] = sideOf(cell.Y)
+					count += 1
+					total += sides[cell.Y]
+				end
 			end
+			local mean = if count > 0 then total / count else 0
+			for id, cell in cells do
+				local angle = if cell.X == 0 then middle else middle + math.rad((sides[cell.Y] - mean) * FAN_STEP)
+				spots[id] = polar(angle, FIRST_RING + cell.X * RING_GAP)
+				rings = math.max(rings, cell.X)
+			end
+			tag(category, middle)
 		end
+		buildHub(rings + 1)
 		for _, project in Research.PROJECTS do
-			local spot = spots[project.id]
-			if not spot then
+			local to = spots[project.id]
+			if not to then
 				continue
 			end
-			local arm = spot.arm
-			local to = point(arm, spot.along, spot.across)
+			local distance = to.Magnitude
+			local tint = TINTS[project.category] or COLORS.Done
 			local needs = treeNeeds(project)
 			if #needs == 0 then
-				-- straight from the hub's rim to the near edge of the tile
-				local way = to.Unit
-				local reach = half / math.max(math.abs(way.X), math.abs(way.Y))
-				addLink(nil, project.id, project.id, { way * HUB_SIZE / 2, to - way * reach })
+				addLink(nil, project.id, project.id, curve(Vector2.zero, to, HUB_SIZE / 2), distance, tint)
 			end
-			-- Elbowed lines from each need in the tree: on along the need's branch to the gap
-			-- before this tile, across to its branch, and on into it.
 			for _, id in needs do
 				local from = spots[id]
 				if from then
-					local startAlong, endAlong = from.along + half, spot.along - half
-					if from.across == spot.across then
-						addLink(id, project.id, id, {
-							point(arm, startAlong, from.across),
-							point(arm, endAlong, spot.across),
-						})
-					else
-						local turn = endAlong - (COLUMN - half * 2) / 2
-						addLink(id, project.id, id, {
-							point(arm, startAlong, from.across),
-							point(arm, turn, from.across),
-							point(arm, turn, spot.across),
-							point(arm, endAlong, spot.across),
-						})
-					end
+					addLink(id, project.id, id, curve(from, to, tileRadius), distance, tint)
 				end
 			end
 			local frame = nodeTemplate:Clone()
@@ -1005,25 +1368,78 @@ function ResearchScreen.init(hud: ScreenGui)
 			local cost = frame:FindFirstChild("Cost")
 			local progress = frame:FindFirstChild("Progress")
 			local progressFill = if progress then progress:FindFirstChild("Fill") else nil
+			local mystery = frame:FindFirstChild("Mystery")
 			name.Text = project.name
 			ItemIcon.show(icon, iconOf(project))
 			frame.Name = project.id
 			frame.AnchorPoint = Vector2.new(0.5, 0.5)
 			frame.Position = UDim2.fromOffset(to.X, to.Y)
+			frame.ZIndex = nodeTemplate.ZIndex + 1
+			-- the diamond: Node.Shape when authored, else one drawn here
+			local shape = frame:FindFirstChild("Shape")
+			if not shape or not shape:IsA("GuiObject") then
+				local drawn = Instance.new("Frame")
+				drawn.Name = "Shape"
+				drawn.AnchorPoint = Vector2.new(0.5, 0.5)
+				drawn.Position = UDim2.fromScale(0.5, 0.5)
+				drawn.Size = UDim2.fromScale(0.74, 0.74)
+				drawn.Rotation = 45
+				drawn.BorderSizePixel = 0
+				local round = Instance.new("UICorner")
+				round.CornerRadius = UDim.new(0, 12)
+				round.Parent = drawn
+				local ring = Instance.new("UIStroke")
+				ring.Thickness = strokeThickness
+				ring.Parent = drawn
+				drawn.Parent = frame
+				shape = drawn
+			end
+			local diamond = shape :: GuiObject
+			local border = diamond:FindFirstChildOfClass("UIStroke")
+			if border then
+				-- a mitred join squares off a rounded corner
+				border.LineJoinMode = Enum.LineJoinMode.Round
+			end
+			-- the breathing halo round a tile that can be researched (or completed): a larger
+			-- diamond outline
+			local halo = Instance.new("Frame")
+			halo.Name = "Halo"
+			halo.AnchorPoint = Vector2.new(0.5, 0.5)
+			halo.Position = UDim2.fromScale(0.5, 0.5)
+			halo.Size = UDim2.new(diamond.Size.X.Scale, 14, diamond.Size.Y.Scale, 14)
+			halo.Rotation = 45
+			halo.BackgroundTransparency = 1
+			halo.ZIndex = diamond.ZIndex
+			local haloCorner = Instance.new("UICorner")
+			haloCorner.CornerRadius = UDim.new(0, 16)
+			haloCorner.Parent = halo
+			local haloStroke = Instance.new("UIStroke")
+			haloStroke.Thickness = 2
+			haloStroke.Color = COLORS.Open
+			haloStroke.LineJoinMode = Enum.LineJoinMode.Round
+			haloStroke.Parent = halo
+			halo.Parent = frame
 			frame.Parent = nodeLayer
+			distanceOf[frame] = distance
 			local id = project.id
 			nodes[id] = {
 				project = project,
 				frame = frame,
-				stroke = frame:FindFirstChildOfClass("UIStroke"),
+				shape = diamond,
+				tint = tint,
+				stroke = border,
 				scale = frame:FindFirstChildOfClass("UIScale"),
 				icon = icon,
 				name = name,
 				cost = if cost and cost:IsA("TextLabel") then cost else nil,
 				progress = if progress and progress:IsA("GuiObject") then progress else nil,
 				fill = if progressFill and progressFill:IsA("GuiObject") then progressFill else nil,
+				mystery = if mystery and mystery:IsA("GuiObject") then mystery else nil,
+				halo = halo,
+				haloStroke = haloStroke,
 				centre = to,
 				state = "Locked",
+				kind = "Hidden",
 			}
 			treeTrove:Add(frame)
 			treeTrove:Add(function()
@@ -1057,24 +1473,6 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 	end
 
-	-- A round frame on the canvas at `at`, over the tiles, cleared with the tree.
-	local function disc(at: UDim2, size: UDim2, color: Color3, transparency: number, zIndex: number): Frame
-		local circle = Instance.new("Frame")
-		circle.AnchorPoint = Vector2.new(0.5, 0.5)
-		circle.Position = at
-		circle.Size = size
-		circle.BackgroundColor3 = color
-		circle.BackgroundTransparency = transparency
-		circle.BorderSizePixel = 0
-		circle.ZIndex = zIndex
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.5, 0)
-		corner.Parent = circle
-		circle.Parent = nodeLayer
-		treeTrove:Add(circle)
-		return circle
-	end
-
 	local function grow(by: number): UDim2
 		return UDim2.fromOffset(nodeSize.X.Offset * by, nodeSize.Y.Offset * by)
 	end
@@ -1083,16 +1481,15 @@ function ResearchScreen.init(hud: ScreenGui)
 	local function flashAndRing(frame: GuiObject, flashColor: Color3, ringColor: Color3, reach: number)
 		local reduced = GuiService.ReducedMotionEnabled
 		local at = frame.Position
-		local flash = disc(at, nodeSize, flashColor, 0.15, frame.ZIndex + 5)
+		local flash = circle(nodeLayer, at, nodeSize, flashColor, 0.15, frame.ZIndex + 5)
+		treeTrove:Add(flash)
 		TweenService:Create(flash, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Size = if reduced then nodeSize else grow(reach * 0.72),
 			BackgroundTransparency = 1,
 		}):Play()
-		local ring = disc(at, nodeSize, ringColor, 1, frame.ZIndex + 5)
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = ringColor
-		stroke.Thickness = 4
-		stroke.Parent = ring
+		local ring = circle(nodeLayer, at, nodeSize, ringColor, 0, frame.ZIndex + 5, 4)
+		treeTrove:Add(ring)
+		local stroke = ring:FindFirstChildOfClass("UIStroke") :: UIStroke
 		TweenService:Create(ring, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Size = if reduced then nodeSize else grow(reach),
 		}):Play()
@@ -1158,8 +1555,9 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 	end
 
-	-- A tile the glow has just reached pops in: it grows from small with a bounce, a pale flash
-	-- and a gold ring spread from it, and sparks scatter.
+	-- A tile the glow has just reached turns over into itself: it squashes flat, swaps its "?"
+	-- for its picture and springs back, a pale flash and a gold ring spread from it and sparks
+	-- scatter.
 	local function reveal(id: string)
 		local node = nodes[id]
 		if not node then
@@ -1171,7 +1569,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		local tileScale = node.scale
 		if tileScale and not GuiService.ReducedMotionEnabled then
 			tileScale.Scale = 0.2
-			TweenService:Create(tileScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TweenService:Create(tileScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 				Scale = 1,
 			}):Play()
 		end
@@ -1188,10 +1586,13 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 		local zIndex = nodeTemplate.ZIndex + 4
 		local start = link.pieces[1].from
-		local halo = disc(UDim2.fromOffset(start.X, start.Y), UDim2.fromOffset(34, 34), COLORS.Ready, 0.55, zIndex)
-		local head = disc(UDim2.fromOffset(start.X, start.Y), UDim2.fromOffset(14, 14), HOT, 0, zIndex + 1)
+		local at0 = UDim2.fromOffset(start.X, start.Y)
+		local halo = circle(nodeLayer, at0, UDim2.fromOffset(34, 34), link.color, 0.5, zIndex)
+		local head = circle(nodeLayer, at0, UDim2.fromOffset(14, 14), HOT, 0, zIndex + 1)
+		treeTrove:Add(halo)
+		treeTrove:Add(head)
 		local headStroke = Instance.new("UIStroke")
-		headStroke.Color = COLORS.Ready
+		headStroke.Color = link.color
 		headStroke.Thickness = 3
 		headStroke.Transparency = 0.2
 		headStroke.Parent = head
@@ -1217,7 +1618,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			for _, piece in link.pieces do
 				local share = math.clamp(travelled / math.max(piece.length, 1), 0, 1)
 				piece.fill.Size = UDim2.fromScale(share, 1)
-				piece.fill.BackgroundColor3 = COLORS.Ready:Lerp(COLORS.Done, alpha)
+				piece.fill.BackgroundColor3 = HOT:Lerp(link.color, alpha)
 				if travelled > 0 then
 					at = piece.from:Lerp(piece.to, share)
 				end
@@ -1229,15 +1630,66 @@ function ResearchScreen.init(hud: ScreenGui)
 			halo.Size = UDim2.fromOffset(34 * pulse, 34 * pulse)
 		end, function()
 			for _, piece in link.pieces do
-				piece.fill.BackgroundColor3 = COLORS.Done
+				piece.fill.BackgroundColor3 = link.color
 			end
 			finish()
 		end)
 	end
 
+	-- Sap: a small mote drifting outward down a lit line, fading in and out.
+	local function sap()
+		local candidates = {}
+		for _, link in links do
+			local first = link.pieces[1]
+			if
+				first
+				and not glowing[link]
+				and first.holder.Visible
+				and first.fill.Size.X.Scale >= 1
+				and ResearchClient.done()[link.lit]
+			then
+				table.insert(candidates, link)
+			end
+		end
+		if #candidates == 0 then
+			return
+		end
+		local link = candidates[math.random(#candidates)]
+		local start = link.pieces[1].from
+		local mote = circle(
+			linkLayer,
+			UDim2.fromOffset(start.X, start.Y),
+			UDim2.fromOffset(6, 6),
+			link.color:Lerp(HOT, 0.55),
+			1,
+			3
+		)
+		treeTrove:Add(mote)
+		table.insert(saps, mote)
+		animate(link.length / SAP_SPEED, function(alpha)
+			local travelled = alpha * link.length
+			local at = start
+			for _, piece in link.pieces do
+				local share = math.clamp(travelled / math.max(piece.length, 1), 0, 1)
+				if travelled > 0 then
+					at = piece.from:Lerp(piece.to, share)
+				end
+				travelled -= piece.length
+			end
+			mote.Position = UDim2.fromOffset(at.X, at.Y)
+			mote.BackgroundTransparency = 0.15 + 0.85 * math.abs(alpha * 2 - 1) ^ 3
+		end, function()
+			local index = table.find(saps, mote)
+			if index then
+				table.remove(saps, index)
+			end
+			mote:Destroy()
+		end)
+	end
+
 	-- A project just completed: its tile bursts, then a glow runs down every line out of it and
-	-- each project it reaches that was out of reach before pops in. The view glides to take in
-	-- the project and what it leads to.
+	-- each undiscovered project it reaches turns over into itself. The view glides to take in the
+	-- project and what it leads to.
 	local function celebrate(id: string, before: { [string]: boolean })
 		local node = nodes[id]
 		if not node then
@@ -1258,13 +1710,6 @@ function ResearchScreen.init(hud: ScreenGui)
 		focusOn(around / (#outgoing + 1), false)
 		render()
 		burst(id)
-		for _, link in outgoing do
-			-- drawn by the glow, not before it
-			glowing[link] = true
-			for _, piece in link.pieces do
-				piece.holder.Visible = false
-			end
-		end
 		task.delay(if GuiService.ReducedMotionEnabled then 0 else GLOW_DELAY, function()
 			if not node.frame.Parent then
 				return
@@ -1290,6 +1735,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		hovered = nil
 		selected = nil
 		focus, shownFocus = Vector2.zero, Vector2.zero
+		scale = OVERVIEW
 		shownScale = if GuiService.ReducedMotionEnabled then scale else scale * OPEN_ZOOM
 		render()
 	end
@@ -1320,19 +1766,18 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 		root.Interactable = show
 		if GuiService.ReducedMotionEnabled then
-			fadeAmount = if show then 0 else 1
 			root.Visible = show
 			return
 		end
 		root.Visible = true
+		fadeOpening = show
 		capture()
-		local from = fadeAmount
-		local target = if show then 0 else 1
-		applyFade(from)
-		stopFade = animate(if show then FADE_IN else FADE_OUT, function(alpha)
-			local eased = if show then 1 - (1 - alpha) ^ 2 else alpha * alpha
-			fadeAmount = from + (target - from) * eased
-			applyFade(fadeAmount)
+		fadeClock = 0
+		applyFade(0)
+		local total = if show then 0.05 + APPEAR_SPREAD + APPEAR else BACKDROP_AFTER + VANISH
+		stopFade = animate(total, function(alpha)
+			fadeClock = alpha * total
+			applyFade(fadeClock)
 		end, function()
 			stopFade = nil
 			restoreFade()
@@ -1367,8 +1812,8 @@ function ResearchScreen.init(hud: ScreenGui)
 		panel.frame.Position = UDim2.fromOffset(x, y)
 	end
 
-	-- Every frame while open: the canvas glides, the panels follow their tiles, a ready tile
-	-- breathes, and the running project's countdown and bars tick.
+	-- Every frame while open: the canvas glides, the orbits turn, the hub and halos breathe, sap
+	-- drifts, the panels follow their tiles, and the running project's countdown and bars tick.
 	local wasReady = false
 	local function step(dt: number)
 		for _, gamepad in UserInputService:GetConnectedGamepads() do
@@ -1396,6 +1841,37 @@ function ResearchScreen.init(hud: ScreenGui)
 		else
 			tooltip.frame.Visible = false
 		end
+		local now = os.clock()
+		local calm = not GuiService.ReducedMotionEnabled
+		if calm then
+			for _, orbit in orbits do
+				orbit.frame.Rotation = (orbit.frame.Rotation + orbit.speed * dt) % 360
+			end
+		end
+		-- the breathing (left alone mid-ripple, which owns transparencies then)
+		if not stopFade and calm then
+			local breath = 0.5 + 0.5 * math.sin(now * 2.2)
+			if hubStroke then
+				hubStroke.Transparency = 0.35 * breath
+			end
+			for _, node in nodes do
+				if node.halo.Visible then
+					local fast = node.state == "Ready"
+					local wave = 0.5 + 0.5 * math.sin(now * (if fast then 5 else 2.4) + node.centre.X * 0.01)
+					node.haloStroke.Transparency = 0.25 + 0.6 * wave
+					local size = node.shape.Size.X.Scale
+					local out = 10 + 8 * (1 - wave)
+					node.halo.Size = UDim2.new(size, out, size, out)
+				end
+			end
+			sapClock += dt
+			if sapClock >= SAP_EVERY then
+				sapClock = 0
+				if #saps < SAP_MOST then
+					sap()
+				end
+			end
+		end
 		local active = ResearchClient.get().active
 		local project = if active then Research.get(active.id) else nil
 		local ready = activeReady()
@@ -1403,7 +1879,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			wasReady = ready
 			render()
 		end
-		local pulse = 0.5 + 0.5 * math.sin(os.clock() * 4)
+		local pulse = 0.5 + 0.5 * math.sin(now * 4)
 		if completeStroke then
 			completeStroke.Thickness = completeThickness + if ready then pulse * 2 else 0
 		end
