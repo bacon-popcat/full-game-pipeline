@@ -13,6 +13,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Research = require(ReplicatedStorage.Shared.Research)
+local Notices = require(ReplicatedStorage.Shared.Notices)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
@@ -143,7 +144,8 @@ function ResearchService.release(player: Player)
 	Bonuses.clear(player)
 end
 
-local function start(player: Player, state: Research.Saved, id: unknown): string
+-- Each action answers with its message, and "Success" when it went through (else a refusal).
+local function start(player: Player, state: Research.Saved, id: unknown): (string, Notices.Kind?)
 	local project = if typeof(id) == "string" then Research.get(id) else nil
 	if not project then
 		return "Choose a research project."
@@ -179,10 +181,10 @@ local function start(player: Player, state: Research.Saved, id: unknown): string
 	end
 	local seconds = Research.duration(project, Bonuses.get(player, "researchSpeed"))
 	state.active = { id = project.id, startedAt = wallTime(), seconds = seconds }
-	return string.format("Researching %s (%d:%02d).", project.name, seconds // 60, seconds % 60)
+	return string.format("Researching %s (%d:%02d).", project.name, seconds // 60, seconds % 60), "Success"
 end
 
-local function cancel(player: Player, state: Research.Saved): string
+local function cancel(player: Player, state: Research.Saved): (string, Notices.Kind?)
 	local active = state.active
 	if not active then
 		return "No research is running."
@@ -201,11 +203,11 @@ local function cancel(player: Player, state: Research.Saved): string
 		InventoryService.give(player, itemId, count)
 	end
 	state.active = nil
-	return `Research cancelled. Refunded {project.coins} coins.`
+	return `Research cancelled. Refunded {project.coins} coins.`, "Success"
 end
 
 -- Finishes a project whose timer has run out: its bonus applies and ResearchDone fires.
-local function complete(player: Player, state: Research.Saved): string
+local function complete(player: Player, state: Research.Saved): (string, Notices.Kind?)
 	local active = state.active
 	if not active then
 		return "No research is running."
@@ -219,13 +221,14 @@ local function complete(player: Player, state: Research.Saved): string
 	announced[player] = nil
 	publish(player, state)
 	GardenEvents.ResearchDone:Fire(player, active.id)
-	return `Research complete: {project.name}!`
+	return `Research complete! {project.name}`, "Reward"
 end
 
 local function onResearch(player: Player, action: unknown, id: unknown)
 	local state = states[player]
 	local now = os.clock()
 	local message: string
+	local kind: Notices.Kind? = nil
 	if player:GetAttribute("DataReady") ~= true or not state then
 		message = "Your garden is still loading."
 	elseif now - (lastAction[player] or -math.huge) < COOLDOWN then
@@ -233,16 +236,16 @@ local function onResearch(player: Player, action: unknown, id: unknown)
 	else
 		lastAction[player] = now
 		if action == "Start" then
-			message = start(player, state, id)
+			message, kind = start(player, state, id)
 		elseif action == "Cancel" then
-			message = cancel(player, state)
+			message, kind = cancel(player, state)
 		elseif action == "Complete" then
-			message = complete(player, state)
+			message, kind = complete(player, state)
 		else
 			message = "Choose Start, Cancel or Complete."
 		end
 	end
-	Remotes.Notify:FireClient(player, message)
+	Remotes.Notify:FireClient(player, message, kind or "Error")
 	sync(player)
 end
 
@@ -259,7 +262,7 @@ local function announce(player: Player, state: Research.Saved)
 	announced[player] = active.id
 	local project = Research.get(active.id)
 	assert(project, "ResearchService: active project must exist")
-	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`)
+	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`, "Success")
 	sync(player)
 end
 

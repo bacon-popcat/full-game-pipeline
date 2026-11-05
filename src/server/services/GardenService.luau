@@ -12,10 +12,13 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
 local World = require(ReplicatedStorage.Shared.World)
+local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local GardenEvents = require(game:GetService("ServerScriptService").Libraries.GardenEvents)
 local Bonuses = require(game:GetService("ServerScriptService").Libraries.Bonuses)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
+-- A harvest whose mutations multiply its value at least this much (Shocked and up) gets a notice.
+local RARE_MULTIPLIER = 10
 type State = {
 	seedStock: { [string]: number },
 	restockAt: number,
@@ -131,8 +134,14 @@ function GardenService.harvest(player: Player, cropId: string, mutation: string?
 	state.discovered[cropId] = true
 	GardenService.discover(player, World.CROPS[cropId].produce .. (if mutation then "+" .. mutation else ""))
 	EconomyService.addXp(player, Content.RARITIES[World.CROPS[cropId].rarity].xp)
-	if mutation then
-		Remotes.Notify:FireClient(player, `{Inventory.getItem(World.CROPS[cropId].produce .. "+" .. mutation).name}!`)
+	-- Only a rare mutation is worth a notice; Wet comes with every sprinkler.
+	local names = if mutation then Mutations.parse(mutation) else nil
+	if names and Mutations.multiplier(names) >= RARE_MULTIPLIER then
+		Remotes.Notify:FireClient(
+			player,
+			`{Inventory.getItem(World.CROPS[cropId].produce .. "+" .. mutation).name}!`,
+			"Rare"
+		)
 	end
 end
 
@@ -208,6 +217,7 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 	end
 	restock(player, state)
 	local message = "Choose a valid amount."
+	local bought = false
 	if typeof(itemId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and count <= 99 then
 		local reason = refusal(player)
 		local crop = if shopId == "SeedShop" then seeds[itemId] else nil
@@ -226,15 +236,18 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 				state.seedStock[itemId] -= count
 				GardenEvents.Bought:Fire(player, itemId, count)
 				message = `Bought {count} {crop.name} Seeds`
+				bought = true
 			end
 		elseif offer then
-			message = buyOffer(player, offer, count) or `Bought {Inventory.getItem(itemId).name}`
+			local refused = buyOffer(player, offer, count)
+			message = refused or `Bought {Inventory.getItem(itemId).name}`
+			bought = refused == nil
 		end
 	end
 	if shopId == "SeedShop" then
 		sync(player, state)
 	end
-	Remotes.Notify:FireClient(player, message)
+	Remotes.Notify:FireClient(player, message, if bought then "Success" else "Error")
 end
 
 local function sell(player: Player, mode: unknown)
@@ -244,7 +257,7 @@ local function sell(player: Player, mode: unknown)
 	local reason = refusal(player)
 	if reason then
 		InventoryService.resync(player)
-		Remotes.Notify:FireClient(player, reason)
+		Remotes.Notify:FireClient(player, reason, "Error")
 		return
 	end
 	local sold = InventoryService.takeWhere(player, mode == "Held", function(id: string): boolean
@@ -257,7 +270,11 @@ local function sell(player: Player, mode: unknown)
 	coins = math.floor(coins * (1 + Bonuses.get(player, "sellPrice")) + 1e-9)
 	EconomyService.add(player, coins)
 	EconomyService.addXp(player, math.floor(coins / 10))
-	Remotes.Notify:FireClient(player, if coins > 0 then `+{coins} coins` else "Hold a crop or product to sell it.")
+	if coins > 0 then
+		Remotes.Notify:FireClient(player, `Sold for {coins} coins`, "Success")
+	else
+		Remotes.Notify:FireClient(player, "Hold a crop or product to sell it.", "Error")
+	end
 	if coins > 0 then
 		GardenEvents.Sold:Fire(player, coins, nil)
 	end

@@ -111,7 +111,9 @@ function HubWindow.bind(
 			focus()
 		end)
 	end
-	Screens.register(name, close)
+	Screens.register(name, close, function()
+		open(stall)
+	end)
 	trove:Add(UI.bindButton(closeButton, { onActivate = close }))
 	trove:Connect(ProximityPromptService.PromptTriggered, function(prompt: ProximityPrompt)
 		local counter = prompt.Parent

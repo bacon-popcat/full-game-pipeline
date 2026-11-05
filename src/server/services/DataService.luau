@@ -25,6 +25,7 @@ local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Build = require(ReplicatedStorage.Shared.Build)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Research = require(ReplicatedStorage.Shared.Research)
+local Progress = require(ReplicatedStorage.Shared.Progress)
 local World = require(ReplicatedStorage.Shared.World)
 local ProfileStore = require(ServerStorage.ServerPackages.ProfileStore)
 local BuildService = require(script.Parent.BuildService)
@@ -34,6 +35,7 @@ local InventoryService = require(script.Parent.InventoryService)
 local OnboardingService = require(script.Parent.OnboardingService)
 local PlotService = require(script.Parent.PlotService)
 local ResearchService = require(script.Parent.ResearchService)
+local ProgressService = require(script.Parent.ProgressService)
 local GardenService = require(script.Parent.GardenService)
 local GroundService = require(script.Parent.GroundService)
 local WorldService = require(script.Parent.WorldService)
@@ -63,6 +65,7 @@ type Data = {
 	indexed: { [string]: boolean },
 	onboarding: number,
 	research: Research.Saved,
+	progress: Progress.Saved,
 	-- Unix seconds this save was last opened, so a join reopens the one played last (zero: never).
 	loadedAt: number,
 }
@@ -87,6 +90,7 @@ local PROFILE_TEMPLATE: Data = {
 	indexed = {},
 	onboarding = 1,
 	research = { done = {}, active = nil },
+	progress = Progress.empty(),
 	loadedAt = 0,
 }
 
@@ -381,6 +385,7 @@ end
 local function sanitize(player: Player, data: any)
 	local owesHoe = migrate(data)
 	data.onboarding = Onboarding.sanitize(data.onboarding)
+	data.progress = Progress.sanitize(data.progress)
 	assert(integer(data.coins) and integer(data.xp), "Invalid balances")
 	assert(
 		typeof(data.seedStock) == "table"
@@ -468,6 +473,9 @@ local function snapshot(player: Player, session: Session)
 	local research = ResearchService.snapshot(player)
 	assert(research, "DataService: loaded session lost research state")
 	data.research = research
+	local progress = ProgressService.snapshot(player)
+	assert(progress, "DataService: loaded session lost progress state")
+	data.progress = progress
 	data.plot = {
 		sections = PlotService.sections(index),
 		ground = GroundService.snapshot(index),
@@ -485,6 +493,7 @@ local function clear(player: Player)
 	BuildService.clear(player)
 	DropService.clear(player)
 	OnboardingService.release(player)
+	ProgressService.release(player)
 	InventoryService.release(player)
 	EconomyService.release(player)
 	GardenService.release(player)
@@ -635,6 +644,7 @@ local function load(player: Player, slot: number)
 		end
 		InventoryService.load(player, profile.Data.inventory)
 		EconomyService.load(player, profile.Data.coins, profile.Data.xp)
+		ProgressService.load(player, profile.Data.progress)
 		GardenService.load(
 			player,
 			profile.Data.seedStock,

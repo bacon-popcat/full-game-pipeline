@@ -19,9 +19,13 @@ sounds like a plant pulled from soil. Research is now one five-fold tree of diam
 round a hub (each category a coloured fan), showing what is in reach plus undiscovered "?" tiles
 one step past it, rippling open from the middle and closed from the edge, with requirement cards
 in its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
+Since then: a side Menu opens Achievements, Quests, Stats and Settings (progress.md); notices are
+coloured by kind and stack above the hotbar; the backpack button sits after hotbar slot 9; and the
+Crafting window is an Islands-style catalogue (categories, search, cards, a details panel).
 
 ## Domain docs
 
+- [docs/progress.md](docs/progress.md) — lifetime stats, achievements, repeatable quests, rewards and per-garden saving.
 - [docs/overhaul.md](docs/overhaul.md) — the target design: plots, coins, crops and mutations, shops, the machine roster, crafting, saving, phases and the decisions taken in each. Where it disagrees with the docs below, it is the target and they describe what is built so far.
 - [docs/plots.md](docs/plots.md) — plot layout, sections and ownership, economy APIs, profile loading/saving and offline growth, plus the Studio playtest checklist.
 - [docs/farming.md](docs/farming.md) — crops: seeds, soil, growth stages, mutations, weather, hand harvesting, sprinklers and the watering can.
@@ -43,6 +47,7 @@ in its info and a glow that runs out to each unlock; harvesting plays the `Harve
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
+| `tools/hud` | The builder that authors the Menu, progress windows, Crafting window and notice look in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

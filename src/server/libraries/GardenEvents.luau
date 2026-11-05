@@ -1,7 +1,7 @@
 --!strict
 -- GardenEvents: what a player just did in their garden, announced once by the service that did it, so
--- onboarding (OnboardingService) and feedback (FxService) can listen without the gameplay services
--- knowing about either. Only live actions fire: restoring a saved garden never does.
+-- onboarding, progress and feedback can listen without the gameplay services knowing their
+-- consumers. Only live actions fire: restoring a saved garden never does.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -20,6 +20,10 @@ local GardenEvents = {
 	-- (player, coins: number, at: Vector3?) a sale: at the Sell Stand (no position) or by a
 	-- Shipping Bin (its position)
 	Sold = Signal.new(),
+	-- (player, coins: number) positive coins credited or successfully spent by EconomyService;
+	-- loading a saved balance never fires either signal
+	Earned = Signal.new(),
+	Spent = Signal.new(),
 	-- (player, itemId: string, count: number) a purchase at a hub stall
 	Bought = Signal.new(),
 	-- (player, x: number, z: number) a garden section bought (Shared/Plot)
@@ -31,6 +35,8 @@ local GardenEvents = {
 	-- (player, nodeType: string, cell: Vector3, look: string, pivot: CFrame) a forest tree chopped
 	-- down with the Axe: which look of its art it was (Assets.World) and where it stood
 	Chopped = Signal.new(),
+	-- (player, nodeType: string, cell: Vector3) a non-Axe world node or garden ground cell mined
+	Mined = Signal.new(),
 	-- (player, recipeId: string, times: number) a recipe crafted at a Crafting Bench (Shared/Crafting)
 	Crafted = Signal.new(),
 	-- (player, researchId: string) a research project finished (Shared/Research)

@@ -23,8 +23,8 @@ The UI buys one seed per press; the server supports larger validated counts.
 
 `ShopSync` sends `{restockAt, stock}` on load, restock, purchase response and Seed Shop
 prompt activation. Prompt refresh recovers from a load sync that preceded HUD binding.
-`ShopBuy(shopId, itemId, count)` is intent only; `shopId` names the stall. `Notify(message)` explains purchases, refusals and
-rare harvests. All remote instances/payloads are owned by `default.project.json` and
+`ShopBuy(shopId, itemId, count)` is intent only; `shopId` names the stall. `Notify(message, kind)` explains purchases, refusals and
+rare harvests; `Shared/Notices` owns the kinds, their colours and which messages are worth one. All remote instances/payloads are owned by `default.project.json` and
 `Shared/Remotes`.
 
 ## Garden sections
@@ -129,7 +129,9 @@ So a 390 px tall phone draws the HUD at about half size (28 px side buttons). Th
 item cards and side column can also sit under Roblox's touch thumbstick and jump button
 there, since the arrangement is the desktop one.
 
-`SideButtons.Settings` opens the authored `HUD.Settings` frame, with `Header.Close`,
+`SideButtons.Menu` opens the small `HUD.Menu` popup ([progress.md](progress.md#screens)), whose
+Settings row opens the authored `HUD.Settings` frame (Settings registers its opener with
+`libraries/Screens`; there is no Settings side button), with `Header.Close`,
 `Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
 `Fill` and `Knob`, and a `Value` TextBox), `Body.Note`, `Body.ControlsHint` and the
 `Body.LightingQuality` (Low, Medium and High buttons; lighting.md), the
@@ -171,7 +173,8 @@ StarterGui.HUD [ScreenGui]
   Weather [Frame]                       initially hidden
     Title [TextLabel]                   Rain / Thunderstorm / Golden Hour
     Time [TextLabel]                    1:42
-  Toasts [Frame]                        UIListLayout; at most four clones
+  Toasts [Frame]                        bottom-stacked UIListLayout; at most four clones; Toasts.luau
+                                        keeps it just above ItemName, so notices sit over the hotbar
   Shop [Frame]                         initially hidden
     UIScale [UIScale]
     Header [Frame]
@@ -204,7 +207,8 @@ ReplicatedStorage.Assets.UI
       Buy [TextButton]
         Label [TextLabel]
   Toast [Folder]
-    Toast [TextLabel]                   expires after 2.5s; fades for 0.25s
+    Toast [TextLabel]                   expires after 3s; fades for 0.25s; text and its `Border`
+                                        UIStroke take the notice kind's colour (Shared/Notices)
 ```
 
 Wallet, Weather, Toasts, Shop and Sell each have their own client module. Existing

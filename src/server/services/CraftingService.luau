@@ -109,7 +109,7 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 		return
 	end
 	if not atBench(player, root.Position) then
-		Remotes.Notify:FireClient(player, "Stand by your Crafting Bench to craft.")
+		Remotes.Notify:FireClient(player, "Stand by your Crafting Bench to craft.", "Error")
 		return
 	end
 	local done = {}
@@ -118,11 +118,11 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	end
 	local blocked = Crafting.blocker(recipe, times, done, counter(slots))
 	if blocked then
-		Remotes.Notify:FireClient(player, `{blocked}.`)
+		Remotes.Notify:FireClient(player, `{blocked}.`, "Error")
 		return
 	end
 	if not fits(slots, recipe, times) then
-		Remotes.Notify:FireClient(player, "Your inventory is full.")
+		Remotes.Notify:FireClient(player, "Your inventory is full.", "Error")
 		return
 	end
 	for itemId, need in recipe.inputs do
@@ -131,7 +131,7 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	end
 	local made = recipe.count * times
 	InventoryService.give(player, recipe.output, made)
-	Remotes.Notify:FireClient(player, `Crafted {made} {Inventory.getItem(recipe.output).name}.`)
+	Remotes.Notify:FireClient(player, `Crafted {made} {Inventory.getItem(recipe.output).name}.`, "Success")
 	GardenEvents.Crafted:Fire(player, recipe.id, times)
 end
 

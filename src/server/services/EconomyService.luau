@@ -59,6 +59,9 @@ function EconomyService.add(player: Player, amount: number): boolean
 	end
 	state.coins += amount
 	sync(player, state)
+	if amount > 0 then
+		GardenEvents.Earned:Fire(player, amount)
+	end
 	return true
 end
 
@@ -69,6 +72,9 @@ function EconomyService.trySpend(player: Player, amount: number): boolean
 	end
 	state.coins -= amount
 	sync(player, state)
+	if amount > 0 then
+		GardenEvents.Spent:Fire(player, amount)
+	end
 	return true
 end
 

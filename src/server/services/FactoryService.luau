@@ -145,8 +145,6 @@ local PICKUP_RADIUS = 1.75
 -- Seconds an item caught off a player's drop rides before that player can walk it up, so
 -- dropping onto a belt you stand on doesn't put the item straight back in your hand.
 local PICKUP_GRACE = 1.5
--- Seconds a shipping bin's sales are gathered into one toast for its owner.
-local SALES_TOAST_EVERY = 2
 -- Coins of sales that earn one XP, as at the Sell Stand.
 local COINS_PER_XP = 10
 local NEIGHBOURS = {
@@ -175,7 +173,6 @@ local placed = placedFolder()
 local blocks: { [Model]: Block } = {}
 local sprinklers: { [Block]: boolean } = {}
 -- Shipping bin sales not yet toasted, and coins not yet turned into XP, per owner.
-local pendingSales: { [Player]: number } = {}
 local xpCoins: { [Player]: number } = {}
 local saleRemainders: { [Player]: number } = {}
 local cellIndex: { [string]: Block } = {}
@@ -759,7 +756,6 @@ local function paySale(block: Block, itemId: string)
 	end
 	saleRemainders[player] = math.max(0, earned - value)
 	block.earned += value
-	pendingSales[player] = (pendingSales[player] or 0) + value
 	local coins = (xpCoins[player] or 0) + value
 	EconomyService.addXp(player, coins // COINS_PER_XP)
 	xpCoins[player] = coins % COINS_PER_XP
@@ -1466,13 +1462,11 @@ function FactoryService.init()
 	Players.PlayerAdded:Connect(sendAll)
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
-		pendingSales[player] = nil
 		xpCoins[player] = nil
 		saleRemainders[player] = nil
 	end)
 	Bonuses.changed:Connect(function(player: Player)
 		if player:GetAttribute("DataReady") ~= true then
-			pendingSales[player] = nil
 			xpCoins[player] = nil
 			saleRemainders[player] = nil
 		end
@@ -1484,15 +1478,6 @@ function FactoryService.init()
 	WorldService.setSpeedModifier(function(cell: Vector3): number
 		local sprinkler = sprinklerAt(cell)
 		return if sprinkler then sprinkler.speed else 1
-	end)
-	task.spawn(function()
-		while true do
-			task.wait(SALES_TOAST_EVERY)
-			for player, coins in pendingSales do
-				Remotes.Notify:FireClient(player, `Shipping Bin +{coins} coins`)
-			end
-			table.clear(pendingSales)
-		end
 	end)
 	RunService.Heartbeat:Connect(step)
 	RunService.Heartbeat:Connect(pickUpUnderfoot)

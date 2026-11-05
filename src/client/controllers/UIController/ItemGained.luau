@@ -142,7 +142,8 @@ function ItemGained.init(hud: ScreenGui)
 		label.TextTruncate = Enum.TextTruncate.AtEnd
 		label.Parent = frame
 
-		local card: Card = { frame = frame, label = label, scale = scale, itemId = itemId, count = count, expires = os.clock() }
+		local card: Card =
+			{ frame = frame, label = label, scale = scale, itemId = itemId, count = count, expires = os.clock() }
 		frame.Destroying:Once(function()
 			ItemIcon.clear(viewport)
 		end)

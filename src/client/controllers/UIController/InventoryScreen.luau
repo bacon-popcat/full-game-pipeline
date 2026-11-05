@@ -1,5 +1,5 @@
--- InventoryScreen: the hotbar (always on screen), the backpack window, and the side
--- button that opens it. Renders InventoryClient into slot cells cloned from
+-- InventoryScreen: the hotbar (always on screen), the backpack window, and the button
+-- that opens it, which sits at the hotbar's right end after slot 9. Renders InventoryClient into slot cells cloned from
 -- Assets.UI.Inventory.Slot and turns input into intents: choosing which hotbar slot to
 -- hold, and moving stacks between any two slots.
 --
@@ -120,7 +120,7 @@ local function bind(hud: ScreenGui): boolean
 	end
 	local nodes = { hud = hud }
 	local hudPaths = {
-		opener = "SideButtons.Backpack",
+		opener = "Hotbar.Backpack",
 		hotbar = "Hotbar",
 		hotbarLayout = "Hotbar.UIListLayout",
 		itemName = "ItemName",
@@ -429,11 +429,14 @@ local function layoutHotbar()
 	local width = ui.hud.AbsoluteSize.X
 	local zoom = Hud.zoom(ui.hud.AbsoluteSize)
 	local gap = math.round(look.hotbarGap * zoom)
-	local fit = math.floor((width - HOTBAR_EDGE * 2 - gap * (Inventory.HOTBAR_SIZE - 1)) / Inventory.HOTBAR_SIZE)
+	-- The strip is the slots plus the backpack button, which is a slot's size.
+	local count = Inventory.HOTBAR_SIZE + 1
+	local fit = math.floor((width - HOTBAR_EDGE * 2 - gap * (count - 1)) / count)
 	local size = math.max(1, math.min(fit, math.round(look.slotSize * zoom)))
 	for index = 1, Inventory.HOTBAR_SIZE do
 		cells[index].button.Size = UDim2.fromOffset(size, size)
 	end
+	ui.opener.Size = UDim2.fromOffset(size, size)
 	ui.hotbarLayout.Padding = UDim.new(0, gap)
 	local margin = look.hotbarMargin * zoom
 	ui.hotbar.Position = UDim2.new(0.5, 0, 1, -margin)
@@ -592,6 +595,7 @@ function InventoryScreen.init(hud: ScreenGui)
 	for index = 1, Inventory.SLOT_COUNT do
 		createCell(index, if index <= Inventory.HOTBAR_SIZE then ui.hotbar else ui.grid)
 	end
+	ui.opener.LayoutOrder = Inventory.HOTBAR_SIZE + 1
 	for _, node in { ui.opener, ui.close } do
 		node.SelectionImageObject = ui.selectionImage
 	end

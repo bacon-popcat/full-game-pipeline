@@ -15,6 +15,13 @@ local function get(name: string): RemoteEvent
 end
 
 return {
+	-- server -> client: ({ stats: { [statId: string]: number }, achievements: { [achievementId: string]: true },
+	-- quests: { { id: string, progress: number, goal: number, done: boolean } }, syncedAt: number });
+	-- progress is clamped to goal; syncedAt uses workspace:GetServerTimeNow() for playtime extrapolation.
+	ProgressSync = get("ProgressSync"),
+	-- client -> server: (action: "ClaimQuest", slot: number), a whole slot 1..Progress.QUEST_SLOTS.
+	-- The server checks DataReady, cooldown and saved progress; invalid requests are ignored.
+	Progress = get("Progress"),
 	-- server -> client: ({ done: { string }, active: { id: string, endsAt: number, seconds: number }?,
 	-- bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().
 	-- active stays until completed, past endsAt (Research.isReady). Sent on load, start, cancel,
@@ -42,7 +49,7 @@ return {
 	PlotBuySection = get("PlotBuySection"),
 	-- client -> server: (mode: "Held" | "All"), checked against server inventory, from anywhere.
 	Sell = get("Sell"),
-	-- server -> client: (message: string), a short transaction or rare-harvest toast.
+	-- server -> client: (message: string, kind: Notices.Kind?) a notice worth stopping for, shown above the hotbar in its kind's colour (Shared/Notices); a missing kind is Info.
 	Notify = get("Notify"),
 	-- server -> client: (fx: { kind: "Plant" | "Harvest" | "Water" | "Sell" | "Buy" | "LevelUp" | "Chop" |
 	-- "Craft" | "Research", position: Vector3?, itemId: string?, mutation: string?, amount: number?,

@@ -196,14 +196,21 @@ stays the belt-fed parts machine. `Shared/Crafting` owns its recipes, each an ou
 from inputs, some unlocked by a research project (overhaul.md § Wood and crafting has the
 table). Its owner opens the Crafting window with the interact key aimed at it within reach
 (`UIController/CraftingScreen`; an Open button on touch), and it closes on walking away; the
-hover panel says how. Body.Tabs.Times1, Times5 and Times10 set how many times a press crafts;
-each recipe is a row cloned from `Assets.UI.Crafting.Row` (Icon, Name, Inputs, Status, Have,
-Craft), locked ones last, naming the project that unlocks them. `Remotes.Craft(recipeId, times)`
+hover panel says how. The window is laid out like a catalogue: `Body.Categories` (Craftable,
+All and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
+box and a `Grid` of `Assets.UI.Crafting.Card`s (the output, its count, a gold `Ready` tick when
+the inventory can make it now and a `Lock` while research hasn't unlocked it; craftable first,
+locked last), and `Body.Details` for the picked recipe: the output turning in `Preview`, one
+`Assets.UI.Crafting.Ingredient` per input showing have / need in green or red, a `Status` line
+naming what's missing, the `Amount` stepper (1 to `Crafting.MAX_TIMES` crafts, Max for as many as
+the inventory allows) and `Craft`. Hovering a card shows `HUD.Crafting.Tooltip` (name,
+description, each input's have / need) beside the pointer. `CraftingScreen.luau`'s header lists
+every node. `Remotes.Craft(recipeId, times)`
 goes to `CraftingService`, which rechecks DataReady, a cooldown, that one of the player's own
 benches is in reach, the research (`Bonuses.has`) and every input, then tries the trade on a
 copy of the inventory (inputs out, output in, so the room the inputs free counts) and applies
 it whole without yielding, with a toast and `GardenEvents.Crafted` (a puff of wood shavings
-and the Craft sound). The window and its row template are authored in the place file.
+and the Craft sound). The window and its templates are authored in the place file, by `tools/hud/progress_hud.luau`.
 
 Played through in Studio: opening it with F at the bench, 1 Wood into 4 Wood Planks, a Timber
 Frame, a x5 craft, and a locked recipe refused ("Research Crate Making first").

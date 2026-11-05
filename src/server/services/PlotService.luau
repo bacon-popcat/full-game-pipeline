@@ -461,7 +461,7 @@ local function purchase(player: Player, x: unknown, z: unknown)
 	end
 	local coins = Plot.price(x, z)
 	if not EconomyService.trySpend(player, coins) then
-		Remotes.Notify:FireClient(player, "You need more coins for this section.")
+		Remotes.Notify:FireClient(player, "You need more coins for this section.", "Error")
 		return
 	end
 	-- Publish the section before scenery work, so a snapshot always sees what was paid for.
@@ -471,7 +471,7 @@ local function purchase(player: Player, x: unknown, z: unknown)
 	model:SetAttribute("Sections", table.concat(Plot.encode(bought), ";"))
 	landscape(index)
 	GroundService.extend(index)
-	Remotes.Notify:FireClient(player, "New garden section unlocked!")
+	Remotes.Notify:FireClient(player, "New garden section unlocked!", "Reward")
 	GardenEvents.SectionBought:Fire(player, x, z)
 end
 

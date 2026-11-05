@@ -752,6 +752,8 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 				if typeof(look) == "string" then look else node.nodeType,
 				pivot
 			)
+		else
+			GardenEvents.Mined:Fire(player, node.nodeType, node.cell)
 		end
 	elseif action == "Take" and def.harvest then
 		if held then
@@ -759,7 +761,7 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		end
 		local harvest = harvestItems(node, true)
 		if not InventoryService.canGiveAll(player, harvest) then
-			Remotes.Notify:FireClient(player, "Your inventory is full.")
+			Remotes.Notify:FireClient(player, "Your inventory is full.", "Error")
 			return
 		end
 		if def.crop and World.isRipe(def) then

@@ -330,7 +330,7 @@ end
 local function mine(player: Player, index: number, node: WorldService.Node)
 	local drops = World.getNode(node.nodeType).drops or {}
 	if not InventoryService.canGiveAll(player, drops) then
-		Remotes.Notify:FireClient(player, "Your inventory is full.")
+		Remotes.Notify:FireClient(player, "Your inventory is full.", "Error")
 		return
 	end
 	local cell = node.cell
@@ -339,6 +339,7 @@ local function mine(player: Player, index: number, node: WorldService.Node)
 	for itemId, count in drops do
 		InventoryService.give(player, itemId, count)
 	end
+	GardenEvents.Mined:Fire(player, "Ground", cell)
 end
 
 -- A placed Grass or Dirt block of the player's, tilled where it stands.

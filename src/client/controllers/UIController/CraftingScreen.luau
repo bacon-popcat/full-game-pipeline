@@ -1,10 +1,19 @@
 -- CraftingScreen: the authored Crafting window (HUD.Crafting) of the player's own Crafting
 -- Bench, opened with the interact key (Controls.INTERACT; an on-screen Open button on touch)
--- while aiming at one in reach, and closed on walking away. It lists Shared/Crafting's recipes,
--- one Assets.UI.Crafting.Row each, the ones research hasn't unlocked yet last; Body.Tabs.Times1,
--- Times5 and Times10 pick how many times a press crafts. Crafting.blocker says what's missing
--- from this player's inventory and research; the server checks it all again and answers with
--- Notify.
+-- while aiming at one in reach, and closed on walking away. Laid out like a workshop catalogue:
+--
+--   * Body.Categories: one Assets.UI.Crafting.Category button per category that has recipes
+--     (Craftable, All, then by the output's item kind).
+--   * Body.Main: a Search box and a Grid of Assets.UI.Crafting.Card, one per Shared/Crafting
+--     recipe; a card shows its output, how many one craft makes, `Ready` when the inventory can
+--     make it now and `Lock` while research hasn't unlocked it. Hovering one shows HUD.Crafting.Tooltip
+--     (name, description, and each input as have / need).
+--   * Body.Details: the picked recipe's output turning in Preview, its Ingredients (one
+--     Assets.UI.Crafting.Ingredient each, have / need in green or red), a Status line saying what
+--     is missing, the Amount stepper (1 to Crafting.MAX_TIMES crafts) and Craft.
+--
+-- Crafting.blocker says what's missing from this player's inventory and research; the server
+-- checks it all again and answers with Notify.
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,27 +33,27 @@ local HubWindow = require(Libraries.HubWindow)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local ResearchClient = require(Libraries.ResearchClient)
+local Turntable = require(Libraries.Turntable)
 local UI = require(Libraries.UI)
 
 local INTERACT_ACTION = "CraftingInteract"
 local TOUCH_ACTION = "CraftingOpen"
 -- Studs the aim reaches to find a bench, as far as the hover panel looks.
 local AIM_DISTANCE = 150
-local TIMES = { Times1 = 1, Times5 = 5, Times10 = 10 }
 -- Seconds a press waits for the server's answer before the buttons wake again anyway.
 local PENDING_FOR = 1.5
+-- Pixels between the pointer and the hover card.
+local TOOLTIP_OFFSET = Vector2.new(18, 14)
+local ENOUGH = Color3.fromRGB(157, 220, 154)
+local SHORT = Color3.fromRGB(240, 140, 130)
 
-type Row = {
+type Category = { name: string, shows: (Crafting.Recipe) -> boolean }
+type Card = {
 	recipe: Crafting.Recipe,
-	frame: Frame,
-	name: TextLabel,
-	inputs: TextLabel,
-	status: TextLabel,
-	have: TextLabel,
-	craft: TextButton,
-	label: TextLabel,
-	transparency: number,
-	textTransparency: number,
+	button: TextButton,
+	ready: GuiObject,
+	lock: GuiObject,
+	stroke: UIStroke?,
 }
 
 local CraftingScreen = {}
@@ -93,14 +102,8 @@ local function aimed(): Model?
 	return if bench and bench:GetAttribute("ItemId") == Crafting.BENCH and inReach(bench) then bench else nil
 end
 
--- "4 Wood Planks, 1 Iron Bar" for `times` crafts.
-local function inputsOf(recipe: Crafting.Recipe, times: number): string
-	local names = {}
-	for itemId, need in recipe.inputs do
-		table.insert(names, `{need * times} {Inventory.getItem(itemId).name}`)
-	end
-	table.sort(names)
-	return table.concat(names, ", ")
+local function locked(recipe: Crafting.Recipe): boolean
+	return recipe.research ~= nil and not ResearchClient.done()[recipe.research]
 end
 
 -- How many times the inventory could craft it now, ignoring room for the output.
@@ -112,159 +115,474 @@ local function makeable(recipe: Crafting.Recipe): number
 	return if most == math.huge then 0 else most
 end
 
+-- A recipe's inputs in a stable order: by item name.
+local function inputsOf(recipe: Crafting.Recipe): { string }
+	local ids = {}
+	for itemId in recipe.inputs do
+		table.insert(ids, itemId)
+	end
+	table.sort(ids, function(a, b)
+		return Inventory.getItem(a).name < Inventory.getItem(b).name
+	end)
+	return ids
+end
+
+local function kindShows(kind: string): (Crafting.Recipe) -> boolean
+	return function(recipe: Crafting.Recipe): boolean
+		return Inventory.getItem(recipe.output).kind == kind
+	end
+end
+
+local CATEGORIES: { Category } = {
+	{
+		name = "Craftable",
+		shows = function(recipe: Crafting.Recipe): boolean
+			return not locked(recipe) and makeable(recipe) > 0
+		end,
+	},
+	{
+		name = "All",
+		shows = function(): boolean
+			return true
+		end,
+	},
+	{ name = "Materials", shows = kindShows("Resource") },
+	{ name = "Blocks", shows = kindShows("Block") },
+	{ name = "Machines", shows = kindShows("Machine") },
+}
+
 function CraftingScreen.init(hud: ScreenGui)
-	local list = Hud.find(hud, "Crafting.Body.List", "ScrollingFrame")
-	local template = Hud.find(ReplicatedStorage, "Assets.UI.Crafting.Row", "Frame")
-	if not list or not list:IsA("ScrollingFrame") or not template or not template:IsA("Frame") then
+	local templates = Hud.find(ReplicatedStorage, "Assets.UI.Crafting", "Folder")
+	local paths = {
+		categories = { "Body.Categories", "Frame" },
+		search = { "Body.Main.Search.Box", "TextBox" },
+		searchClear = { "Body.Main.Search.Clear", "GuiButton" },
+		grid = { "Body.Main.Grid", "ScrollingFrame" },
+		empty = { "Body.Main.Empty", "TextLabel" },
+		itemName = { "Body.Details.ItemName", "TextLabel" },
+		kind = { "Body.Details.Kind", "TextLabel" },
+		preview = { "Body.Details.Preview", "ViewportFrame" },
+		ingredients = { "Body.Details.Ingredients", "Frame" },
+		status = { "Body.Details.Status", "TextLabel" },
+		minus = { "Body.Details.Amount.Minus", "GuiButton" },
+		plus = { "Body.Details.Amount.Plus", "GuiButton" },
+		max = { "Body.Details.Amount.Max", "GuiButton" },
+		amount = { "Body.Details.Amount.Value", "TextBox" },
+		craft = { "Body.Details.Craft", "TextButton" },
+		craftLabel = { "Body.Details.Craft.Label", "TextLabel" },
+		tooltip = { "Tooltip", "Frame" },
+		tipName = { "Tooltip.ItemName", "TextLabel" },
+		tipText = { "Tooltip.Description", "TextLabel" },
+		tipLines = { "Tooltip.Lines", "Frame" },
+		windowScale = { "UIScale", "UIScale" },
+	}
+	-- Every node is required: a place missing one keeps the rest of the HUD working, without crafting.
+	local nodes: { [string]: any } = {}
+	for key, spec in paths do
+		local node = Hud.find(hud, "Crafting." .. spec[1], spec[2])
+		if not node then
+			return
+		end
+		nodes[key] = node
+	end
+	if not templates then
 		return
 	end
-	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	local categoryTemplate = Hud.find(templates, "Category", "TextButton")
+	local cardTemplate = Hud.find(templates, "Card", "TextButton")
+	local ingredientTemplate = Hud.find(templates, "Ingredient", "Frame")
+	local lineTemplate = Hud.find(templates, "TooltipLine", "Frame")
+	if not categoryTemplate or not cardTemplate or not ingredientTemplate or not lineTemplate then
+		return
+	end
+	assert(categoryTemplate:IsA("TextButton") and cardTemplate:IsA("TextButton"), "Category and Card are TextButtons")
+	assert(ingredientTemplate:IsA("Frame") and lineTemplate:IsA("Frame"), "Ingredient and TooltipLine are Frames")
+
 	local trove = Trove.new()
-	local rowTrove = Trove.new()
-	local rows: { Row } = {}
+	local turntable = Turntable.bind(nodes.preview)
+	trove:Add(turntable.destroy)
+	local cards: { Card } = {}
+	local categoryButtons: { [string]: TextButton } = {}
+	local categoryLook = {
+		color = categoryTemplate.BackgroundColor3,
+		transparency = categoryTemplate.BackgroundTransparency,
+		selected = categoryTemplate:GetAttribute("SelectedBackgroundColor") or categoryTemplate.BackgroundColor3,
+		stroke = (assert(categoryTemplate:FindFirstChildOfClass("UIStroke"), "Category needs a UIStroke")).Color,
+		strokeSelected = categoryTemplate:GetAttribute("SelectedStrokeColor") or Color3.new(1, 1, 1),
+	}
+	local cardStroke = cardTemplate:FindFirstChildOfClass("UIStroke")
+	local cardLook = {
+		stroke = if cardStroke then cardStroke.Color else Color3.new(1, 1, 1),
+		strokeTransparency = if cardStroke then cardStroke.Transparency else 0.5,
+		selected = cardTemplate:GetAttribute("SelectedStrokeColor") or Color3.new(1, 1, 1),
+	}
+	local craftLook = {
+		color = nodes.craft.BackgroundColor3,
+		disabled = nodes.craft:GetAttribute("DisabledBackgroundColor") or Color3.fromRGB(70, 74, 80),
+	}
+	local category = "All"
+	local query = ""
+	local picked: Crafting.Recipe? = nil
+	local hovered: Crafting.Recipe? = nil
 	local times = 1
 	local pendingSince: number? = nil
 	local bench: Model? = nil
-	local tabs: { [string]: TextButton } = {}
-	local tabLooks: { [TextButton]: { transparency: number, color: Color3 } } = {}
+	local ingredientRows: { Frame } = {}
+	local tipRows: { Frame } = {}
 
-	local function render()
-		local done = ResearchClient.done()
-		local pending = pendingSince ~= nil
-		for _, row in rows do
-			local recipe = row.recipe
-			local locked = recipe.research ~= nil and not done[recipe.research]
-			local blocked = Crafting.blocker(recipe, times, done, countOf)
-			local enabled = not pending and blocked == nil
-			local item = Inventory.getItem(recipe.output)
-			row.name.Text = `{item.name} x{recipe.count * times}`
-			row.inputs.Text = inputsOf(recipe, times)
-			local project = if locked and recipe.research then Research.get(recipe.research) else nil
-			-- Locked: which project to research, named in full since the label is short.
-			row.status.Text = if locked then "Research" else ""
-			row.have.Text = if project then project.name else `Can make {makeable(recipe)}`
-			row.craft.Active = enabled
-			row.craft.Selectable = enabled
-			row.craft.BackgroundTransparency = if enabled
-				then row.transparency
-				else row.transparency + (1 - row.transparency) * 0.5
-			row.label.TextTransparency = if enabled
-				then row.textTransparency
-				else row.textTransparency + (1 - row.textTransparency) * 0.5
-			row.label.Text = if pending
-				then "..."
-				elseif locked then "Locked"
-				elseif blocked then "Need items"
-				else "Craft"
+	local function matches(recipe: Crafting.Recipe): boolean
+		if query == "" then
+			return true
+		end
+		local item = Inventory.getItem(recipe.output)
+		return string.find(string.lower(item.name), query, 1, true) ~= nil
+			or string.find(string.lower(item.kind), query, 1, true) ~= nil
+	end
+
+	local function categoryOf(name: string): Category
+		for _, each in CATEGORIES do
+			if each.name == name then
+				return each
+			end
+		end
+		return CATEGORIES[2]
+	end
+
+	-- Clones `template` until `rows` has `count`, hides the rest.
+	local function rowsFor(rows: { Frame }, template: Frame, parent: Instance, count: number)
+		while #rows < count do
+			local row = template:Clone()
+			row.LayoutOrder = #rows + 1
+			row.Parent = parent
+			table.insert(rows, row)
+			trove:Add(row)
+		end
+		for index, row in rows do
+			row.Visible = index <= count
 		end
 	end
 
-	local function build()
-		rowTrove:Clean()
-		table.clear(rows)
-		local done = ResearchClient.done()
-		local order = {}
-		for index, recipe in Crafting.RECIPES do
-			local locked = recipe.research ~= nil and not done[recipe.research]
-			table.insert(order, { recipe = recipe, rank = (if locked then 1000 else 0) + index })
-		end
-		table.sort(order, function(a, b)
-			return a.rank < b.rank
-		end)
-		for position, entry in order do
-			local recipe = entry.recipe
-			local frame = template:Clone()
-			local icon = Hud.find(frame, "Icon", "ViewportFrame")
-			local name = Hud.find(frame, "Name", "TextLabel")
-			local inputs = Hud.find(frame, "Inputs", "TextLabel")
-			local status = Hud.find(frame, "Status", "TextLabel")
-			local have = Hud.find(frame, "Have", "TextLabel")
-			local craft = Hud.find(frame, "Craft", "TextButton")
-			local label = Hud.find(frame, "Craft.Label", "TextLabel")
-			if
-				not icon
-				or not icon:IsA("ViewportFrame")
-				or not name
-				or not name:IsA("TextLabel")
-				or not inputs
-				or not inputs:IsA("TextLabel")
-				or not status
-				or not status:IsA("TextLabel")
-				or not have
-				or not have:IsA("TextLabel")
-				or not craft
-				or not craft:IsA("TextButton")
-				or not label
-				or not label:IsA("TextLabel")
-			then
-				frame:Destroy()
-				continue
+	local function paintAmounts(rows: { Frame }, recipe: Crafting.Recipe, crafts: number, withIcons: boolean)
+		local ids = inputsOf(recipe)
+		for index, itemId in ids do
+			local row = rows[index]
+			local need = recipe.inputs[itemId] * crafts
+			local have = countOf(itemId)
+			local name = row:FindFirstChild("ItemName") :: TextLabel
+			local amount = row:FindFirstChild("Amount") :: TextLabel
+			name.Text = Inventory.getItem(itemId).name
+			amount.Text = `{Hud.number(have)} / {Hud.number(need)}`
+			local color = if have >= need then ENOUGH else SHORT
+			amount.TextColor3 = color
+			if not withIcons then
+				name.TextColor3 = color
 			end
-			ItemIcon.show(icon, recipe.output)
-			frame.Name = recipe.id
-			frame.LayoutOrder = position
-			frame.Parent = list
-			table.insert(rows, {
-				recipe = recipe,
-				frame = frame,
-				name = name,
-				inputs = inputs,
-				status = status,
-				have = have,
-				craft = craft,
-				label = label,
-				transparency = craft.BackgroundTransparency,
-				textTransparency = label.TextTransparency,
-			})
-			rowTrove:Add(frame)
-			rowTrove:Add(function()
-				ItemIcon.clear(icon)
-			end)
-			rowTrove:Add(UI.bindButton(craft, {
+			local icon = row:FindFirstChild("Icon")
+			if withIcons and icon and icon:IsA("ViewportFrame") then
+				ItemIcon.show(icon, itemId)
+			end
+		end
+	end
+
+	local function paintDetails()
+		local recipe = picked
+		if not recipe then
+			nodes.itemName.Text = "Pick a recipe"
+			nodes.kind.Text = ""
+			turntable.show(nil)
+			rowsFor(ingredientRows, ingredientTemplate, nodes.ingredients, 0)
+			nodes.status.Text = ""
+			nodes.craft.Active = false
+			nodes.craft.BackgroundColor3 = craftLook.disabled
+			nodes.craftLabel.Text = "CRAFT"
+			return
+		end
+		local item = Inventory.getItem(recipe.output)
+		nodes.itemName.Text = if recipe.count * times > 1 then `{item.name} x{recipe.count * times}` else item.name
+		nodes.kind.Text = item.kind
+		turntable.show(recipe.output)
+		local ids = inputsOf(recipe)
+		rowsFor(ingredientRows, ingredientTemplate, nodes.ingredients, #ids)
+		paintAmounts(ingredientRows, recipe, times, true)
+		local blocked = Crafting.blocker(recipe, times, ResearchClient.done(), countOf)
+		local pending = pendingSince ~= nil
+		local enabled = blocked == nil and not pending
+		nodes.status.Text = if blocked then blocked else ""
+		nodes.amount.Text = tostring(times)
+		nodes.craft.Active = enabled
+		nodes.craft.Selectable = enabled
+		nodes.craft.BackgroundColor3 = if enabled then craftLook.color else craftLook.disabled
+		nodes.craftLabel.Text = if pending then "..." elseif locked(recipe) then "LOCKED" else "CRAFT"
+	end
+
+	local function paintTooltip()
+		local recipe = hovered
+		nodes.tooltip.Visible = recipe ~= nil and UserInputService.PreferredInput ~= Enum.PreferredInput.Touch
+		if not recipe then
+			return
+		end
+		local item = Inventory.getItem(recipe.output)
+		nodes.tipName.Text = if recipe.count > 1 then `{item.name} x{recipe.count}` else item.name
+		local project = if locked(recipe) and recipe.research then Research.get(recipe.research) else nil
+		nodes.tipText.Text = if project
+			then `{item.description or ""}\nResearch {project.name} to unlock.`
+			else item.description or ""
+		local ids = inputsOf(recipe)
+		rowsFor(tipRows, lineTemplate, nodes.tipLines, #ids)
+		paintAmounts(tipRows, recipe, 1, false)
+	end
+
+	local function paintCards()
+		local shows = categoryOf(category).shows
+		local visible = 0
+		for _, card in cards do
+			local recipe = card.recipe
+			local shown = shows(recipe) and matches(recipe)
+			card.button.Visible = shown
+			if shown then
+				visible += 1
+			end
+			local isLocked = locked(recipe)
+			card.lock.Visible = isLocked
+			card.ready.Visible = not isLocked and makeable(recipe) > 0
+			if card.stroke then
+				local selected = picked == recipe
+				card.stroke.Color = if selected then cardLook.selected else cardLook.stroke
+				card.stroke.Transparency = if selected then 0 else cardLook.strokeTransparency
+			end
+			local icon = card.button:FindFirstChild("Icon")
+			if icon and icon:IsA("ViewportFrame") then
+				icon.ImageTransparency = if isLocked then 0.55 else 0
+			end
+		end
+		nodes.empty.Visible = visible == 0
+		for name, tabButton in categoryButtons do
+			local selected = name == category
+			tabButton.BackgroundColor3 = if selected then categoryLook.selected else categoryLook.color
+			local stroke = tabButton:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = if selected then categoryLook.strokeSelected else categoryLook.stroke
+			end
+		end
+	end
+
+	local function render()
+		paintCards()
+		paintDetails()
+		paintTooltip()
+		if nodes.searchClear then
+			nodes.searchClear.Visible = query ~= ""
+		end
+	end
+
+	local function setTimes(value: number)
+		times = math.clamp(math.floor(value), 1, Crafting.MAX_TIMES)
+		render()
+	end
+
+	local function pick(recipe: Crafting.Recipe)
+		if picked ~= recipe then
+			picked = recipe
+			times = 1
+		end
+		render()
+	end
+
+	-- Cards in the order the bench lists them: what you can make now, then what's unlocked, then
+	-- what research still has to unlock, each in Shared/Crafting's order.
+	local function sortCards()
+		for index, card in cards do
+			local recipe = card.recipe
+			local rank = if locked(recipe) then 2000 elseif makeable(recipe) > 0 then 0 else 1000
+			card.button.LayoutOrder = rank + index
+		end
+	end
+
+	for index, recipe in Crafting.RECIPES do
+		local button = cardTemplate:Clone()
+		button.Name = recipe.id
+		local icon = button:FindFirstChild("Icon")
+		local name = button:FindFirstChild("ItemName")
+		local count = button:FindFirstChild("Count")
+		local ready = button:FindFirstChild("Ready")
+		local lock = button:FindFirstChild("Lock")
+		if
+			not (icon and icon:IsA("ViewportFrame"))
+			or not (name and name:IsA("TextLabel"))
+			or not (count and count:IsA("TextLabel"))
+			or not (ready and ready:IsA("GuiObject"))
+			or not (lock and lock:IsA("GuiObject"))
+		then
+			warn("CraftingScreen: Assets.UI.Crafting.Card needs Icon, ItemName, Count, Ready and Lock")
+			button:Destroy()
+			return
+		end
+		ItemIcon.show(icon, recipe.output)
+		name.Text = Inventory.getItem(recipe.output).name
+		count.Text = if recipe.count > 1 then `x{recipe.count}` else ""
+		button.LayoutOrder = index
+		button.Parent = nodes.grid
+		local card: Card = {
+			recipe = recipe,
+			button = button,
+			ready = ready,
+			lock = lock,
+			stroke = button:FindFirstChildOfClass("UIStroke"),
+		}
+		table.insert(cards, card)
+		trove:Add(button)
+		trove:Add(function()
+			ItemIcon.clear(icon)
+		end)
+		trove:Add(UI.bindButton(button, {
+			hoverScale = 1.04,
+			onActivate = function()
+				pick(recipe)
+			end,
+		}))
+		trove:Connect(button.MouseEnter, function()
+			hovered = recipe
+			paintTooltip()
+		end)
+		trove:Connect(button.MouseLeave, function()
+			if hovered == recipe then
+				hovered = nil
+				paintTooltip()
+			end
+		end)
+		trove:Connect(button.SelectionGained, function()
+			pick(recipe)
+		end)
+	end
+
+	for order, each in CATEGORIES do
+		local hasAny = false
+		for _, recipe in Crafting.RECIPES do
+			if each.name == "Craftable" or each.shows(recipe) then
+				hasAny = true
+				break
+			end
+		end
+		if hasAny then
+			local tabButton = categoryTemplate:Clone()
+			tabButton.Name = each.name
+			tabButton.LayoutOrder = order
+			local text = tabButton:FindFirstChild("Label")
+			if text and text:IsA("TextLabel") then
+				text.Text = each.name
+			end
+			tabButton.Parent = nodes.categories
+			categoryButtons[each.name] = tabButton
+			trove:Add(tabButton)
+			trove:Add(UI.bindButton(tabButton, {
+				hoverScale = 1.03,
 				onActivate = function()
-					if craft.Active and not pendingSince then
-						pendingSince = os.clock()
-						render()
-						Remotes.Craft:FireServer(recipe.id, times)
-					end
+					category = each.name
+					nodes.grid.CanvasPosition = Vector2.zero
+					render()
 				end,
 			}))
 		end
-		render()
 	end
 
-	local function pick(name: string)
-		times = TIMES[name] or 1
-		for each, tab in tabs do
-			local look = tabLooks[tab]
-			local selected = each == name
-			tab.BackgroundTransparency = if selected then look.transparency else 0.6
-			tab.TextColor3 = if selected then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
+	trove:Add(UI.bindButton(nodes.minus, {
+		onActivate = function()
+			setTimes(times - 1)
+		end,
+	}))
+	trove:Add(UI.bindButton(nodes.plus, {
+		onActivate = function()
+			setTimes(times + 1)
+		end,
+	}))
+	trove:Add(UI.bindButton(nodes.max, {
+		onActivate = function()
+			setTimes(if picked then math.max(1, makeable(picked)) else 1)
+		end,
+	}))
+	trove:Connect(nodes.amount.FocusLost, function()
+		local typed = tonumber(string.match(nodes.amount.Text, "%d+") or "")
+		setTimes(typed or times)
+	end)
+	trove:Add(UI.bindButton(nodes.craft, {
+		onActivate = function()
+			local recipe = picked
+			if recipe and nodes.craft.Active and not pendingSince then
+				pendingSince = os.clock()
+				render()
+				Remotes.Craft:FireServer(recipe.id, times)
+			end
+		end,
+	}))
+	trove:Connect(nodes.search:GetPropertyChangedSignal("Text"), function()
+		local typed = string.lower((string.gsub(nodes.search.Text, "^%s+", "")))
+		typed = string.gsub(typed, "%s+$", "")
+		if typed ~= query then
+			query = typed
+			nodes.grid.CanvasPosition = Vector2.zero
+			render()
+		end
+	end)
+	if nodes.searchClear then
+		trove:Add(UI.bindButton(nodes.searchClear, {
+			hoverScale = 1.15,
+			onActivate = function()
+				nodes.search.Text = ""
+			end,
+		}))
+	end
+
+	local window = HubWindow.bind(hud, "Crafting", {}, function()
+		sortCards()
+		if not picked then
+			for _, recipe in Crafting.RECIPES do
+				if not locked(recipe) then
+					picked = recipe
+					break
+				end
+			end
 		end
 		render()
-	end
-
-	local window = HubWindow.bind(hud, "Crafting", {}, render)
+	end)
 	if not window then
 		return
 	end
-	for name in TIMES do
-		local tab = Hud.find(hud, "Crafting.Body.Tabs." .. name, "TextButton")
-		if tab and tab:IsA("TextButton") then
-			tabs[name] = tab
-			tabLooks[tab] = { transparency = tab.BackgroundTransparency, color = tab.TextColor3 }
-			trove:Add(UI.bindButton(tab, {
-				onActivate = function()
-					pick(name)
-				end,
-			}))
-		end
-	end
+	local frame = window.frame
 
+	-- The hover card follows the pointer, in the window's own (unscaled) space, and flips to the
+	-- pointer's left near the window's right edge. Input positions are in GUI space, the space
+	-- AbsolutePosition uses.
+	local pointer = Vector2.zero
+	trove:Connect(UserInputService.InputChanged, function(input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			pointer = Vector2.new(input.Position.X, input.Position.Y)
+		end
+	end)
+	trove:Connect(RunService.RenderStepped, function()
+		if not nodes.tooltip.Visible then
+			return
+		end
+		local scale = nodes.windowScale.Scale
+		local point = (pointer - frame.AbsolutePosition) / scale
+		local size = nodes.tooltip.AbsoluteSize / scale
+		local width = frame.AbsoluteSize.X / scale
+		local x = point.X + TOOLTIP_OFFSET.X
+		if x + size.X > width then
+			x = point.X - TOOLTIP_OFFSET.X - size.X
+		end
+		nodes.tooltip.Position = UDim2.fromOffset(x, point.Y + TOOLTIP_OFFSET.Y)
+	end)
+
+	local function close()
+		window.close()
+		bench = nil
+		hovered = nil
+		nodes.search:ReleaseFocus()
+		nodes.search.Text = ""
+	end
 	local function toggle(): boolean
 		if window.isOpen() then
-			window.close()
-			bench = nil
+			close()
 			return true
 		end
 		local target = aimed()
@@ -305,14 +623,17 @@ function CraftingScreen.init(hud: ScreenGui)
 		ContextActionService:UnbindAction(TOUCH_ACTION)
 	end)
 
-	pick("Times1")
-	build()
-	trove:Connect(ResearchClient.changed, build)
-	trove:Connect(InventoryClient.changed, function()
-		pendingSince = nil
+	trove:Connect(ResearchClient.changed, function()
+		sortCards()
 		render()
 	end)
-	-- Every craft is answered with a toast, which also ends the wait on a refusal.
+	trove:Connect(InventoryClient.changed, function()
+		pendingSince = nil
+		if window.isOpen() then
+			render()
+		end
+	end)
+	-- Every craft is answered with a notice, which also ends the wait on a refusal.
 	trove:Connect(Remotes.Notify.OnClientEvent, function()
 		if pendingSince then
 			pendingSince = nil
@@ -331,17 +652,17 @@ function CraftingScreen.init(hud: ScreenGui)
 			render()
 		end
 		if window.isOpen() and (not bench or not inReach(bench)) then
-			window.close()
-			bench = nil
+			close()
 		end
 		local touch = UserInputService.PreferredInput == Enum.PreferredInput.Touch
 		showTouchButton(touch and not window.isOpen() and aimed() ~= nil)
 	end)
 	trove:Connect(hud.Destroying, function()
-		rowTrove:Destroy()
 		trove:Destroy()
-		table.clear(rows)
+		table.clear(cards)
 	end)
+	sortCards()
+	render()
 end
 
 return CraftingScreen

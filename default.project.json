@@ -14,6 +14,8 @@
         "$className": "Folder",
         "InventorySync": { "$className": "RemoteEvent" },
         "EconomySync": { "$className": "RemoteEvent" },
+        "ProgressSync": { "$className": "RemoteEvent" },
+        "Progress": { "$className": "RemoteEvent" },
         "ResearchSync": { "$className": "RemoteEvent" },
         "Research": { "$className": "RemoteEvent" },
         "Fx": { "$className": "RemoteEvent" },

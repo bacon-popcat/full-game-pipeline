@@ -1,4 +1,5 @@
--- Settings: binds the authored side button and the session music and sound-effect volumes.
+-- Settings: the Settings window, opened from the Menu (Screens.open("Settings")), and the
+-- session music and sound-effect volumes.
 -- Each volume row (Body.MusicVolume, Body.SfxVolume) has a Track to click or drag and a Value
 -- box to type 0-100 into; both stay in step. Body.LightingQuality has one button per
 -- Shared/Settings lighting quality (Low, Medium, High), each with a Selected child shown on the
@@ -26,10 +27,9 @@ local Settings = {}
 
 function Settings.init(hud: ScreenGui)
 	local frame = Hud.find(hud, "Settings", "Frame")
-	local opener = Hud.find(hud, "SideButtons.Settings", "TextButton")
 	local closeButton = Hud.find(hud, "Settings.Header.Close", "TextButton")
 	local controlsHint = Hud.find(hud, "Settings.Body.ControlsHint", "TextLabel")
-	if not frame or not opener or not closeButton then
+	if not frame or not closeButton then
 		return
 	end
 	local volumes = {
@@ -131,28 +131,24 @@ function Settings.init(hud: ScreenGui)
 			GuiService.SelectedObject = music
 		end
 	end
-	Screens.register("Settings", close)
-	trove:Add(UI.bindButton(opener, {
-		hoverScale = 1.08,
-		onActivate = function()
-			if opened then
+	local function open()
+		if opened then
+			return
+		end
+		Screens.claim("Settings")
+		prior = GuiService.SelectedObject
+		opened = true
+		animateWindow(true)
+		render()
+		focus()
+		ContextActionService:BindActionAtPriority("SettingsBack", function(_, state)
+			if state == Enum.UserInputState.Begin then
 				close()
-				return
 			end
-			Screens.claim("Settings")
-			prior = GuiService.SelectedObject
-			opened = true
-			animateWindow(true)
-			render()
-			focus()
-			ContextActionService:BindActionAtPriority("SettingsBack", function(_, state)
-				if state == Enum.UserInputState.Begin then
-					close()
-				end
-				return Enum.ContextActionResult.Sink
-			end, false, Enum.ContextActionPriority.High.Value, table.unpack(Controls.BACK))
-		end,
-	}))
+			return Enum.ContextActionResult.Sink
+		end, false, Enum.ContextActionPriority.High.Value, table.unpack(Controls.BACK))
+	end
+	Screens.register("Settings", close, open)
 	trove:Add(UI.bindButton(closeButton, { onActivate = close }))
 	local saveQuit = Hud.find(hud, "Settings.Body.SaveQuit", "TextButton")
 	if saveQuit then
