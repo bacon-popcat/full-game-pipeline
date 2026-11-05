@@ -1,7 +1,8 @@
 -- FxController: shows and sounds the moments FxService sends (Remotes.Fx). Each is short and soft:
--- a puff of soil when planting; a harvest that pops (a ring across the soil, a few leaves and
--- twinkles springing out, and the produce bouncing up and floating into whoever picked it, a
--- mutated one shimmering in its colours); coins sparkling round you when you sell (a Shipping
+-- a puff of soil when planting; a harvest that pops (the HarvestPop effect from Shared/VFX: a
+-- glint, a ring of the crop's colour across the soil, soil and bright bits kicked up, sparkles,
+-- and for a mutated one a wider ring, motes and a light in its colour; with leaves springing out
+-- and the produce bouncing up and floating into whoever picked it); coins sparkling round you when you sell (a Shipping
 -- Bin's sales only sparkle, with no sound, so a busy factory stays quiet); a chopped tree tipping
 -- over and settling away; wood shavings when you craft; a warm ring when you level up; and when
 -- you complete research, the ResearchComplete effect (Shared/VFX) round you: a gold ring, motes
@@ -91,29 +92,6 @@ local function scenery(part: BasePart)
 	part.CanCollide = false
 	part.CanQuery = false
 	part.CanTouch = false
-end
-
--- A soft flat ring spreading out across the ground from `at`.
-local function groundRing(at: Vector3, color: Color3, reach: number, seconds: number)
-	local part = Instance.new("Part")
-	part.Shape = Enum.PartType.Cylinder
-	part.Size = Vector3.new(0.06, 1, 1)
-	part.CFrame = CFrame.new(at) * CFrame.Angles(0, 0, math.rad(90))
-	part.Color = color
-	part.Material = Enum.Material.Neon
-	part.Transparency = 0.45
-	part.CastShadow = false
-	scenery(part)
-	part.Parent = workspace.Terrain
-	if GuiService.ReducedMotionEnabled then
-		TweenService:Create(part, TweenInfo.new(seconds), { Transparency = 1 }):Play()
-	else
-		TweenService:Create(part, TweenInfo.new(seconds, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Size = Vector3.new(0.06, reach, reach),
-			Transparency = 1,
-		}):Play()
-	end
-	Debris:AddItem(part, seconds + 0.1)
 end
 
 -- A few small leaves springing out of a picked plant and fluttering down.
@@ -227,19 +205,23 @@ local function harvest(fx: { [string]: any }, position: Vector3)
 	local itemId = if typeof(fx.itemId) == "string" then fx.itemId else ""
 	local crop = World.CROPS[itemId]
 	local mutation = if typeof(fx.mutation) == "string" then Mutations.parse(fx.mutation) else nil
-	local color = if mutation then Mutations.color(mutation) elseif crop then crop.color else GLOW
+	local color = if crop then crop.color else GLOW
 	local foot = position - Vector3.yAxis * 1.15
 	local mine = fx.by == Players.LocalPlayer.UserId
-	groundRing(foot, color:Lerp(Color3.new(1, 1, 1), 0.35), if mutation then 7 else 4.5, 0.55)
-	burst(position, color, if mutation then 18 else 10, 6, 0.28)
-	burst(position + Vector3.yAxis * 0.6, color:Lerp(GLOW, 0.5), if mutation then 14 else 5, 4, 0.45, TWINKLE)
-	leaves(position, 4)
-	if mutation then
-		-- each of a stacked crop's mutations shimmers in its own colour
-		for _, name in mutation do
-			burst(position + Vector3.yAxis, Mutations.color({ name }), 6, 5, 0.5, TWINKLE)
+	-- the burst round the plant (Shared/VFX/Effects/HarvestPop), in the crop's colour; a
+	-- mutation's (the last of a stack) carries its wide ring and motes
+	VFXPlayer.Play("HarvestPop", CFrame.new(foot), {
+		Color = color,
+		AccentColor = if mutation then Mutations.color(mutation) else color,
+		Mutated = mutation ~= nil,
+		Reduced = GuiService.ReducedMotionEnabled,
+	})
+	leaves(position, if mutation then 6 else 4)
+	if mutation and #mutation > 1 then
+		-- each further mutation shimmers in its own colour
+		for index = 1, #mutation - 1 do
+			burst(position + Vector3.yAxis, Mutations.color({ mutation[index] }), 6, 5, 0.5, TWINKLE)
 		end
-		groundRing(foot + Vector3.yAxis * 0.02, color, 10, 0.9)
 	end
 	pop(
 		position,

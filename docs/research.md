@@ -104,71 +104,104 @@ anywhere (HubWindow, with no stalls and not modal, so nothing blurs behind it).
 `client/libraries/ResearchClient` keeps the latest ResearchSync. The window is a full-screen
 black view in its own ScreenGui, `StarterGui.ResearchView`. While it is open,
 `client/libraries/HudVisibility` hides the HUD, Roblox's player list and chat, leaving only the
-close button, the category tabs along the top and the running project's strip along the bottom.
-HudVisibility arbitrates `HUD.Enabled` by named requests, so the save menu (HUD only) and the
-Research view never fight over it. `Body.Tabs.Farming`, `Automation`, `Economy`, `Tools` and
-`Crafting` pick a category, whose tree is drawn on `Research.Canvas`:
+close button and the running project's strip along the bottom. HudVisibility arbitrates
+`HUD.Enabled` by named requests, so the save menu (HUD only) and the Research view never fight
+over it.
 
-- **Layout.** A project's column is how many projects lead to it in its tree; it hangs off its
-  latest need. Children that continue its line (Yield1 -> Yield2) run straight along its row;
-  each other child starts a row of its own below. Tiles are cloned from
-  `Assets.UI.Research.Node`, 140 px apart across and 136 down, with the name under each.
-- **Lines.** Each need in the same tree is joined to the project by an elbowed line of
-  `Assets.UI.Research.Link` pieces: across, down at the gap before the project, across into it.
-  Lines out of a finished project are lit green.
+**Opening and closing.** The view fades in over 0.4 s while settling from 4% larger, and fades
+out over 0.28 s the same way, so the world and the tree cross-fade (the HUD returns as it starts
+to fade). The screen animates itself through HubWindow's optional `animate` argument: it takes
+every transparency under the view (backgrounds, text, strokes, images and the tiles'
+ViewportFrames) from where it stands and eases it to clear and back. A CanvasGroup was tried and
+does not work here: Studio rendered its children unfaded and unclipped, and ViewportFrames ignore
+`GroupTransparency`. The canvas also glides in from 82% zoom. Reduced motion shows and hides it at
+once.
+
+All the projects form one tree on `Research.Canvas`, growing out of a round hub in its middle (the
+side button's flask). The view always opens centred on the hub with nothing selected.
+
+- **Arms.** Each category is an arm out of the hub: Farming up, Automation right, Economy down,
+  Crafting left, and Tools up and to the left (its first project 2.2 hub-steps out on both axes,
+  growing up, its first branch to the left). An arm's first project sits 150 px from the hub.
+- **Layout along an arm.** A project's step out is how many projects lead to it in its category,
+  140 px apart; it hangs off its latest need. Children that continue its line (Yield1 -> Yield2)
+  run straight on; the other branches take alternate sides of the arm, nearest first, 136 px
+  apart. Tiles are cloned from `Assets.UI.Research.Node`, with the name under each.
+- **Lines.** Each arm's first project is joined to the hub by a straight line. Each need in the
+  same category is joined to the project by an elbowed line of `Assets.UI.Research.Link` pieces:
+  on along the need's branch, across at the gap before the project, on into it. Each piece is a
+  turned Link holding a green `Lit` fill; lines out of a finished project are lit (a line from the
+  hub once its project is done). Master Gardener's needs in other categories draw no line.
+- **Only what is in reach.** A tile shows when it is an arm's first project, done, running, or
+  needs a finished project in its own category. Lines show when both ends do.
 - **States.** A tile's border says its state: green done, yellow can start, red locked (its item
   and name faded), blue running (with a progress bar), gold and pulsing ready to complete.
 - **Cost badge.** Open and locked tiles show the optional `Node.Cost` label: plain coins below
   1,000, then K/M with one decimal and no trailing .0. Red when unaffordable, otherwise its
   authored text colour; updates with the wallet. Hidden for running, ready and done projects.
-- **Info.** Pressing a tile selects it: the canvas glides to bring it just below the middle of the
-  screen and `Research.Info` stands above it, with its name (in its state's colour), description,
-  level and state, cost (red when you can't afford it), and the time, items and blocker, and an
-  Action button: Research, Complete, Running, Busy, Locked, Need coins, Need items or Done.
-  Hovering (or gamepad-selecting) another tile shows the same in `Research.Tooltip` above that
-  one, without the button. On opening a tab, the running project is selected, else the first that
-  can start, else the root.
+- **Info.** Pressing a tile selects it: the canvas glides it 210 px left of the middle and
+  `Research.Info` (400 px wide) stands beside it, on its right or, without room, its left, level
+  with it and clear of the close button and the strip. It shows the name (in its state's colour),
+  description, level and state, cost (red when you can't afford it), then under "Requirements" a
+  card per required item, cloned from `Assets.UI.Research.Requirement`: the item's picture in a box
+  with "x20 Wheat" under it, its outline and words green once you carry that many. Then the time
+  behind an hourglass ("2:00", "1:30:00"; for the running project, the time left), any blocker,
+  and an Action button: Research, Complete, Running, Busy, Locked, Need coins, Need items or Done.
+  Done hides the requirements and the time. Cards are rebuilt only when the project changes.
+  Without the Requirement template the items are listed as words. Hovering (or gamepad-selecting)
+  another tile shows the same in `Research.Tooltip`, without the button.
+- **Putting the info away.** A press on empty space (not a tile, the hub, the info or the strip)
+  that never becomes a drag deselects, centring the tile. Pressing the hub glides home.
 - **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill) with Cancel;
   once its timer runs out it reads "<name> is ready!" and `Complete` (gold, pulsing) replaces
   Cancel.
 - **Panning and zoom.** Dragging the background pans the canvas; the mouse wheel zooms it
-  (`Canvas.UIScale`, 0.6 to 1.4). Two fingers pinch to zoom without also panning. While open,
+  (`Canvas.UIScale`, 0.5 to 1.4). Two fingers pinch to zoom without also panning. While open,
   the gamepad's right stick pans smoothly (0.2 dead zone); ButtonL2/ButtonR2 zoom out/in.
   The left stick and D-pad keep their tile selection.
 
 A press waits for the next sync. A tile's icon is an item standing for its line (Belts a belt,
 Rich Soil a carrot, a crafting project its recipe's output).
 
-**Completing.** When a sync adds a finished project while the window is open, the screen switches
-to its tree, glides to it and bursts it: the tile pops, a gold flash and a green ring spread from
-it, sparks fly out, and the lines to what it unlocks light up one after another. These are
-transient frames; under reduced motion only the flash and ring play, without moving. In the
-world, FxService sends `Research` and FxController plays the `ResearchComplete` effect
-(`Shared/VFX/Effects`, through `VFXPlayer`) round the player: a soft flash, a gold ground ring and
-glow, two strands of motes spiralling up (gold and leaf green), a slow column of light motes,
-rising sparkles, a warm Highlight and a light, with the ResearchDone sound.
+**Completing.** When a sync adds a finished project while the window is open, the view glides to
+take in it and everything it leads to, and puts the info away. The tile bursts: it pops, a gold
+flash and a green ring spread from it, and sparks fly out. After 0.35 s a glow (a white-hot head
+in a pulsing gold halo) runs down every line out of it, drawing the line in gold turning green as
+it goes, at 420 px a second (each line 0.3 to 0.75 s). Each project it reaches that was out of
+reach before pops in: it grows from a fifth of its size with a bounce, a pale flash and a gold
+ring spread from it, and sparks scatter. These are transient frames. Under reduced motion only the
+flashes and rings play, the lines light at once and nothing moves. In the world, FxService sends
+`Research` and FxController plays the `ResearchComplete` effect (`Shared/VFX/Effects`, through
+`VFXPlayer`) round the player: a soft flash, a gold ground ring and glow, two strands of motes
+spiralling up (gold and leaf green), a slow column of light motes, rising sparkles, a warm
+Highlight and a light, with the ResearchDone sound.
 
 ```text
 StarterGui.ResearchView [ScreenGui]      ResetOnSpawn off, IgnoreGuiInset, ScreenInsets None,
                                          DisplayOrder 5
-  Research [Frame]   full screen, black, Active; UIScale; Header.Close
-    Body.Tabs.<Category> [TextButton]
+  Research [Frame]   full screen, black, Active; UIScale (the fade's settle); Header.Close
     Body.Active [Frame]  Text, Time [TextLabel]; Bar.Fill [Frame]; Cancel, Complete [TextButton]
-    Canvas [Frame]  UIScale; Links, Nodes [Frame]
-    Info [Frame]     auto-height list: Name, Description, Level, Cost, Needs [TextLabel];
-                     Action [TextButton] with Label
+    Canvas [Frame]  UIScale; Links, Nodes [Frame] (the hub and tiles are drawn round 0,0)
+    Info [Frame]     400 px, opaque, auto-height list: Name, Description, Level, Cost,
+                     Requirements [TextLabel], Items [Frame, wrapping row], Time, Needs
+                     [TextLabel]; Action [TextButton] with Label
     Tooltip [Frame]  the same without Action
 ReplicatedStorage.Assets.UI.Research.Node [TextButton]  84 px; UIStroke (the state border),
                      UIScale, Icon [ViewportFrame], Name, Cost [TextLabel], Progress.Fill [Frame]
 ReplicatedStorage.Assets.UI.Research.Link [Frame]  one 4 px line piece; its colour is the unlit one
-StarterGui.HUD.SideButtons.Research [TextButton]  a flask icon, Tooltip
+ReplicatedStorage.Assets.UI.Research.Requirement [Frame]  92 x 104: Box [Frame] with UIStroke
+                     (the outline) and Icon [ViewportFrame]; Label [TextLabel] under it
+StarterGui.HUD.SideButtons.Research [TextButton]  a flask icon (cloned for the hub), Tooltip
 ```
 
-Played through in Studio: the trees, the HUD hiding and coming back, hover and selected info, a
-ready project's gold state and Complete, completing it (the view switching to its tree, the tile
-turning green, its lines lit and three projects unlocking), an early Complete refused, and a start
-and cancel with its exact refund. The ready project was loaded from a snapshot. The save's
-research was restored afterwards, and a fresh session confirmed it had saved.
+Played through in Studio: the fade in and out, the tree opening on the hub with only what is in
+reach, selecting a tile and pressing empty space, the info beside a tile with a requirement card
+green (enough Wheat) and white (no Wood), and the hourglass time. Unlocks were driven by a
+client-only fake ResearchSync from a temporary server script, so nothing was saved: Sharp Axe I
+revealing Sharp Axe II and Strong Pickaxe I, Crate Making revealing Carpentry, and Carpentry's
+three glows (one straight, two elbowed) with Wooden Belts popping in as its glow arrived. Earlier
+(category tabs): a ready project's gold state and Complete, an early Complete refused, and a start
+and cancel with its exact refund.
 
 ## Studio playtest
 

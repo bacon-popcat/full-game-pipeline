@@ -20,14 +20,17 @@ export type Window = { open: (stall: string?) -> (), close: () -> (), isOpen: ()
 
 -- `stalls` are the hub stalls whose prompts open this window; `onOpen` hears which one did
 -- (or which the screen asked for), before `render`. A window is modal (Backdrop dims and blurs
--- the world behind it) unless `modal` is false, as for a full-screen view of its own.
+-- the world behind it) unless `modal` is false, as for a full-screen view of its own. `animate`,
+-- when given, replaces PopupMotion's pop: it is called with true on open and false on close, and
+-- owns the frame's Visible and Interactable from then on.
 function HubWindow.bind(
 	hud: ScreenGui,
 	name: string,
 	stalls: { string },
 	render: () -> (),
 	onOpen: ((stall: string) -> ())?,
-	modal: boolean?
+	modal: boolean?,
+	animate: ((show: boolean) -> ())?
 ): Window?
 	local frame = Hud.find(hud, name, "Frame")
 	local scale = Hud.find(hud, name .. ".UIScale", "UIScale")
@@ -43,8 +46,12 @@ function HubWindow.bind(
 		return nil
 	end
 	local trove = Trove.new()
-	local animateWindow, cleanup = PopupMotion.bind(frame, modal ~= false)
-	trove:Add(cleanup)
+	local animateWindow = animate
+	if not animateWindow then
+		local popup, cleanup = PopupMotion.bind(frame, modal ~= false)
+		animateWindow = popup
+		trove:Add(cleanup)
+	end
 	local opened = false
 	local prior: GuiObject? = nil
 	local action = name .. "Back"

@@ -1,27 +1,37 @@
--- ResearchScreen: the Research window, a full-screen black view of the upgrade trees. It lives in
+-- ResearchScreen: the Research window, a full-screen black view of one upgrade tree. It lives in
 -- its own ScreenGui (StarterGui.ResearchView, authored) and, while open, hides the HUD, player
--- list and chat (HudVisibility), leaving the close button, the category tabs along the top and
--- the running project's strip along the bottom. SideButtons.Research opens it from anywhere.
+-- list and chat (HudVisibility), leaving the close button and the running project's strip along
+-- the bottom. SideButtons.Research opens it from anywhere; it fades in, settling from a touch
+-- larger, and fades back out (the screen animates itself through HubWindow's `animate`).
 --
--- Each tab draws its tree on Research.Canvas: one tile per project (Assets.UI.Research.Node),
--- in columns by how many projects lead to it, hanging off its latest need. Children continuing
--- its line (Yield1 -> Yield2) run along its row; each other child starts a row below. Each need
--- in the same tree is joined to it by an elbowed line (Assets.UI.Research.Link), lit green once
--- the need is done. A tile's border says its state: green done, yellow can start, red locked,
--- blue running (with a bar), gold and pulsing ready to complete. Open and locked tiles show
--- a short coin-cost badge, red when the wallet falls short, otherwise in its authored colour.
+-- The tree grows from a hub in the middle of Research.Canvas, where the view always opens. Each
+-- category is an arm out of it (ARMS): Farming up, Automation right, Economy down, Crafting left
+-- and Tools up and to the left. Along an arm, a project's step out is how many projects lead to
+-- it in its category, and it hangs off its latest need: children continuing its line
+-- (Yield1 -> Yield2) run straight on, the others branch to alternate sides. Tiles are cloned from
+-- Assets.UI.Research.Node; each need in the same category is joined to it by an elbowed line of
+-- Assets.UI.Research.Link pieces (straight from the hub), lit green once the need is done.
+-- Only what is in reach shows: each arm's first project, what is done or running, and whatever
+-- a finished project leads to. A tile's border says its state: green done, yellow can start, red
+-- locked, blue running (with a bar), gold and pulsing ready to complete. Open and locked tiles
+-- show a short coin-cost badge, red when the wallet falls short.
 --
--- Pressing a tile selects it: the canvas glides to centre it and Research.Info stands above it
--- with its name, description, level, cost, time and items, and an Action button (Research,
--- Complete...). Hovering another tile shows the same in Research.Tooltip above that one,
--- without the button. The canvas pans by dragging or the gamepad's right stick, and zooms
--- with the wheel, a two-finger pinch, or ButtonL2/ButtonR2. Pinching never also drags it.
+-- Pressing a tile selects it: the canvas glides it just left of the middle and Research.Info
+-- stands beside it with its name, description, level and cost, a card per required item (its
+-- picture with "x20 Wheat" under it, outlined and named in green once you carry enough), the
+-- time behind an hourglass, and an Action button (Research, Complete...). Pressing empty space
+-- puts the info away and centres the tile; pressing the hub glides home. Hovering another tile
+-- shows the same in Research.Tooltip, without the button. The canvas pans
+-- by dragging or the gamepad's right stick, and zooms with the wheel, a two-finger pinch, or
+-- ButtonL2/ButtonR2. Pinching never also drags it.
 --
 -- Body.Active shows the running project's countdown and Cancel; once its timer runs out its
--- Complete button glows. Completing a project bursts its tile (a flash, a ring and sparks, and
--- its lines lighting up); FxController plays the world effect round the player. Whether a
--- project can start is Research.blocker's to say, with the wallet and inventory here; the server
--- checks it all again and answers with Notify and a fresh ResearchSync, which ends the wait.
+-- Complete button glows. Completing a project bursts its tile, then a glow runs down each line
+-- out of it, drawing the line as it goes, and every project it reaches that was hidden pops in
+-- with a flash, a ring and sparks; FxController plays the world effect round the player.
+-- Whether a project can start is Research.blocker's to say, with the wallet and inventory here;
+-- the server checks it all again and answers with Notify and a fresh ResearchSync, which ends
+-- the wait.
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -43,7 +53,6 @@ local ItemIcon = require(Libraries.ItemIcon)
 local ResearchClient = require(Libraries.ResearchClient)
 local UI = require(Libraries.UI)
 
-local CATEGORIES = { "Farming", "Automation", "Economy", "Tools", "Crafting" }
 -- The item each line of projects shows, by the id's leading word (Belts1 -> Belts); crafting
 -- projects show the recipe they unlock instead.
 local ICONS: { [string]: string } = {
@@ -62,8 +71,21 @@ local ICONS: { [string]: string } = {
 	Pick = "Pickaxe",
 	Master = "Starfruit+Golden",
 }
--- Pixels between tile centres across and down, and round the tree.
-local COLUMN, ROW, MARGIN = 140, 136, 80
+-- Each category's arm: where its first project sits (in HUB_REACH units from the hub), the way
+-- it grows, and which side its first branch takes (1 = the arm's left as it grows, -1 right).
+type Arm = { origin: Vector2, direction: Vector2, side: number }
+local ARMS: { [string]: Arm } = {
+	Farming = { origin = Vector2.new(0, -1), direction = Vector2.new(0, -1), side = 1 },
+	Automation = { origin = Vector2.new(1, 0), direction = Vector2.new(1, 0), side = 1 },
+	Economy = { origin = Vector2.new(0, 1), direction = Vector2.new(0, 1), side = 1 },
+	Crafting = { origin = Vector2.new(-1, 0), direction = Vector2.new(-1, 0), side = 1 },
+	Tools = { origin = Vector2.new(-2.2, -2.2), direction = Vector2.new(0, -1), side = -1 },
+}
+-- Pixels from the hub to an arm's first project, between steps along an arm, and between its
+-- branches.
+local HUB_REACH, COLUMN, ROW = 150, 140, 136
+-- The hub's diameter in pixels.
+local HUB_SIZE = 92
 local COLORS = {
 	Done = Color3.fromRGB(120, 220, 110),
 	Ready = Color3.fromRGB(255, 214, 110),
@@ -71,13 +93,20 @@ local COLORS = {
 	Open = Color3.fromRGB(240, 210, 90),
 	Locked = Color3.fromRGB(196, 78, 78),
 }
+local HOT = Color3.fromRGB(255, 246, 222)
+-- Before the research time in the info.
+local HOURGLASS = utf8.char(0x231B)
 -- How far a locked tile's item and name fade.
 local LOCKED_FADE = 0.55
 -- The canvas: how quickly it glides to where it is going (per second), how far the wheel zooms,
--- and pixels below the screen's middle the selected tile sits, leaving room for its info.
+-- and pixels left of the screen's middle the selected tile sits, leaving room for its info.
 local GLIDE = 8
-local NEAREST, FARTHEST = 0.6, 1.4
-local SIT_BELOW = 90
+local NEAREST, FARTHEST = 0.5, 1.4
+local SIT_LEFT = 210
+-- Opening: the zoom the canvas starts at (as a share of its own) and glides in from.
+local OPEN_ZOOM = 0.82
+-- The view's fade: seconds in and out, and how much larger it is while faded.
+local FADE_IN, FADE_OUT, FADE_SCALE = 0.4, 0.28, 1.04
 -- Pixels a press may move and still count as a press rather than a drag.
 local DRAG_START = 6
 -- Screen pixels per second the right stick pans at full tilt, independent of zoom.
@@ -90,18 +119,24 @@ local GAMEPAD_ZOOM = 1.1
 local PINCH_TOUCHES = 2
 -- Coin-cost badge suffixes begin at these amounts.
 local THOUSAND, MILLION = 1000, 1000000
--- Pixels between a tile's top and the info above it, kept clear of the screen's edges, and of
--- the tabs along the top.
-local INFO_GAP, EDGE, TOP = 10, 12, 70
+-- Pixels between a tile and the info beside it, kept clear of the screen's edges, the close
+-- button along the top and the running project's strip along the bottom.
+local INFO_GAP, EDGE, TOP, BOTTOM = 14, 12, 56, 76
 -- The completion burst: sparks, and how far they fly.
 local SPARKS, SPARK_REACH = 16, 110
-local SPARK_COLORS = { COLORS.Ready, COLORS.Done, Color3.fromRGB(255, 246, 222) }
+local SPARK_COLORS = { COLORS.Ready, COLORS.Done, HOT }
+-- The unlock: seconds after the burst before the glow sets off, its speed along a line (pixels a
+-- second, each line taking between the two times), and the sparks a revealed tile throws.
+local GLOW_DELAY, GLOW_SPEED, GLOW_SHORTEST, GLOW_LONGEST = 0.35, 420, 0.3, 0.75
+local REVEAL_SPARKS, REVEAL_REACH = 10, 80
+local REVEAL_COLORS = { COLORS.Open, HOT, COLORS.Done }
 
 type State = "Done" | "Ready" | "Running" | "Open" | "Locked"
 type Node = {
 	project: Research.Project,
 	frame: GuiButton,
 	stroke: UIStroke?,
+	scale: UIScale?,
 	icon: ViewportFrame,
 	name: TextLabel,
 	cost: TextLabel?,
@@ -110,7 +145,9 @@ type Node = {
 	centre: Vector2,
 	state: State,
 }
-type Link = { need: string, pieces: { Frame } }
+type Piece = { holder: Frame, fill: Frame, from: Vector2, to: Vector2, length: number }
+-- `need` is nil for a line from the hub; it is lit once `lit` is done.
+type Link = { need: string?, child: string, lit: string, pieces: { Piece }, length: number }
 type Panel = {
 	frame: GuiObject,
 	name: TextLabel,
@@ -118,7 +155,15 @@ type Panel = {
 	level: TextLabel,
 	cost: TextLabel,
 	needs: TextLabel,
+	-- optional: the "Requirements" header, the row of item cards and the hourglass time
+	requirements: GuiObject?,
+	items: GuiObject?,
+	time: TextLabel?,
+	-- the cards on show, and for which project
+	cards: { [string]: Card },
+	cardsFor: string?,
 }
+type Card = { frame: GuiObject, icon: ViewportFrame?, stroke: UIStroke?, label: TextLabel? }
 
 local ResearchScreen = {}
 
@@ -149,6 +194,15 @@ local function duration(seconds: number): string
 	return if minutes >= 60
 		then `{minutes // 60} h{if minutes % 60 > 0 then ` {minutes % 60} min` else ""}`
 		else `{minutes} min`
+end
+
+-- "2:00", "1:30:00".
+local function clock(seconds: number): string
+	local left = math.max(0, math.ceil(seconds))
+	if left >= 3600 then
+		return string.format("%d:%02d:%02d", left // 3600, left % 3600 // 60, left % 60)
+	end
+	return string.format("%d:%02d", left // 60, left % 60)
 end
 
 local function countOf(itemId: string): number
@@ -190,9 +244,39 @@ local function stateOf(project: Research.Project): State
 	return if Research.blocker(project, done, EconomyClient.get().level, nil) then "Locked" else "Open"
 end
 
--- Where each project of `category` sits in its tree, as a column and a row, and the tree's
--- size in columns and rows.
-local function layout(category: string): ({ [string]: Vector2 }, Vector2)
+-- The needs of `project` inside its own category (the ones its lines come from).
+local function treeNeeds(project: Research.Project): { string }
+	local needs = {}
+	for _, id in project.needs do
+		local need = Research.get(id)
+		if need and need.category == project.category then
+			table.insert(needs, id)
+		end
+	end
+	return needs
+end
+
+-- Whether a project is in reach, given the finished ids: an arm's first project, a finished or
+-- running one, or one a finished project in its category leads to.
+local function inReach(project: Research.Project, done: { [string]: boolean }): boolean
+	local active = ResearchClient.get().active
+	if done[project.id] or (active and active.id == project.id) then
+		return true
+	end
+	local needs = treeNeeds(project)
+	if #needs == 0 then
+		return true
+	end
+	for _, id in needs do
+		if done[id] then
+			return true
+		end
+	end
+	return false
+end
+
+-- Where each project of `category` sits in its tree, as a step out and a branch.
+local function layout(category: string): { [string]: Vector2 }
 	local order: { [string]: number } = {}
 	local members: { Research.Project } = {}
 	for index, project in Research.PROJECTS do
@@ -265,12 +349,18 @@ local function layout(category: string): ({ [string]: Vector2 }, Vector2)
 		place(root)
 	end
 	local cells: { [string]: Vector2 } = {}
-	local columns = 0
 	for _, project in members do
 		cells[project.id] = Vector2.new(depth[project.id], rows[project.id])
-		columns = math.max(columns, depth[project.id] + 1)
 	end
-	return cells, Vector2.new(columns, nextRow)
+	return cells
+end
+
+-- Branch 0 runs down the arm's middle; the rest alternate sides, nearest first.
+local function sideOf(row: number): number
+	if row == 0 then
+		return 0
+	end
+	return (row + 1) // 2 * (if row % 2 == 1 then 1 else -1)
 end
 
 local function panelOf(frame: Instance?): Panel?
@@ -296,7 +386,49 @@ local function panelOf(frame: Instance?): Panel?
 	then
 		return nil
 	end
-	return { frame = frame, name = name, description = description, level = level, cost = cost, needs = needs }
+	local requirements = frame:FindFirstChild("Requirements")
+	local items = frame:FindFirstChild("Items")
+	local time = frame:FindFirstChild("Time")
+	return {
+		frame = frame,
+		name = name,
+		description = description,
+		level = level,
+		cost = cost,
+		needs = needs,
+		requirements = if requirements and requirements:IsA("GuiObject") then requirements else nil,
+		items = if items and items:IsA("GuiObject") then items else nil,
+		time = if time and time:IsA("TextLabel") then time else nil,
+		cards = {},
+	}
+end
+
+-- Runs `step(alpha)` every frame for `seconds` (alpha 0 to 1), then `done`. Returns a stop.
+local function animate(seconds: number, step: (number) -> (), done: (() -> ())?): () -> ()
+	local started = os.clock()
+	local connection: RBXScriptConnection
+	connection = RunService.RenderStepped:Connect(function()
+		local alpha = math.min(1, (os.clock() - started) / seconds)
+		step(alpha)
+		if alpha >= 1 then
+			connection:Disconnect()
+			if done then
+				done()
+			end
+		end
+	end)
+	return function()
+		connection:Disconnect()
+	end
+end
+
+-- Whether a screen point lies on a shown GuiObject.
+local function over(object: GuiObject, point: Vector2): boolean
+	if not object.Visible then
+		return false
+	end
+	local low, size = object.AbsolutePosition, object.AbsoluteSize
+	return point.X >= low.X and point.Y >= low.Y and point.X <= low.X + size.X and point.Y <= low.Y + size.Y
 end
 
 function ResearchScreen.init(hud: ScreenGui)
@@ -307,6 +439,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		return
 	end
 	local root = Hud.find(view, "Research", "Frame")
+	local viewScale = Hud.find(view, "Research.UIScale", "UIScale")
 	local canvas = Hud.find(view, "Research.Canvas", "Frame")
 	local zoom = Hud.find(view, "Research.Canvas.UIScale", "UIScale")
 	local linkLayer = Hud.find(view, "Research.Canvas.Links", "Frame")
@@ -315,6 +448,7 @@ function ResearchScreen.init(hud: ScreenGui)
 	local tooltip = panelOf(Hud.find(view, "Research.Tooltip", "Frame"))
 	local action = Hud.find(view, "Research.Info.Action", "TextButton")
 	local actionLabel = Hud.find(view, "Research.Info.Action.Label", "TextLabel")
+	local activeStrip = Hud.find(view, "Research.Body.Active", "Frame")
 	local activeText = Hud.find(view, "Research.Body.Active.Text", "TextLabel")
 	local activeTime = Hud.find(view, "Research.Body.Active.Time", "TextLabel")
 	local fill = Hud.find(view, "Research.Body.Active.Bar.Fill", "Frame")
@@ -322,9 +456,28 @@ function ResearchScreen.init(hud: ScreenGui)
 	local completeButton = Hud.find(view, "Research.Body.Active.Complete", "TextButton")
 	local nodeTemplate = Hud.find(ReplicatedStorage, "Assets.UI.Research.Node", "GuiButton")
 	local linkTemplate = Hud.find(ReplicatedStorage, "Assets.UI.Research.Link", "Frame")
+	-- Optional: without it the required items are listed as words in Needs.
+	local requirementAsset: Instance? = ReplicatedStorage:FindFirstChild("Assets")
+	for _, name in { "UI", "Research", "Requirement" } do
+		requirementAsset = if requirementAsset then requirementAsset:FindFirstChild(name) else nil
+	end
+	local requirementTemplate: GuiObject? = if requirementAsset and requirementAsset:IsA("GuiObject")
+		then requirementAsset
+		else nil
+	-- A card's outline and words while you are short, from the template.
+	local cardStrokeColor, cardTextColor = Color3.fromRGB(205, 205, 220), Color3.fromRGB(230, 230, 235)
+	if requirementTemplate then
+		local box = requirementTemplate:FindFirstChild("Box")
+		local outline = (box or requirementTemplate):FindFirstChildOfClass("UIStroke")
+		local label = requirementTemplate:FindFirstChild("Label")
+		cardStrokeColor = if outline then outline.Color else cardStrokeColor
+		cardTextColor = if label and label:IsA("TextLabel") then label.TextColor3 else cardTextColor
+	end
 	if
 		not root
 		or not root:IsA("Frame")
+		or not viewScale
+		or not viewScale:IsA("UIScale")
 		or not canvas
 		or not canvas:IsA("Frame")
 		or not zoom
@@ -339,6 +492,8 @@ function ResearchScreen.init(hud: ScreenGui)
 		or not action:IsA("TextButton")
 		or not actionLabel
 		or not actionLabel:IsA("TextLabel")
+		or not activeStrip
+		or not activeStrip:IsA("Frame")
 		or not activeText
 		or not activeText:IsA("TextLabel")
 		or not activeTime
@@ -360,35 +515,159 @@ function ResearchScreen.init(hud: ScreenGui)
 	local treeTrove = Trove.new()
 	local nodes: { [string]: Node } = {}
 	local links: { Link } = {}
-	local current = CATEGORIES[1]
+	local hub: GuiButton? = nil
 	local selected: string? = nil
 	local hovered: string? = nil
 	local pending = false
 	local shown = false
-	local tabs: { [string]: TextButton } = {}
-	local tabLooks: { [TextButton]: { transparency: number, color: Color3 } } = {}
+	-- Projects whose tile waits for the unlock glow to reach it, and lines it is running down.
+	local revealing: { [string]: boolean } = {}
+	local glowing: { [Link]: boolean } = {}
 	-- Baselines, captured from what is authored.
 	local nodeSize = nodeTemplate.Size
 	local templateCost = nodeTemplate:FindFirstChild("Cost")
 	local nodeCostColor = if templateCost and templateCost:IsA("TextLabel") then templateCost.TextColor3 else nil
 	local templateStroke = nodeTemplate:FindFirstChildOfClass("UIStroke")
 	local strokeThickness = if templateStroke then templateStroke.Thickness else 3
-	local linkColor = linkTemplate.BackgroundColor3
+	local linkTransparency = linkTemplate.BackgroundTransparency
 	local linkThickness = math.max(1, linkTemplate.Size.Y.Offset)
 	local actionLook = { transparency = action.BackgroundTransparency, text = actionLabel.TextTransparency }
 	local costColor = info.cost.TextColor3
 	local levelColor = info.level.TextColor3
 	local completeStroke = completeButton:FindFirstChildOfClass("UIStroke")
 	local completeThickness = if completeStroke then completeStroke.Thickness else 1
+	local viewBaseline = viewScale.Scale
+	-- Clicks on the info panel stay on it rather than reaching the background below.
+	info.frame.Active = true
 	-- The finished ids at the last sync, so a newly completed one can burst.
 	local lastDone: { [string]: boolean }? = nil
 	-- The canvas point the screen centres on, where it is going and where it is, and its zoom.
 	local focus, shownFocus = Vector2.zero, Vector2.zero
 	local scale = zoom.Scale
+	local shownScale = scale
 	local press: Vector2? = nil
 	local dragging = false
 	local touches: { InputObject } = {}
 	local pinchDistance: number? = nil
+
+	-- Opening and closing fade the whole view: every transparency under it is taken from where
+	-- it stands and eased to clear (and back), while the view settles from a touch larger. The
+	-- tiles' item pictures are ViewportFrames, faded the same way.
+	local fadeEntries: { { instance: Instance, property: string, base: number } } = {}
+	local fadeAmount = 1
+	local stopFade: (() -> ())? = nil
+	local FADED = {
+		GuiObject = { "BackgroundTransparency" },
+		TextLabel = { "TextTransparency", "TextStrokeTransparency" },
+		TextButton = { "TextTransparency", "TextStrokeTransparency" },
+		TextBox = { "TextTransparency", "TextStrokeTransparency" },
+		ImageLabel = { "ImageTransparency" },
+		ImageButton = { "ImageTransparency" },
+		ViewportFrame = { "ImageTransparency" },
+		UIStroke = { "Transparency" },
+	}
+	local function capture()
+		table.clear(fadeEntries)
+		local function add(instance: Instance)
+			for className, properties in FADED do
+				if instance:IsA(className) then
+					for _, property in properties do
+						table.insert(
+							fadeEntries,
+							{ instance = instance, property = property, base = (instance :: any)[property] }
+						)
+					end
+				end
+			end
+		end
+		add(root)
+		for _, descendant in root:GetDescendants() do
+			add(descendant)
+		end
+	end
+	local function applyFade(amount: number)
+		for _, entry in fadeEntries do
+			if entry.instance.Parent then
+				(entry.instance :: any)[entry.property] = entry.base + (1 - entry.base) * amount
+			end
+		end
+		viewScale.Scale = viewBaseline * (1 + (FADE_SCALE - 1) * amount)
+	end
+	local function restoreFade()
+		for _, entry in fadeEntries do
+			if entry.instance.Parent then
+				(entry.instance :: any)[entry.property] = entry.base
+			end
+		end
+		table.clear(fadeEntries)
+		viewScale.Scale = viewBaseline
+	end
+
+	-- The required items as cards: each item's picture in a box with "x20 Wheat" under it, the
+	-- outline and words turning green once you carry enough. Rebuilt only when the project
+	-- changes. Returns whether the panel has cards (else the items go in Needs as words).
+	local function showCards(panel: Panel, project: Research.Project, wanted: boolean): boolean
+		local row = panel.items
+		local template = requirementTemplate
+		if not row or not template then
+			return false
+		end
+		local any = next(project.items) ~= nil
+		row.Visible = wanted and any
+		if panel.requirements then
+			panel.requirements.Visible = wanted and any
+		end
+		if not (wanted and any) then
+			return true
+		end
+		if panel.cardsFor ~= project.id then
+			for _, card in panel.cards do
+				if card.icon then
+					ItemIcon.clear(card.icon)
+				end
+				card.frame:Destroy()
+			end
+			table.clear(panel.cards)
+			panel.cardsFor = project.id
+			local ids = {}
+			for itemId in project.items do
+				table.insert(ids, itemId)
+			end
+			table.sort(ids)
+			for order, itemId in ids do
+				local frame = template:Clone()
+				frame.Name = itemId
+				frame.LayoutOrder = order
+				local icon = frame:FindFirstChild("Icon", true)
+				local box = frame:FindFirstChild("Box")
+				local label = frame:FindFirstChild("Label")
+				local card: Card = {
+					frame = frame,
+					icon = if icon and icon:IsA("ViewportFrame") then icon else nil,
+					stroke = (box or frame):FindFirstChildOfClass("UIStroke"),
+					label = if label and label:IsA("TextLabel") then label else nil,
+				}
+				if card.icon then
+					ItemIcon.show(card.icon, itemId)
+				end
+				if card.label then
+					card.label.Text = `x{project.items[itemId]} {Inventory.getItem(itemId).name}`
+				end
+				frame.Parent = row
+				panel.cards[itemId] = card
+			end
+		end
+		for itemId, card in panel.cards do
+			local enough = countOf(itemId) >= (project.items[itemId] or 0)
+			if card.stroke then
+				card.stroke.Color = if enough then COLORS.Done else cardStrokeColor
+			end
+			if card.label then
+				card.label.TextColor3 = if enough then COLORS.Done else cardTextColor
+			end
+		end
+		return true
+	end
 
 	local function fillPanel(panel: Panel, project: Research.Project)
 		local economy = EconomyClient.get()
@@ -398,6 +677,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		local blocked = Research.blocker(project, done, economy.level, activeId)
 		local items, hasItems = itemsOf(project)
 		local state = stateOf(project)
+		local cards = showCards(panel, project, state ~= "Done" and state ~= "Running" and state ~= "Ready")
 		panel.name.Text = project.name
 		panel.name.TextColor3 = COLORS[state]
 		panel.description.Text = project.description
@@ -412,15 +692,26 @@ function ResearchScreen.init(hud: ScreenGui)
 		panel.cost.Text = `{Hud.number(project.coins)} coins`
 		panel.cost.TextColor3 = if economy.coins >= project.coins then costColor else COLORS.Locked
 		local lines = {}
+		local seconds = Research.duration(project, snapshot.bonuses.researchSpeed or 0)
+		if state == "Running" then
+			local active = snapshot.active
+			seconds = if active then math.max(0, active.endsAt - workspace:GetServerTimeNow()) else 0
+		end
+		if panel.time then
+			panel.time.Visible = state ~= "Done" and state ~= "Ready"
+			panel.time.Text = `{HOURGLASS} {clock(seconds)}{if state == "Running" then " left" else ""}`
+		end
 		if state == "Ready" then
 			table.insert(lines, "Finished! Complete it to get its bonus.")
 		elseif state == "Running" then
-			local active = snapshot.active
-			local left = if active then math.max(0, active.endsAt - workspace:GetServerTimeNow()) else 0
-			table.insert(lines, `{Hud.time(left)} left`)
+			if not panel.time then
+				table.insert(lines, `{Hud.time(seconds)} left`)
+			end
 		elseif state ~= "Done" then
-			table.insert(lines, `Takes {duration(Research.duration(project, snapshot.bonuses.researchSpeed or 0))}`)
-			if items ~= "" then
+			if not panel.time then
+				table.insert(lines, `Takes {duration(seconds)}`)
+			end
+			if items ~= "" and not cards then
 				table.insert(lines, `Needs {items}{if hasItems then "" else " (you don't have them)"}`)
 			end
 			if blocked and blocked ~= "Another project is running" then
@@ -466,12 +757,18 @@ function ResearchScreen.init(hud: ScreenGui)
 			else "Research"
 	end
 
+	local function visible(id: string, done: { [string]: boolean }): boolean
+		local node = nodes[id]
+		return node ~= nil and not revealing[id] and inReach(node.project, done)
+	end
+
 	local function paintTiles()
 		local done = ResearchClient.done()
 		local coins = EconomyClient.get().coins
-		for _, node in nodes do
+		for id, node in nodes do
 			local state = stateOf(node.project)
 			node.state = state
+			node.frame.Visible = visible(id, done)
 			if node.stroke then
 				node.stroke.Color = COLORS[state]
 				node.stroke.Thickness = strokeThickness
@@ -490,9 +787,22 @@ function ResearchScreen.init(hud: ScreenGui)
 			end
 		end
 		for _, link in links do
-			for _, piece in link.pieces do
-				piece.BackgroundColor3 = if done[link.need] then COLORS.Done else linkColor
+			if glowing[link] then
+				continue
 			end
+			local shows = visible(link.child, done) and (link.need == nil or visible(link.need, done))
+			local lit = done[link.lit] == true
+			for _, piece in link.pieces do
+				piece.holder.Visible = shows
+				piece.holder.BackgroundTransparency = linkTransparency
+				piece.fill.Size = UDim2.fromScale(if lit then 1 else 0, 1)
+			end
+		end
+		if selected and not (nodes[selected] and nodes[selected].frame.Visible) then
+			selected = nil
+		end
+		if hovered and not (nodes[hovered] and nodes[hovered].frame.Visible) then
+			hovered = nil
 		end
 	end
 
@@ -513,67 +823,176 @@ function ResearchScreen.init(hud: ScreenGui)
 		cancel.Active = active ~= nil and not pending
 		completeButton.Visible = ready
 		completeButton.Active = ready and not pending
+		if stopFade then
+			-- mid-fade, what was just painted stays faded (the fade's end paints again)
+			applyFade(fadeAmount)
+		end
+	end
+
+	-- The canvas point that puts `centre` at the screen's middle, or left of it with room for the
+	-- info beside it.
+	local function focusOn(centre: Vector2, beside: boolean)
+		focus = centre + Vector2.new(if beside then SIT_LEFT else 0, 0) / scale
+		if GuiService.ReducedMotionEnabled then
+			shownFocus = focus
+		end
 	end
 
 	local function selectProject(id: string, snap: boolean?)
 		local node = nodes[id]
-		if not node then
+		if not node or not node.frame.Visible then
 			return
 		end
 		selected = id
-		focus = node.centre
-		if snap or GuiService.ReducedMotionEnabled then
+		focusOn(node.centre, true)
+		if snap then
 			shownFocus = focus
 		end
 		render()
 	end
 
-	-- A straight piece of line on the canvas from `a` to `b` (one shared, so it runs across or down).
-	local function segment(a: Vector2, b: Vector2): Frame
-		local frame = linkTemplate:Clone()
-		local low = a:Min(b)
-		local size = b - a
-		frame.AnchorPoint = Vector2.zero
-		frame.Position = UDim2.fromOffset(low.X - linkThickness / 2, low.Y - linkThickness / 2)
-		frame.Size = UDim2.fromOffset(math.abs(size.X) + linkThickness, math.abs(size.Y) + linkThickness)
-		frame.Parent = linkLayer
-		treeTrove:Add(frame)
-		return frame
+	local function deselect()
+		if not selected then
+			return
+		end
+		local node = nodes[selected]
+		selected = nil
+		if node then
+			focusOn(node.centre, false)
+		end
+		render()
+	end
+
+	-- A straight piece of line on the canvas from `a` to `b`: a dim line turned to run along it,
+	-- holding the lit fill that grows from `a`.
+	local function segment(a: Vector2, b: Vector2): Piece
+		local holder = linkTemplate:Clone()
+		local delta = b - a
+		local length = delta.Magnitude
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.Position = UDim2.fromOffset((a.X + b.X) / 2, (a.Y + b.Y) / 2)
+		holder.Size = UDim2.fromOffset(length + linkThickness, linkThickness)
+		holder.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+		local lit = Instance.new("Frame")
+		lit.Name = "Lit"
+		lit.BorderSizePixel = 0
+		lit.BackgroundColor3 = COLORS.Done
+		lit.Size = UDim2.fromScale(0, 1)
+		lit.ZIndex = holder.ZIndex
+		lit.Parent = holder
+		holder.Parent = linkLayer
+		treeTrove:Add(holder)
+		return { holder = holder, fill = lit, from = a, to = b, length = length }
+	end
+
+	local function addLink(need: string?, child: string, lit: string, points: { Vector2 })
+		local pieces = {}
+		local length = 0
+		for index = 1, #points - 1 do
+			local piece = segment(points[index], points[index + 1])
+			table.insert(pieces, piece)
+			length += piece.length
+		end
+		table.insert(links, { need = need, child = child, lit = lit, pieces = pieces, length = length })
+	end
+
+	-- The hub: the flask from the side button on a round tile; pressing it glides home.
+	local function buildHub()
+		local tile = Instance.new("TextButton")
+		tile.Name = "Hub"
+		tile.Text = ""
+		tile.AutoButtonColor = false
+		tile.AnchorPoint = Vector2.new(0.5, 0.5)
+		tile.Position = UDim2.fromOffset(0, 0)
+		tile.Size = UDim2.fromOffset(HUB_SIZE, HUB_SIZE)
+		tile.BackgroundColor3 = nodeTemplate.BackgroundColor3
+		tile.BorderSizePixel = 0
+		tile.ZIndex = nodeTemplate.ZIndex
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = tile
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = COLORS.Ready
+		stroke.Thickness = strokeThickness
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Parent = tile
+		local flask = hud:FindFirstChild("SideButtons")
+		flask = if flask then flask:FindFirstChild("Research") else nil
+		flask = if flask then flask:FindFirstChild("Icon") else nil
+		if flask and flask:IsA("GuiObject") then
+			local icon = flask:Clone()
+			icon.AnchorPoint = Vector2.new(0.5, 0.5)
+			icon.Position = UDim2.fromScale(0.5, 0.5)
+			icon.Size = UDim2.fromScale(0.6, 0.6)
+			icon.Parent = tile
+		end
+		tile.Parent = nodeLayer
+		treeTrove:Add(tile)
+		treeTrove:Add(UI.bindButton(tile, {
+			onActivate = function()
+				selected = nil
+				focusOn(Vector2.zero, false)
+				render()
+			end,
+		}))
+		hub = tile
 	end
 
 	local function build()
 		treeTrove:Clean()
 		table.clear(nodes)
 		table.clear(links)
+		table.clear(revealing)
+		table.clear(glowing)
 		hovered = nil
-		local cells, extent = layout(current)
-		local width = nodeSize.X.Offset
-		local function centre(id: string): Vector2
-			local cell = cells[id]
-			return Vector2.new(MARGIN + cell.X * COLUMN, MARGIN + cell.Y * ROW)
+		canvas.Size = UDim2.fromOffset(0, 0)
+		buildHub()
+		local half = nodeSize.X.Offset / 2
+		-- Each project's place: its arm, step out and branch, and where that is on the canvas.
+		local spots: { [string]: { arm: Arm, along: number, across: number } } = {}
+		local function point(arm: Arm, along: number, across: number): Vector2
+			local side = Vector2.new(-arm.direction.Y, arm.direction.X) * arm.side
+			return arm.origin * HUB_REACH + arm.direction * along + side * across
 		end
-		canvas.Size = UDim2.fromOffset(MARGIN * 2 + (extent.X - 1) * COLUMN, MARGIN * 2 + (extent.Y - 1) * ROW)
+		for category, arm in ARMS do
+			for id, cell in layout(category) do
+				spots[id] = { arm = arm, along = cell.X * COLUMN, across = sideOf(cell.Y) * ROW }
+			end
+		end
 		for _, project in Research.PROJECTS do
-			if not cells[project.id] then
+			local spot = spots[project.id]
+			if not spot then
 				continue
 			end
-			-- Elbowed lines from each need in this tree: across to the gap before this tile,
-			-- down to its row, and across into it.
-			local to = centre(project.id)
-			for _, id in project.needs do
-				if cells[id] then
-					local from = centre(id)
-					local startX, endX = from.X + width / 2, to.X - width / 2
-					local pieces = {}
-					if from.Y == to.Y then
-						table.insert(pieces, segment(Vector2.new(startX, from.Y), Vector2.new(endX, to.Y)))
+			local arm = spot.arm
+			local to = point(arm, spot.along, spot.across)
+			local needs = treeNeeds(project)
+			if #needs == 0 then
+				-- straight from the hub's rim to the near edge of the tile
+				local way = to.Unit
+				local reach = half / math.max(math.abs(way.X), math.abs(way.Y))
+				addLink(nil, project.id, project.id, { way * HUB_SIZE / 2, to - way * reach })
+			end
+			-- Elbowed lines from each need in the tree: on along the need's branch to the gap
+			-- before this tile, across to its branch, and on into it.
+			for _, id in needs do
+				local from = spots[id]
+				if from then
+					local startAlong, endAlong = from.along + half, spot.along - half
+					if from.across == spot.across then
+						addLink(id, project.id, id, {
+							point(arm, startAlong, from.across),
+							point(arm, endAlong, spot.across),
+						})
 					else
-						local turn = endX - (COLUMN - width) / 2
-						table.insert(pieces, segment(Vector2.new(startX, from.Y), Vector2.new(turn, from.Y)))
-						table.insert(pieces, segment(Vector2.new(turn, from.Y), Vector2.new(turn, to.Y)))
-						table.insert(pieces, segment(Vector2.new(turn, to.Y), Vector2.new(endX, to.Y)))
+						local turn = endAlong - (COLUMN - half * 2) / 2
+						addLink(id, project.id, id, {
+							point(arm, startAlong, from.across),
+							point(arm, turn, from.across),
+							point(arm, turn, spot.across),
+							point(arm, endAlong, spot.across),
+						})
 					end
-					table.insert(links, { need = id, pieces = pieces })
 				end
 			end
 			local frame = nodeTemplate:Clone()
@@ -597,6 +1016,7 @@ function ResearchScreen.init(hud: ScreenGui)
 				project = project,
 				frame = frame,
 				stroke = frame:FindFirstChildOfClass("UIStroke"),
+				scale = frame:FindFirstChildOfClass("UIScale"),
 				icon = icon,
 				name = name,
 				cost = if cost and cost:IsA("TextLabel") then cost else nil,
@@ -637,88 +1057,96 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 	end
 
-	-- The tile a tab opens on: the running project, else the first that can start, else the root.
-	local function pickIn(category: string): string?
-		local active = ResearchClient.get().active
-		local activeProject = if active then Research.get(active.id) else nil
-		if activeProject and activeProject.category == category then
-			return activeProject.id
-		end
-		local first: string? = nil
-		for _, project in Research.PROJECTS do
-			if project.category == category then
-				first = first or project.id
-				if stateOf(project) == "Open" then
-					return project.id
-				end
-			end
-		end
-		return first
+	-- A round frame on the canvas at `at`, over the tiles, cleared with the tree.
+	local function disc(at: UDim2, size: UDim2, color: Color3, transparency: number, zIndex: number): Frame
+		local circle = Instance.new("Frame")
+		circle.AnchorPoint = Vector2.new(0.5, 0.5)
+		circle.Position = at
+		circle.Size = size
+		circle.BackgroundColor3 = color
+		circle.BackgroundTransparency = transparency
+		circle.BorderSizePixel = 0
+		circle.ZIndex = zIndex
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = circle
+		circle.Parent = nodeLayer
+		treeTrove:Add(circle)
+		return circle
 	end
 
-	local function show(category: string, snap: boolean?)
-		current = category
-		for name, tab in tabs do
-			local look = tabLooks[tab]
-			local isCurrent = name == category
-			tab.BackgroundTransparency = if isCurrent then look.transparency else 0.6
-			tab.TextColor3 = if isCurrent then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
-		end
-		build()
-		local pick = pickIn(category)
-		if pick then
-			selectProject(pick, snap)
-		end
+	local function grow(by: number): UDim2
+		return UDim2.fromOffset(nodeSize.X.Offset * by, nodeSize.Y.Offset * by)
 	end
 
-	-- The completion burst on a tile: it pops, a gold flash and a green ring spread from it,
-	-- sparks fly out, and the lines out of it light up one after another. Transient frames.
-	local function burst(id: string)
-		local node = nodes[id]
-		if not node then
-			return
-		end
-		local frame = node.frame
-		local at = frame.Position
+	-- A flash spreading from a tile and a ring running out past it.
+	local function flashAndRing(frame: GuiObject, flashColor: Color3, ringColor: Color3, reach: number)
 		local reduced = GuiService.ReducedMotionEnabled
-		local function grow(by: number): UDim2
-			return UDim2.fromOffset(nodeSize.X.Offset * by, nodeSize.Y.Offset * by)
-		end
-		local function disc(color: Color3, transparency: number): Frame
-			local circle = Instance.new("Frame")
-			circle.AnchorPoint = Vector2.new(0.5, 0.5)
-			circle.Position = at
-			circle.Size = nodeSize
-			circle.BackgroundColor3 = color
-			circle.BackgroundTransparency = transparency
-			circle.BorderSizePixel = 0
-			circle.ZIndex = frame.ZIndex + 5
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0.5, 0)
-			corner.Parent = circle
-			circle.Parent = nodeLayer
-			treeTrove:Add(circle)
-			return circle
-		end
-		local flash = disc(COLORS.Ready, 0.15)
+		local at = frame.Position
+		local flash = disc(at, nodeSize, flashColor, 0.15, frame.ZIndex + 5)
 		TweenService:Create(flash, TweenInfo.new(0.55, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Size = if reduced then nodeSize else grow(2.6),
+			Size = if reduced then nodeSize else grow(reach * 0.72),
 			BackgroundTransparency = 1,
 		}):Play()
-		local ring = disc(COLORS.Done, 1)
+		local ring = disc(at, nodeSize, ringColor, 1, frame.ZIndex + 5)
 		local stroke = Instance.new("UIStroke")
-		stroke.Color = COLORS.Done
+		stroke.Color = ringColor
 		stroke.Thickness = 4
 		stroke.Parent = ring
 		TweenService:Create(ring, TweenInfo.new(0.8, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Size = if reduced then nodeSize else grow(3.6),
+			Size = if reduced then nodeSize else grow(reach),
 		}):Play()
 		TweenService:Create(stroke, TweenInfo.new(0.8), { Transparency = 1, Thickness = 1 }):Play()
 		task.delay(0.85, function()
 			flash:Destroy()
 			ring:Destroy()
 		end)
-		if not reduced then
+	end
+
+	-- Diamond sparks flying out of a tile and shrinking away.
+	local function sparks(frame: GuiObject, count: number, reach: number, colors: { Color3 })
+		if GuiService.ReducedMotionEnabled then
+			return
+		end
+		local at = frame.Position
+		for index = 1, count do
+			local spark = Instance.new("Frame")
+			local side = math.random(6, 11)
+			spark.AnchorPoint = Vector2.new(0.5, 0.5)
+			spark.Position = at
+			spark.Size = UDim2.fromOffset(side, side)
+			spark.Rotation = 45
+			spark.BorderSizePixel = 0
+			spark.BackgroundColor3 = colors[index % #colors + 1]
+			spark.ZIndex = frame.ZIndex + 6
+			spark.Parent = nodeLayer
+			treeTrove:Add(spark)
+			local angle = (index / count + math.random() * 0.06) * math.pi * 2
+			local distance = reach * (0.55 + math.random() * 0.45)
+			local seconds = 0.6 + math.random() * 0.3
+			TweenService:Create(spark, TweenInfo.new(seconds, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+				Position = at + UDim2.fromOffset(math.cos(angle) * distance, math.sin(angle) * distance - 16),
+				Size = UDim2.fromOffset(1, 1),
+				Rotation = 45 + math.random(-90, 90),
+				BackgroundTransparency = 1,
+			}):Play()
+			task.delay(seconds, function()
+				spark:Destroy()
+			end)
+		end
+	end
+
+	-- The completion burst on a tile: it pops, a gold flash and a green ring spread from it and
+	-- sparks fly out.
+	local function burst(id: string)
+		local node = nodes[id]
+		if not node then
+			return
+		end
+		local frame = node.frame
+		flashAndRing(frame, COLORS.Ready, COLORS.Done, 3.6)
+		sparks(frame, SPARKS, SPARK_REACH, SPARK_COLORS)
+		if not GuiService.ReducedMotionEnabled then
 			TweenService:Create(frame, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 				Size = grow(1.22),
 			}):Play()
@@ -727,53 +1155,143 @@ function ResearchScreen.init(hud: ScreenGui)
 					TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Size = nodeSize }):Play()
 				end
 			end)
-			for index = 1, SPARKS do
-				local spark = Instance.new("Frame")
-				local side = math.random(6, 11)
-				spark.AnchorPoint = Vector2.new(0.5, 0.5)
-				spark.Position = at
-				spark.Size = UDim2.fromOffset(side, side)
-				spark.Rotation = 45
-				spark.BorderSizePixel = 0
-				spark.BackgroundColor3 = SPARK_COLORS[index % #SPARK_COLORS + 1]
-				spark.ZIndex = frame.ZIndex + 6
-				spark.Parent = nodeLayer
-				treeTrove:Add(spark)
-				local angle = (index / SPARKS + math.random() * 0.06) * math.pi * 2
-				local reach = SPARK_REACH * (0.55 + math.random() * 0.45)
-				local seconds = 0.6 + math.random() * 0.3
-				TweenService:Create(spark, TweenInfo.new(seconds, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-					Position = at + UDim2.fromOffset(math.cos(angle) * reach, math.sin(angle) * reach - 16),
-					Size = UDim2.fromOffset(1, 1),
-					Rotation = 45 + math.random(-90, 90),
-					BackgroundTransparency = 1,
-				}):Play()
-				task.delay(seconds, function()
-					spark:Destroy()
-				end)
-			end
 		end
-		local delay = 0.2
+	end
+
+	-- A tile the glow has just reached pops in: it grows from small with a bounce, a pale flash
+	-- and a gold ring spread from it, and sparks scatter.
+	local function reveal(id: string)
+		local node = nodes[id]
+		if not node then
+			return
+		end
+		node.frame.Visible = true
+		flashAndRing(node.frame, HOT, COLORS.Open, 2.6)
+		sparks(node.frame, REVEAL_SPARKS, REVEAL_REACH, REVEAL_COLORS)
+		local tileScale = node.scale
+		if tileScale and not GuiService.ReducedMotionEnabled then
+			tileScale.Scale = 0.2
+			TweenService:Create(tileScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+				Scale = 1,
+			}):Play()
+		end
+	end
+
+	-- The glow running down a line: a bright head travels its pieces in turn, drawing the lit line
+	-- behind it, then `arrive` runs.
+	local function travel(link: Link, arrive: () -> ())
+		glowing[link] = true
+		for _, piece in link.pieces do
+			piece.holder.Visible = true
+			piece.holder.BackgroundTransparency = 1
+			piece.fill.Size = UDim2.fromScale(0, 1)
+		end
+		local zIndex = nodeTemplate.ZIndex + 4
+		local start = link.pieces[1].from
+		local halo = disc(UDim2.fromOffset(start.X, start.Y), UDim2.fromOffset(34, 34), COLORS.Ready, 0.55, zIndex)
+		local head = disc(UDim2.fromOffset(start.X, start.Y), UDim2.fromOffset(14, 14), HOT, 0, zIndex + 1)
+		local headStroke = Instance.new("UIStroke")
+		headStroke.Color = COLORS.Ready
+		headStroke.Thickness = 3
+		headStroke.Transparency = 0.2
+		headStroke.Parent = head
+		local seconds = math.clamp(link.length / GLOW_SPEED, GLOW_SHORTEST, GLOW_LONGEST)
+		local function finish()
+			halo:Destroy()
+			head:Destroy()
+			glowing[link] = nil
+			for _, piece in link.pieces do
+				piece.holder.BackgroundTransparency = linkTransparency
+				piece.fill.Size = UDim2.fromScale(1, 1)
+			end
+			arrive()
+		end
+		if GuiService.ReducedMotionEnabled then
+			finish()
+			return
+		end
+		animate(seconds, function(alpha)
+			-- quick off the mark, easing as it arrives
+			local travelled = (1 - (1 - alpha) ^ 2) * link.length
+			local at = link.pieces[1].from
+			for _, piece in link.pieces do
+				local share = math.clamp(travelled / math.max(piece.length, 1), 0, 1)
+				piece.fill.Size = UDim2.fromScale(share, 1)
+				piece.fill.BackgroundColor3 = COLORS.Ready:Lerp(COLORS.Done, alpha)
+				if travelled > 0 then
+					at = piece.from:Lerp(piece.to, share)
+				end
+				travelled -= piece.length
+			end
+			local pulse = 1 + 0.25 * math.sin(alpha * math.pi * 6)
+			head.Position = UDim2.fromOffset(at.X, at.Y)
+			halo.Position = head.Position
+			halo.Size = UDim2.fromOffset(34 * pulse, 34 * pulse)
+		end, function()
+			for _, piece in link.pieces do
+				piece.fill.BackgroundColor3 = COLORS.Done
+			end
+			finish()
+		end)
+	end
+
+	-- A project just completed: its tile bursts, then a glow runs down every line out of it and
+	-- each project it reaches that was out of reach before pops in. The view glides to take in
+	-- the project and what it leads to.
+	local function celebrate(id: string, before: { [string]: boolean })
+		local node = nodes[id]
+		if not node then
+			return
+		end
+		local outgoing: { Link } = {}
+		local around = node.centre
 		for _, link in links do
-			if link.need == id then
-				for _, piece in link.pieces do
-					piece.BackgroundColor3 = linkColor
-					task.delay(delay, function()
-						if piece.Parent then
-							TweenService:Create(piece, TweenInfo.new(0.25), { BackgroundColor3 = COLORS.Done }):Play()
-						end
-					end)
-					delay += 0.08
+			if link.need == id and nodes[link.child] then
+				table.insert(outgoing, link)
+				around += nodes[link.child].centre
+				if not inReach(nodes[link.child].project, before) then
+					revealing[link.child] = true
 				end
 			end
 		end
+		selected = nil
+		focusOn(around / (#outgoing + 1), false)
+		render()
+		burst(id)
+		for _, link in outgoing do
+			-- drawn by the glow, not before it
+			glowing[link] = true
+			for _, piece in link.pieces do
+				piece.holder.Visible = false
+			end
+		end
+		task.delay(if GuiService.ReducedMotionEnabled then 0 else GLOW_DELAY, function()
+			if not node.frame.Parent then
+				return
+			end
+			for _, link in outgoing do
+				travel(link, function()
+					local child = link.child
+					if revealing[child] then
+						revealing[child] = nil
+						render()
+						reveal(child)
+					else
+						render()
+					end
+				end)
+			end
+		end)
 	end
 
 	local function enter()
 		shown = true
 		HudVisibility.hide("Research", true, true)
 		hovered = nil
-		show(current, true)
+		selected = nil
+		focus, shownFocus = Vector2.zero, Vector2.zero
+		shownScale = if GuiService.ReducedMotionEnabled then scale else scale * OPEN_ZOOM
+		render()
 	end
 
 	local function leave()
@@ -786,21 +1304,66 @@ function ResearchScreen.init(hud: ScreenGui)
 		HudVisibility.hide("Research", false)
 	end
 
-	-- Puts a panel just above a tile, kept on screen.
+	local function animateView(show: boolean)
+		if show == shown then
+			return
+		end
+		if stopFade then
+			stopFade()
+			stopFade = nil
+			restoreFade()
+		end
+		if show then
+			enter()
+		else
+			leave()
+		end
+		root.Interactable = show
+		if GuiService.ReducedMotionEnabled then
+			fadeAmount = if show then 0 else 1
+			root.Visible = show
+			return
+		end
+		root.Visible = true
+		capture()
+		local from = fadeAmount
+		local target = if show then 0 else 1
+		applyFade(from)
+		stopFade = animate(if show then FADE_IN else FADE_OUT, function(alpha)
+			local eased = if show then 1 - (1 - alpha) ^ 2 else alpha * alpha
+			fadeAmount = from + (target - from) * eased
+			applyFade(fadeAmount)
+		end, function()
+			stopFade = nil
+			restoreFade()
+			root.Visible = show
+			if shown then
+				render()
+			end
+		end)
+	end
+
+	-- Puts a panel beside a tile, level with it: to its right, or its left when there is no room,
+	-- kept on screen and clear of the strip along the bottom.
 	local function place(panel: Panel, id: string?)
 		local node = if id then nodes[id] else nil
-		if not node then
+		if not node or not node.frame.Visible then
 			panel.frame.Visible = false
 			return
 		end
 		panel.frame.Visible = true
+		panel.frame.AnchorPoint = Vector2.zero
 		local frame = node.frame
-		local origin = root.AbsolutePosition
-		local top = frame.AbsolutePosition + Vector2.new(frame.AbsoluteSize.X / 2, 0) - origin
+		local low = frame.AbsolutePosition - root.AbsolutePosition
+		local tile = frame.AbsoluteSize
 		local size = panel.frame.AbsoluteSize
 		local screen = root.AbsoluteSize
-		local x = math.clamp(top.X, size.X / 2 + EDGE, math.max(size.X / 2 + EDGE, screen.X - size.X / 2 - EDGE))
-		local y = math.clamp(top.Y - INFO_GAP, size.Y + TOP, math.max(size.Y + TOP, screen.Y - EDGE))
+		local x = low.X + tile.X + INFO_GAP
+		if x + size.X > screen.X - EDGE then
+			x = low.X - INFO_GAP - size.X
+		end
+		x = math.clamp(x, EDGE, math.max(EDGE, screen.X - size.X - EDGE))
+		local y = math.clamp(low.Y + tile.Y / 2 - size.Y / 2, TOP, math.max(TOP, screen.Y - size.Y - BOTTOM))
 		panel.frame.Position = UDim2.fromOffset(x, y)
 	end
 
@@ -820,10 +1383,12 @@ function ResearchScreen.init(hud: ScreenGui)
 				end
 			end
 		end
-		shownFocus = shownFocus:Lerp(focus, 1 - math.exp(-dt * GLIDE))
-		zoom.Scale = scale
-		local middle = root.AbsoluteSize / 2 + Vector2.new(0, SIT_BELOW)
-		local offset = middle - shownFocus * scale
+		local blend = 1 - math.exp(-dt * GLIDE)
+		shownFocus = shownFocus:Lerp(focus, blend)
+		shownScale += (scale - shownScale) * blend
+		zoom.Scale = shownScale
+		local middle = root.AbsoluteSize / 2
+		local offset = middle - shownFocus * shownScale
 		canvas.Position = UDim2.fromOffset(offset.X, offset.Y)
 		place(info, selected)
 		if hovered and hovered ~= selected then
@@ -870,21 +1435,14 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 	end
 
-	local window = HubWindow.bind(view, "Research", {}, render, nil, false)
+	local window = HubWindow.bind(view, "Research", {}, render, nil, false, animateView)
 	if not window then
 		return
 	end
-	for _, category in CATEGORIES do
-		local tab = Hud.find(view, "Research.Body.Tabs." .. category, "TextButton")
-		if tab and tab:IsA("TextButton") then
-			tabs[category] = tab
-			tabLooks[tab] = { transparency = tab.BackgroundTransparency, color = tab.TextColor3 }
-			trove:Add(UI.bindButton(tab, {
-				onActivate = function()
-					show(category)
-				end,
-			}))
-		end
+	local tabs = view:FindFirstChild("Tabs", true)
+	if tabs and tabs:IsA("GuiObject") then
+		-- one tree now: an older place's category tabs stay hidden
+		tabs.Visible = false
 	end
 	local function send(kind: string, id: string?)
 		pending = true
@@ -925,6 +1483,18 @@ function ResearchScreen.init(hud: ScreenGui)
 			end,
 		}))
 	end
+	-- Whether a press at `point` landed on empty space: not a tile, the hub, the info or the strip.
+	local function onEmpty(point: Vector2): boolean
+		if over(info.frame, point) or over(activeStrip, point) or (hub and over(hub, point)) then
+			return false
+		end
+		for _, node in nodes do
+			if over(node.frame, point) then
+				return false
+			end
+		end
+		return true
+	end
 	-- Both input paths may see a touch first; registering it once prevents a second finger
 	-- from starting another drag before the global listener sees it.
 	local function touchDistance(): number?
@@ -955,6 +1525,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 	end)
 	-- Dragging the background pans the tree; a touch pair owns zoom until it ends.
+	local pressedEmpty = false
 	trove:Connect(root.InputBegan, function(input: InputObject)
 		if not shown then
 			return
@@ -968,6 +1539,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 		if kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch then
 			press = Vector2.new(input.Position.X, input.Position.Y)
+			pressedEmpty = onEmpty(press)
 			dragging = false
 		end
 	end)
@@ -1013,31 +1585,33 @@ function ResearchScreen.init(hud: ScreenGui)
 			pinchDistance = touchDistance()
 		end
 		if kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch then
+			-- a press on empty space that never became a drag puts the info away
+			if shown and press and pressedEmpty and not dragging and #touches < PINCH_TOUCHES then
+				deselect()
+			end
 			press = nil
+			pressedEmpty = false
 		end
 	end)
-	show(current, true)
+	build()
+	render()
 	-- Every request is answered with a sync, which also ends the wait. A project that has just
-	-- been completed is glided to and bursts.
+	-- been completed bursts and unlocks what it leads to.
 	trove:Connect(ResearchClient.changed, function()
 		pending = false
 		local done = ResearchClient.done()
 		local completed: string? = nil
-		if lastDone then
+		local before = lastDone
+		if before then
 			for id in done do
-				if not lastDone[id] then
+				if not before[id] then
 					completed = id
 				end
 			end
 		end
 		lastDone = table.clone(done)
-		local project = if completed then Research.get(completed) else nil
-		if shown and project and completed then
-			if project.category ~= current then
-				show(project.category)
-			end
-			selectProject(completed)
-			burst(completed)
+		if shown and completed and before then
+			celebrate(completed, before)
 		else
 			render()
 		end
@@ -1045,14 +1619,6 @@ function ResearchScreen.init(hud: ScreenGui)
 	trove:Connect(EconomyClient.changed, render)
 	trove:Connect(InventoryClient.changed, render)
 	trove:Connect(RunService.RenderStepped, function(dt: number)
-		local open = window.isOpen()
-		if open ~= shown then
-			if open then
-				enter()
-			else
-				leave()
-			end
-		end
 		if shown then
 			step(dt)
 		end
@@ -1060,6 +1626,9 @@ function ResearchScreen.init(hud: ScreenGui)
 	trove:Connect(view.Destroying, function()
 		if shown then
 			leave()
+		end
+		if stopFade then
+			stopFade()
 		end
 		treeTrove:Destroy()
 		trove:Destroy()

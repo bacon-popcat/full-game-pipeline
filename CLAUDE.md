@@ -15,7 +15,9 @@ curve, the industrial machine and conveyor art, the new effects, sounds and musi
 research is a full-screen upgrade tree per category, with info on hover and click, and a
 finished timer waits for Complete (with a burst on the tile and the `ResearchComplete` VFX); grass and dirt wear the game's
 own textures (`World/GroundLook`); the map is built from parts, not Terrain; and Harvest
-sounds like a plant pulled from soil.
+sounds like a plant pulled from soil. Research is now one tree growing from a hub (each
+category an arm), showing only what is in reach, fading in and out, with requirement cards in
+its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
 
 ## Domain docs
 
