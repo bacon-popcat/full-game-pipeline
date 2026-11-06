@@ -396,8 +396,8 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 end
 
 local function raining(): boolean
-	local event = WeatherService.current()
-	return event == "Rain" or event == "Thunderstorm"
+	local event = WeatherService.currentEvent()
+	return event ~= nil and event.wets
 end
 
 -- Wets Farmland under a sprinkler or rain, and dries what neither has reached for WET_FOR.

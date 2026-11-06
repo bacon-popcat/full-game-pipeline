@@ -452,11 +452,12 @@ end
 
 function WorldService.chanceModifiers(cell: Vector3, offline: boolean?): Mutations.Chances
 	local modifiers = if offline then { wet = 0, shocked = 0, golden = 0 } else cellModifiers(cell)
-	local weather = if offline then "" else WeatherService.current()
+	local weather = if offline then nil else WeatherService.currentEvent()
 	return {
-		wet = modifiers.wet + (if weather == "Rain" or weather == "Thunderstorm" then 0.25 else 0),
-		shocked = modifiers.shocked + (if weather == "Thunderstorm" then 0.05 else 0),
-		golden = modifiers.golden + (if weather == "Golden Hour" then 0.05 else 0.01),
+		wet = modifiers.wet + (if weather then weather.wet else 0),
+		shocked = modifiers.shocked + (if weather then weather.shocked else 0),
+		golden = modifiers.golden + (if weather and weather.golden > 0 then weather.golden else 0.01),
+		rainbow = if weather then weather.rainbow else 0,
 		multiplier = 1 + Bonuses.at(cell, "mutationChance"),
 	}
 end

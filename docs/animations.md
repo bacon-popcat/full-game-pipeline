@@ -9,7 +9,7 @@ nothing here changes the game.
 | Machine | Part (art key) | Motion |
 |---|---|---|
 | Rock Drill | `Bit` | spins on its vertical axle |
-| Fruit Press (`Juicer`) | `Juice`, `Piston` | the juice fills over five seconds, drains as the batch is bottled, and churns; the piston pumps |
+| Fruit Press (`Juicer`) | `Juice`, `Piston` | the juice fills over five seconds, drains as the batch is bottled, and churns; the handle turns slowly round its stem and never bobs |
 | Grain Mill (`Mill`, Mk II too) | `Sails`, `Millstone` | the sails turn on their hub; the top stone grinds |
 | Harvester (Mk II too) | `Reel` | rolls its tines toward the patch |
 | Seed Planter (Mk II too) | `Wheels` | turn slowly |

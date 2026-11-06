@@ -19,6 +19,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Build = require(ReplicatedStorage.Shared.Build)
 local World = require(ReplicatedStorage.Shared.World)
+local Weather = require(ReplicatedStorage.Shared.World.Weather)
 
 -- Art keys (the `_<Key>` suffix of a part's name) that never move.
 local STILL = { Stake = true, Tuber = true }
@@ -35,7 +36,6 @@ local WIND_GUST = math.rad(2.6)
 local WIND_FLUTTER = math.rad(0.9)
 local GUST_WAVELENGTH = 26 -- studs between gust fronts
 local GUST_SPEED = 0.16 -- gust fronts per second
-local WEATHER_WIND: { [string]: number } = { Rain = 1.6, Thunderstorm = 2.4, ["Golden Hour"] = 0.6 }
 -- Pushes: how close a character must be (studs, across the ground), how far it bends a plant
 -- at the centre, and the spring that brings it back, a little underdamped so it settles with
 -- one soft overshoot.
@@ -324,7 +324,8 @@ function PlantSwayController.init()
 	local weather = ReplicatedStorage:WaitForChild("Weather")
 	local function readWeather()
 		local event = weather:GetAttribute("Event")
-		weatherWind = if typeof(event) == "string" then WEATHER_WIND[event] or 1 else 1
+		local def = if typeof(event) == "string" then Weather.get(event) else nil
+		weatherWind = if def then def.wind else 1
 	end
 	weather:GetAttributeChangedSignal("Event"):Connect(readWeather)
 	readWeather()

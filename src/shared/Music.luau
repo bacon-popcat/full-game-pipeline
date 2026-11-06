@@ -8,7 +8,6 @@ export type Track = { name: string, id: string }
 local Music = {}
 
 Music.TRACKS = {
-	{ name = "Morning Rows", id = "rbxassetid://98158215745086" },
 	{ name = "Slow Harvest", id = "rbxassetid://111362374562794" },
 	{ name = "Dew on Leaves", id = "rbxassetid://128202567509522" },
 	{ name = "Lantern Hollow", id = "rbxassetid://102680870967633" },

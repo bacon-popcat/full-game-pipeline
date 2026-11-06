@@ -8,7 +8,7 @@
 -- so Wet (x2) and Golden (x20) together are x21, never x40.
 
 export type Mutation = { multiplier: number, color: Color3 }
-export type Chances = { wet: number, shocked: number, golden: number, multiplier: number? }
+export type Chances = { wet: number, shocked: number, golden: number, rainbow: number?, multiplier: number? }
 local ALL: { [string]: Mutation } = {
 	Wet = { multiplier = 2, color = Color3.fromRGB(135, 194, 234) },
 	Shocked = { multiplier = 10, color = Color3.fromRGB(193, 173, 244) },
@@ -82,7 +82,7 @@ Mutations.KEYS = KEYS
 
 -- One ripening's mutations as a key, nil for plain: each mutation rolls on its own chance.
 function Mutations.roll(random: Random, chances: Chances): string?
-	local rolls = { Wet = chances.wet, Shocked = chances.shocked, Golden = chances.golden, Rainbow = RAINBOW_CHANCE }
+	local rolls = { Wet = chances.wet, Shocked = chances.shocked, Golden = chances.golden, Rainbow = RAINBOW_CHANCE + (chances.rainbow or 0) }
 	local names = {}
 	for _, name in ORDER do
 		if random:NextNumber() < math.clamp(rolls[name] * (chances.multiplier or 1), 0, 1) then

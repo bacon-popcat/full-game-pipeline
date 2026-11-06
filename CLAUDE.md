@@ -26,7 +26,9 @@ Crafting window is an Islands-style catalogue (categories, search, cards, a deta
 Rock Drill digs quarry materials on your own plot from coal (factory.md). Machines are now
 crafted only, at a Crafting Bench with four tiers upgraded with materials (factory.md § Crafting
 Bench); blocks have logical display names (the Workbench is the Assembler); and the Machine
-Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md).
+Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md). Chests take items
+by hand too, and the Auto Collector (a chest at the Workshop tier) pulls in loose drops near it
+(factory.md).
 
 ## Domain docs
 
@@ -53,7 +55,7 @@ Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md).
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builders that author the Menu, progress windows, Crafting window, notice look and prompt card in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, Crafting window (and its upgrade panel), Shop and Robux windows, notice look and prompt card in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

@@ -57,7 +57,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Ore, 2 Copper Ore and 3 Stone a minute. A rolled recipe never runs in a mutation, and an
   interrupted roll mints nothing. The hover panel lists what it digs.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
-  Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
+  Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin, Storage Chest and Auto
+  Collector, plus
   the Smelter, Assembler (id `Workbench`) and Rock Drill for crafting, and the Mk II Seed Planter,
   Sprinkler, Grain Mill and Harvester (bigger patch, faster). Every one is crafted at the
   Crafting Bench (§ Crafting Bench); a Mk II is built on the machine it replaces. Mk II defs come
@@ -73,12 +74,22 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   wide, three deep) and the routers have templates of their own, and their tier 2s draw them
   too. No placeable block uses Islands art any more.
 - **Borrowed art.** An item with no template of its own can name one in its `art`
-  (Shared/Inventory/Items); no machine does any more, but products and parts still borrow
-  Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
+  (Shared/Inventory/Items); the Auto Collector names `StorageChest` as a fallback, though it has
+  a template of its own, and products and parts still borrow Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
   placement, the ghost, icons and the factory all agree. Placed models are named for the
   item, not the template.
-- **Storage Chest** (stores) accepts belt items into twelve stack slots. Its panel takes
-  individual item types or all contents; it does not accept hand loading.
+- **Storage Chest** (stores) accepts belt items into twelve stack slots. Its owner can also put
+  any item in by hand (`Factory.takesByHand` is true for every item; the panel's "Load" with
+  `Machine.room`). Its panel takes individual item types or all contents out, and its third
+  button flips the grid between what it holds ("Take out") and the backpack ("Put in"); that
+  flip is client-only.
+- **Auto Collector** (stores 18, `collects` 4) is a chest that also pulls in its owner's loose
+  drops. A drop that has lain 0.6 s within 4 cells across (and 2 up or down) of its footprint,
+  on the same plot, goes into the nearest collector with room, as much as fits, flying into it
+  like a pickup (FactoryService `collectInto`, run from `catch` before belts beside a drop
+  reach for it). Unlike belts it takes drops a belt threw off its end, since it keeps them.
+  It also takes belt items on its -Z face and works through the same panel as the chest.
+  Its template (place file) is the chest's with a copper intake hopper and a green lamp on top.
 - **Shipping Bin** (sells) takes any item with a value from a belt and sells one a second,
   paying its owner the item's value and Sell Stand XP (1 per 10 coins, remainders carried per
   player). Its owner sees one "Shipping Bin +N coins" toast every 2 s at most. It publishes
@@ -186,7 +197,7 @@ on the server, including item ids from the panel.
 | Target | Controls |
 |---|---|
 | Machine | Load from inventory, Collect output, Take back unused inputs |
-| Storage Chest | Take one item type, Take all |
+| Storage Chest, Auto Collector | Take one item type, Take all, Put in (flip the grid to the backpack and click an item) |
 | Split | Switch side / straight |
 | Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; an item with mutations has an arrow under it that opens its coloured mutation checklist; Clear filter (also unticks every mutation) |
 
@@ -221,13 +232,16 @@ output and count from inputs, needing a bench tier and sometimes a research proj
 
 **Tiers.** The player's bench tier is saved with the garden (`benchTier`), applies to every bench
 they own and replicates as the player's `BenchTier` attribute. Upgrading is a recipe of its own,
-`BenchTier<N>` in the window's Upgrades category (the next one is listed first): it needs the
-level its tier names, spends its inputs and raises the tier by one, with no item made.
+`BenchTier<N>`, which has no card in the grid: the window's gold `Header.Upgrade` button opens
+`UpgradePanel` for the next tier (its name, description, and the level and each input as have /
+need in green or red) and its `Confirm` button sends the same Craft request. It needs the
+level its tier names, spends its inputs and raises the tier by one, with no item made. At the
+top tier the button reads MAX TIER.
 
 | Tier | Name | Upgrade (level, materials) | Adds |
 |---|---|---|---|
 | 1 | Crafting Bench | start | Wood Planks, Timber Frame, Crafting Bench, Smelter, Shipping Bin, Storage Chest (Carpentry), belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
-| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor |
+| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Auto Collector (1 Storage Chest, 2 Gear, 2 Copper Wire) |
 | 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Rock Drill, fast belts, turns and ramps |
 | 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans) |
 
@@ -238,10 +252,10 @@ for anything that moves or thinks, and steel frames for the heavy machines. `Sha
 holds every number. Its owner opens the Crafting window from its Craft prompt (BlockPrompts: the interact key or a
 tap on the card, within reach; `UIController/CraftingScreen`), and it closes on the same key or
 on walking away. Its `Header.Title` names the bench's tier. The window is laid out like a
-catalogue: `Body.Categories` (Craftable, All, Upgrades and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
+catalogue: `Body.Categories` (Craftable, All and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
 box and a `Grid` of `Assets.UI.Crafting.Card`s (the output, its count, a gold `Ready` tick when
 the inventory can make it now and a `Lock` while research or the bench tier hasn't unlocked it;
-the next upgrade first, then craftable, locked last; upgrades already made are hidden), and `Body.Details` for the picked recipe: the output turning in `Preview`, one
+craftable first, locked last), and `Body.Details` for the picked recipe: the output turning in `Preview`, one
 `Assets.UI.Crafting.Ingredient` per input showing have / need in green or red, a `Status` line
 naming what's missing, the `Amount` stepper (1 to `Crafting.MAX_TIMES` crafts, Max for as many as
 the inventory allows) and `Craft`. Hovering a card shows `HUD.Crafting.Tooltip` (name,

@@ -84,17 +84,19 @@ Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
 its window, and so do the authored `SideButtons.Shop` and `SideButtons.Sell` from anywhere:
-buying and selling need no walk to the hub. The Shop window's authored `Body.Tabs.SeedShop`,
-`GearShop` and `RobuxShop` ("Robux") buttons switch catalogues; the selected tab is opaque and the
-side button reopens the last one. Windows close on Close, gamepad B or losing DataReady, and
+buying and selling need no walk to the hub. The Shop window is a left rail of tab tiles
+(`Body.Tabs.SeedShop` and `GearShop`, the restock timer under them) beside a grid of tall cards;
+the selected tab is opaque and the side button reopens the last one. The Robux Shop is its own
+`HUD.Robux` window, opened by the Robux stall or `SideButtons.Robux`
+(`UIController/RobuxScreen`). Windows close on Close, gamepad B or losing DataReady, and
 treat the server reply as authoritative.
 
-`libraries/Screens` arbitrates Backpack, MachinePanel, Shop, Sell and Settings. `HubWindow` owns
+`libraries/Screens` arbitrates Backpack, MachinePanel, Shop, Robux, Sell and Settings. `HubWindow` owns
 stall prompt binding, opening from a side button, Close, gamepad B and selection
 trapping/restoration. Buttons use `libraries/UI`; icons use `ItemIcon`. Disabled or pending buttons show
 text feedback as well as a muted appearance. Reduced motion skips spatial pops/XP animation.
 
-One `HUD.Shop` window serves three stalls: whichever stall's prompt opened it decides the
+One `HUD.Shop` window serves two stalls: whichever stall's prompt opened it decides the
 catalogue (`HubWindow.bind` takes a list of stalls and tells the screen which one). The Seed
 Shop shows stock and the restock countdown; the Gear Shop (`Shared/Economy/Shops`: price, unlock
 level and category per item) never runs out. No shop sells machines, conveyors or routers: they
@@ -104,8 +106,9 @@ coins, Locked, Owned (a tool you carry) or Sold out. The server rechecks level, 
 coins and reach before changing anything, then takes coins and gives the item in one step. Rows
 sort by rarity or category and level, then price.
 
-The Robux tab lists `Shops.ROBUX_PACKS`: coin packs priced in Robux (`R$ 49` for 2,500 coins up to
-`R$ 499` for 40,000), each showing its coins in `Rarity` and a coin glyph for its icon. Buy sends
+The Robux window lists `Shops.ROBUX_PACKS`: coin packs priced in Robux (`R$ 49` for 2,500 coins up to
+`R$ 499` for 40,000) as `Assets.UI.Robux.Pack` cards (a coin, the name, its coins, a `Buy` button
+reading its price). Buy sends
 `ShopBuy("RobuxShop", packId)`; GardenService shows Roblox's purchase prompt for the pack's
 developer product, and `MonetizationService` grants the coins from `ProcessReceipt`, keeping the
 last 50 granted PurchaseIds in the save (`receipts`) so a resent receipt never pays twice. Every
@@ -182,8 +185,10 @@ StarterGui.HUD [ScreenGui]
       Fill [Frame]                     tweened X.Scale 0..1
       Text [TextLabel]                 "120 / 450 XP"
   Weather [Frame]                       initially hidden
-    Title [TextLabel]                   Rain / Thunderstorm / Golden Hour
+    Title [TextLabel]                   the event name (Shared/World/Weather)
     Time [TextLabel]                    1:42
+  DayClock [Frame]                      optional; top-right time of day, to the minute (DayClock.luau builds it if absent)
+    Icon [Frame], Time, Phase [TextLabel], Bar.Fill [Frame]
   Toasts [Frame]                        bottom-stacked UIListLayout; at most four clones; Toasts.luau
                                         keeps it just above ItemName, so notices sit over the hotbar
   Shop [Frame]                         initially hidden
@@ -192,8 +197,11 @@ StarterGui.HUD [ScreenGui]
       Title [TextLabel]
       Close [TextButton]
     Body [Frame]
+      Tabs [Frame]                      SeedShop and GearShop tiles, a vertical rail
       Restock [TextLabel]               Restocks in 3:12
-      List [ScrollingFrame]            UIListLayout; AutomaticCanvasSize Y
+      List [ScrollingFrame]            UIGridLayout of cards; AutomaticCanvasSize Y
+  Robux [Frame]                        initially hidden; Header like Shop's
+    Body.List [ScrollingFrame]         UIGridLayout of Assets.UI.Robux.Pack
   Sell [Frame]                         initially hidden
     UIScale [UIScale]
     Header [Frame]
@@ -217,6 +225,8 @@ ReplicatedStorage.Assets.UI
       Stock [TextLabel]                 x3 / Sold out
       Buy [TextButton]
         Label [TextLabel]
+  Robux [Folder]
+    Pack [Frame]                        Coin, Name, Coins, Caption, Buy [TextButton] (Label)
   Toast [Folder]
     Toast [TextLabel]                   expires after 3s; fades for 0.25s; text and its `Border`
                                         UIStroke take the notice kind's colour (Shared/Notices)
@@ -226,7 +236,7 @@ Wallet, Weather, Toasts, Shop and Sell each have their own client module. Existi
 BlockInfo and its row template show crop stage, mutation, countdown and ripe harvest value.
 No row sizes, fonts, responsive breakpoints or UI geometry are generated by these modules;
 those belong to the authored assets. Existing Backpack/MachinePanel contracts still apply.
-The Index window and its side button are in [inventory.md](inventory.md#index); the Research
+The Index window (opened from the Menu popup) is in [inventory.md](inventory.md#index); the Research
 window and its side button in [research.md](research.md#window), and the Crafting window in
 [factory.md](factory.md#crafting-bench).
 

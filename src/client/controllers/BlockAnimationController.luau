@@ -1,7 +1,7 @@
 -- BlockAnimationController: the placed machines' own moving parts, animated on this client while
 -- they work (Status == "Working", which FactoryService replicates; a Sprinkler, which has no
 -- status, always runs). Nothing moves a whole block: the drill bit spins, the Fruit Press's juice
--- fills and drains under a pumping piston, the Grain Mill's sails and millstone turn, the
+-- fills and drains under a pumping, slowly turning handle, the Grain Mill's sails and millstone turn, the
 -- Harvester's reel and the Seed Planter's wheels roll, the Crate Packer's press stamps, the
 -- Assembler's gear turns, the Sprinkler's head sweeps, and the Smelter's and Oven's fires flicker
 -- with smoke from their stacks.
@@ -42,6 +42,10 @@ type Animation = {
 	low: number?,
 	-- Seconds per stroke, for the cyclic motions.
 	period: number?,
+	-- Slide only: also turns about the part's Y axle at `pivot` (part frame) by `turn` radians a
+	-- second, for a part whose axle is off its bounding-box centre.
+	turn: number?,
+	pivot: Vector3?,
 	-- Runs whether or not the machine is working.
 	always: boolean?,
 }
@@ -57,7 +61,17 @@ local ANIMATIONS: { [string]: Animation } = {
 	Gear = { motion = "Spin", axis = Vector3.zAxis, speed = 2.5 },
 	Head = { motion = "Spin", axis = Vector3.yAxis, speed = 2.6, always = true },
 	Press = { motion = "Slide", axis = -Vector3.yAxis, distance = 0.32, period = 1.3 },
-	Piston = { motion = "Slide", axis = -Vector3.yAxis, distance = 0.14, period = 0.7 },
+	-- The Fruit Press's handle: its stem sits 0.665 studs behind the part's centre (the yellow knob
+	-- reaches further out, garden_machines.py `juicer`), so it only turns slowly round the stem: no
+	-- vertical stroke (distance 0), the handle never bobs.
+	Piston = {
+		motion = "Slide",
+		axis = -Vector3.yAxis,
+		distance = 0,
+		period = 0.7,
+		turn = 1.1,
+		pivot = Vector3.new(0, 0, -0.665),
+	},
 	Juice = { motion = "Fill", low = 0.35, period = 5 },
 	Glow = { motion = "Flicker" },
 	Stack = { motion = "Smoke" },
@@ -246,6 +260,10 @@ local function pose(moving: Moving, block: Block, parts: { BasePart }, frames: {
 	elseif animation.motion == "Slide" then
 		local offset = stroke(t / (animation.period :: number)) * (animation.distance :: number) * strength
 		at *= CFrame.new((animation.axis :: Vector3) * offset)
+		if animation.turn and animation.pivot then
+			local pivot = animation.pivot
+			at *= CFrame.new(pivot) * CFrame.Angles(0, (t * animation.turn) % (math.pi * 2), 0) * CFrame.new(-pivot)
+		end
 	elseif animation.motion == "Fill" then
 		-- Fills over most of the period, then drains quickly as the batch is bottled.
 		local alpha = (t / (animation.period :: number)) % 1

@@ -86,8 +86,11 @@ export type Def = {
 	-- Takes any item with a value and sells one a second for the block's owner.
 	sells: boolean?,
 	-- Chest: keeps whatever arrives in this many slots, each up to the item's stack size,
-	-- until a player takes it out through the panel.
+	-- until a player takes it out through the panel. Its owner can also put any item in by hand.
 	stores: number?,
+	-- Collector (with `stores`): pulls the owner's loose drops lying within this many cells of
+	-- its footprint, on its own plot, into its slots (FactoryService `catch`).
+	collects: number?,
 	-- Planter: the seeds it plants, tried in order, seconds per planting, and the centres of
 	-- the cells it plants into, nearest first. A crop goes in at the planter's own level only
 	-- (FactoryService).
@@ -307,6 +310,7 @@ local BLOCKS: { [string]: Def } = {
 	HarvesterTier2 = harvester(7, 5, 1.5),
 	ShippingBin = { kind = "Machine", input = "-Z", sells = true },
 	StorageChest = { kind = "Machine", input = "-Z", stores = 12 },
+	AutoCollector = { kind = "Machine", input = "-Z", stores = 18, collects = 4 },
 	SeedPlanter = planter(3, 5, 2),
 	SeedPlanterTier2 = planter(5, 7, 1),
 	Sprinkler = sprinkler(3, 1.25, 0.1),

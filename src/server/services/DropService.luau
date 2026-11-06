@@ -85,7 +85,14 @@ end
 
 local folder = dropFolder()
 local drops: { [Model]: Drop } = {}
-type Catch = (itemId: string, count: number, position: Vector3, dropper: Player?, reach: boolean) -> (number, Vector3?)
+type Catch = (
+	itemId: string,
+	count: number,
+	position: Vector3,
+	dropper: Player?,
+	reach: boolean,
+	settled: boolean
+) -> (number, Vector3?)
 
 local absorber: Catch? = nil
 local beltPoint: ((model: Model) -> Vector3?)? = nil
@@ -260,8 +267,8 @@ function DropService.spawn(
 end
 
 -- Sets the rules for belts: `catch` takes what it can of a drop of `count` at `position` onto
--- a belt (or into a machine), reaching for belts beside it when `reach` is set, and says how
--- many it took and where they went; `dropPoint` says where a drop aimed at a placed block
+-- a belt (or into a machine), reaching for belts beside it when `reach` is set and for Auto
+-- Collectors near it once `settled`, and says how many it took and where they went; `dropPoint` says where a drop aimed at a placed block
 -- appears, or nil when it has no belt.
 function DropService.setBelts(catch: Catch, dropPoint: (model: Model) -> Vector3?)
 	absorber = catch
@@ -277,9 +284,10 @@ local function absorb(dt: number)
 	absorbTimer = 0
 	local now = os.clock()
 	for _, drop in drops do
-		-- Settled first, so a toss lands before a belt beside it pulls it in.
-		local reach = drop.pullable and now - drop.born >= MERGE_DELAY
-		local taken, point = rule(drop.itemId, drop.count, drop.root.Position, drop.dropper, reach)
+		-- Settled first, so a toss lands before a belt or collector beside it pulls it in.
+		local settled = now - drop.born >= MERGE_DELAY
+		local reach = drop.pullable and settled
+		local taken, point = rule(drop.itemId, drop.count, drop.root.Position, drop.dropper, reach, settled)
 		if taken > 0 then
 			if point then
 				collect(drop, point, taken >= drop.count)

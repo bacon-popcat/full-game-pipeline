@@ -3,13 +3,15 @@
 -- tap on its card) while in reach, and closed by the interact key again or on walking away. Laid out like a workshop catalogue:
 --
 --   * Body.Categories: one Assets.UI.Crafting.Category button per category that has recipes
---     (Craftable, All, Upgrades, then by the output's item kind).
+--     (Craftable, All, then by the output's item kind).
 --   * Body.Main: a Search box and a Grid of Assets.UI.Crafting.Card, one per Shared/Crafting
 --     recipe; a card shows its output, how many one craft makes, `Ready` when the inventory can
 --     make it now and `Lock` while research or the bench's tier hasn't unlocked it. Hovering one
---     shows HUD.Crafting.Tooltip (name, description, and each input as have / need). The next bench
---     upgrade (Crafting.TIERS) is a card too, listed first; upgrades already made are hidden.
---   * Header.Title, when the place has one, names the bench's tier ("Workshop").
+--     shows HUD.Crafting.Tooltip (name, description, and each input as have / need).
+--   * Header.Title names the bench's tier ("Workshop"). Header.Upgrade opens UpgradePanel, which
+--     lays out what the next tier (Crafting.TIERS) needs, the level and each input as have / need,
+--     and its Confirm button spends them. Bench upgrades are recipes (Crafting.RECIPES, `upgrade`)
+--     but have no card in the grid: the server takes the same Craft request for them.
 --   * Body.Details: the picked recipe's output turning in Preview, its Ingredients (one
 --     Assets.UI.Crafting.Ingredient each, have / need in green or red), a Status line saying what
 --     is missing, the Amount stepper (1 to Crafting.MAX_TIMES crafts) and Craft.
@@ -46,6 +48,7 @@ local PENDING_FOR = 1.5
 local TOOLTIP_OFFSET = Vector2.new(18, 14)
 local ENOUGH = Color3.fromRGB(157, 220, 154)
 local SHORT = Color3.fromRGB(240, 140, 130)
+local DIMMED = Color3.fromRGB(130, 130, 145)
 
 type Category = { name: string, shows: (Crafting.Recipe) -> boolean }
 type Card = {
@@ -107,11 +110,6 @@ local function blockerOf(recipe: Crafting.Recipe, times: number): string?
 	return Crafting.blocker(recipe, times, ResearchClient.done(), countOf, benchTier(), EconomyClient.get().level)
 end
 
--- An upgrade the bench already has.
-local function spent(recipe: Crafting.Recipe): boolean
-	return recipe.upgrade ~= nil and benchTier() >= recipe.upgrade
-end
-
 -- How many times the inventory could craft it now, ignoring room for the output.
 local function makeable(recipe: Crafting.Recipe): number
 	local most = math.huge
@@ -143,19 +141,13 @@ local CATEGORIES: { Category } = {
 	{
 		name = "Craftable",
 		shows = function(recipe: Crafting.Recipe): boolean
-			return blockerOf(recipe, 1) == nil
+			return recipe.upgrade == nil and blockerOf(recipe, 1) == nil
 		end,
 	},
 	{
 		name = "All",
-		shows = function(): boolean
-			return true
-		end,
-	},
-	{
-		name = "Upgrades",
 		shows = function(recipe: Crafting.Recipe): boolean
-			return recipe.upgrade ~= nil
+			return recipe.upgrade == nil
 		end,
 	},
 	{ name = "Materials", shows = kindShows("Resource") },
@@ -187,6 +179,16 @@ function CraftingScreen.init(hud: ScreenGui)
 		tipText = { "Tooltip.Description", "TextLabel" },
 		tipLines = { "Tooltip.Lines", "Frame" },
 		windowScale = { "UIScale", "UIScale" },
+		upgrade = { "Header.Upgrade", "TextButton" },
+		upgradeLabel = { "Header.Upgrade.Label", "TextLabel" },
+		panel = { "UpgradePanel", "Frame" },
+		panelTitle = { "UpgradePanel.Title", "TextLabel" },
+		panelTier = { "UpgradePanel.Tier", "TextLabel" },
+		panelText = { "UpgradePanel.Description", "TextLabel" },
+		panelNeeds = { "UpgradePanel.Needs", "ScrollingFrame" },
+		panelStatus = { "UpgradePanel.Status", "TextLabel" },
+		confirm = { "UpgradePanel.Confirm", "TextButton" },
+		confirmLabel = { "UpgradePanel.Confirm.Label", "TextLabel" },
 	}
 	-- Every node is required: a place missing one keeps the rest of the HUD working, without crafting.
 	local nodes: { [string]: any } = {}
@@ -228,6 +230,10 @@ function CraftingScreen.init(hud: ScreenGui)
 		strokeTransparency = if cardStroke then cardStroke.Transparency else 0.5,
 		selected = cardTemplate:GetAttribute("SelectedStrokeColor") or Color3.new(1, 1, 1),
 	}
+	local upgradeLook = {
+		color = nodes.upgradeLabel.TextColor3,
+		ready = Color3.fromRGB(255, 244, 190),
+	}
 	local craftLook = {
 		color = nodes.craft.BackgroundColor3,
 		disabled = nodes.craft:GetAttribute("DisabledBackgroundColor") or Color3.fromRGB(70, 74, 80),
@@ -240,6 +246,8 @@ function CraftingScreen.init(hud: ScreenGui)
 	local pendingSince: number? = nil
 	local bench: Model? = nil
 	local ingredientRows: { Frame } = {}
+	local upgradeRows: { Frame } = {}
+	local upgradeOpen = false
 	local tipRows: { Frame } = {}
 
 	local function matches(recipe: Crafting.Recipe): boolean
@@ -369,7 +377,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		local visible = 0
 		for _, card in cards do
 			local recipe = card.recipe
-			local shown = shows(recipe) and matches(recipe) and not spent(recipe)
+			local shown = shows(recipe) and matches(recipe)
 			card.button.Visible = shown
 			if shown then
 				visible += 1
@@ -398,8 +406,71 @@ function CraftingScreen.init(hud: ScreenGui)
 		end
 	end
 
+	-- The recipe that raises the bench one tier, or nil at the top tier.
+	local function nextUpgrade(): Crafting.Recipe?
+		return Crafting.get(`BenchTier{benchTier() + 1}`)
+	end
+
+	local function paintUpgrade()
+		local recipe = nextUpgrade()
+		local open = upgradeOpen and recipe ~= nil
+		nodes.panel.Visible = open
+		local ready = recipe ~= nil and blockerOf(recipe, 1) == nil
+		local stroke = nodes.upgrade:FindFirstChildOfClass("UIStroke")
+		nodes.upgradeLabel.Text = if recipe then "UPGRADE" else "MAX TIER"
+		nodes.upgradeLabel.TextColor3 = if ready then upgradeLook.ready elseif recipe then upgradeLook.color else DIMMED
+		nodes.upgrade.Active = recipe ~= nil
+		nodes.upgrade.Selectable = recipe ~= nil
+		if stroke then
+			stroke.Transparency = if ready then 0 elseif recipe then 0.45 else 0.8
+		end
+		if not recipe or not open then
+			return
+		end
+		local target = Crafting.TIERS[recipe.upgrade :: number]
+		nodes.panelTitle.Text = target.name
+		nodes.panelTier.Text = `Tier {recipe.upgrade} of {#Crafting.TIERS}`
+		nodes.panelText.Text = target.description
+		local ids = inputsOf(recipe)
+		rowsFor(upgradeRows, ingredientTemplate, nodes.panelNeeds, 1 + #ids)
+		for index, row in upgradeRows do
+			local name = row:FindFirstChild("ItemName") :: TextLabel
+			local amount = row:FindFirstChild("Amount") :: TextLabel
+			local icon = row:FindFirstChild("Icon")
+			local have, need, text
+			if index == 1 then
+				-- The first row is the level the tier asks for, with no icon.
+				have, need, text = EconomyClient.get().level, target.level, "Level"
+				name.Position = UDim2.fromOffset(8, 0)
+				if icon and icon:IsA("ViewportFrame") then
+					icon.Visible = false
+				end
+			else
+				local itemId = ids[index - 1]
+				have, need, text = countOf(itemId), recipe.inputs[itemId], Inventory.getItem(itemId).name
+				name.Position = UDim2.fromOffset(36, 0)
+				if icon and icon:IsA("ViewportFrame") then
+					icon.Visible = true
+					ItemIcon.show(icon, itemId)
+				end
+			end
+			name.Text = text
+			amount.Text = `{Hud.number(have)} / {Hud.number(need)}`
+			amount.TextColor3 = if have >= need then ENOUGH else SHORT
+		end
+		local blocked = blockerOf(recipe, 1)
+		local enabled = blocked == nil and pendingSince == nil
+		nodes.panelStatus.Text = blocked or "You have everything you need."
+		nodes.panelStatus.TextColor3 = if blocked then SHORT else ENOUGH
+		nodes.confirm.Active = enabled
+		nodes.confirm.Selectable = enabled
+		nodes.confirm.BackgroundColor3 = if enabled then craftLook.color else craftLook.disabled
+		nodes.confirmLabel.Text = if pendingSince then "..." else "UPGRADE"
+	end
+
 	local function render()
 		paintCards()
+		paintUpgrade()
 		paintDetails()
 		paintTooltip()
 		if nodes.searchClear then
@@ -425,9 +496,7 @@ function CraftingScreen.init(hud: ScreenGui)
 	local function sortCards()
 		for index, card in cards do
 			local recipe = card.recipe
-			local rank = if recipe.upgrade and not locked(recipe)
-				then -1000
-				elseif locked(recipe) then 2000
+			local rank = if locked(recipe) then 2000
 				elseif makeable(recipe) > 0 then 0
 				else 1000
 			card.button.LayoutOrder = rank + index
@@ -435,6 +504,9 @@ function CraftingScreen.init(hud: ScreenGui)
 	end
 
 	for index, recipe in Crafting.RECIPES do
+		if recipe.upgrade then
+			continue
+		end
 		local button = cardTemplate:Clone()
 		button.Name = recipe.id
 		local icon = button:FindFirstChild("Icon")
@@ -540,6 +612,24 @@ function CraftingScreen.init(hud: ScreenGui)
 		local typed = tonumber(string.match(nodes.amount.Text, "%d+") or "")
 		setTimes(typed or times)
 	end)
+	trove:Add(UI.bindButton(nodes.upgrade, {
+		onActivate = function()
+			if nextUpgrade() then
+				upgradeOpen = not upgradeOpen
+				render()
+			end
+		end,
+	}))
+	trove:Add(UI.bindButton(nodes.confirm, {
+		onActivate = function()
+			local recipe = nextUpgrade()
+			if recipe and nodes.confirm.Active and not pendingSince then
+				pendingSince = os.clock()
+				render()
+				Remotes.Craft:FireServer(recipe.id, 1)
+			end
+		end,
+	}))
 	trove:Add(UI.bindButton(nodes.craft, {
 		onActivate = function()
 			local recipe = picked
@@ -572,7 +662,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		sortCards()
 		if not picked then
 			for _, recipe in Crafting.RECIPES do
-				if not locked(recipe) and not spent(recipe) then
+				if recipe.upgrade == nil and not locked(recipe) then
 					picked = recipe
 					break
 				end
@@ -613,6 +703,8 @@ function CraftingScreen.init(hud: ScreenGui)
 		window.close()
 		bench = nil
 		hovered = nil
+		upgradeOpen = false
+		nodes.panel.Visible = false
 		nodes.search:ReleaseFocus()
 		nodes.search.Text = ""
 	end
@@ -649,9 +741,7 @@ function CraftingScreen.init(hud: ScreenGui)
 	paintTitle()
 	local function refresh()
 		paintTitle()
-		if picked and spent(picked) then
-			picked = nil
-		end
+		upgradeOpen = false
 		sortCards()
 		render()
 	end

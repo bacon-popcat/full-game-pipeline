@@ -1,4 +1,4 @@
--- IndexScreen: the Index window and the side button that opens it. Every plain item in the
+-- IndexScreen: the Index window, opened from the Menu popup (Screens.open "Index"). Every plain item in the
 -- catalogue has a cell (mutated variants show on their plain item's page); the ones the
 -- player has had (Remotes.IndexSync, from GardenService) draw their art, the rest are dark
 -- silhouettes named "???".
@@ -61,7 +61,6 @@ function IndexScreen.init(hud: ScreenGui)
 	if
 		not window
 		or not scale
-		or not opener
 		or not closeButton
 		or not subtitle
 		or not view
@@ -78,7 +77,7 @@ function IndexScreen.init(hud: ScreenGui)
 	then
 		return
 	end
-	assert(window:IsA("GuiObject") and scale:IsA("UIScale") and opener:IsA("GuiButton"))
+	assert(window:IsA("GuiObject") and scale:IsA("UIScale"))
 	assert(closeButton:IsA("GuiButton") and subtitle:IsA("TextLabel") and view:IsA("ViewportFrame"))
 	assert(itemName:IsA("TextLabel") and itemKind:IsA("TextLabel") and rows:IsA("Frame"))
 	assert(description:IsA("TextLabel") and grid:IsA("ScrollingFrame") and gridLayout:IsA("UIGridLayout"))
@@ -282,19 +281,22 @@ function IndexScreen.init(hud: ScreenGui)
 		end)
 	end
 
-	Screens.register("Index", close)
-	opener.SelectionImageObject = selectionImage
+	Screens.register("Index", close, open)
 	closeButton.SelectionImageObject = selectionImage
-	trove:Add(UI.bindButton(opener, {
-		hoverScale = 1.08,
-		onActivate = function()
-			if opened then
-				close()
-			else
-				open()
-			end
-		end,
-	}))
+	-- The Menu popup opens the Index by name; an old side button, if the place file still has one, works too.
+	if opener and opener:IsA("GuiButton") then
+		opener.SelectionImageObject = selectionImage
+		trove:Add(UI.bindButton(opener, {
+			hoverScale = 1.08,
+			onActivate = function()
+				if opened then
+					close()
+				else
+					open()
+				end
+			end,
+		}))
+	end
 	trove:Add(UI.bindButton(closeButton, { hoverScale = 1.15, onActivate = close }))
 	trove:Connect(Remotes.IndexSync.OnClientEvent, function(itemIds: { string })
 		table.clear(had)

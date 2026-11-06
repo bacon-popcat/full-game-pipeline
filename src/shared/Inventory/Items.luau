@@ -188,7 +188,14 @@ local ITEMS: { Item } = {
 	machine(
 		"StorageChest",
 		"Storage Chest",
-		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out."
+		"Keeps whatever a conveyor brings it or you put in, 12 slots of it. Open it to take items out."
+	),
+	machine(
+		"AutoCollector",
+		"Auto Collector",
+		"Pulls in loose items lying within 4 cells of it, and whatever a conveyor brings it: 18 slots.",
+		nil,
+		"StorageChest"
 	),
 
 	resource("Coal", "Coal", "Fuel for the Smelter and the Rock Drill."),

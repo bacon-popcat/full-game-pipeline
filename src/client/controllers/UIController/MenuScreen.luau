@@ -1,5 +1,5 @@
 -- MenuScreen: the side Menu button (SideButtons.Menu) and the small popup it opens (HUD.Menu),
--- whose rows open the Achievements, Stats and Settings windows by name (Screens.open), so
+-- whose rows open the Index, Achievements, Stats and Settings windows by name (Screens.open), so
 -- this screen requires none of their controllers. Quests owns its own side button and badge.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,7 +10,7 @@ local HubWindow = require(Libraries.HubWindow)
 local Screens = require(Libraries.Screens)
 local UI = require(Libraries.UI)
 
-local ROWS = { "Achievements", "Stats", "Settings" }
+local ROWS = { "Index", "Achievements", "Stats", "Settings" }
 
 local MenuScreen = {}
 

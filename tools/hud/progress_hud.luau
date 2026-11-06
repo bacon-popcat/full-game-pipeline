@@ -1,5 +1,5 @@
 --[[
-Authors the HUD pieces for notices, the hotbar's backpack button, the side Menu and Quests buttons,
+Authors the HUD pieces for notices, the hotbar's backpack button, the side Menu and Quests buttons (the Index is a Menu row, not a side button),
 the progress windows (Achievements, Quests, Stats) and the Islands-style Crafting window, in StarterGui.HUD and
 ReplicatedStorage.Assets.UI (the place file only; conventions.md § UI).
 
@@ -219,6 +219,9 @@ return function()
 				child:Destroy()
 			end
 		end
+		-- The shell is the Crafting window, whose Upgrade button and panel belong to it alone.
+		remove(frame.Header, "Upgrade")
+		remove(frame, "UpgradePanel")
 		frame.Visible = false
 		frame.Header.Title.Text = title
 		frame.Header.Subtitle.Text = subtitle
@@ -345,6 +348,18 @@ return function()
 		end
 		rect(icon, "Base", color, UDim2.fromScale(0.5, 0.93), UDim2.fromScale(0.9, 0.06))
 	end
+	-- An open book: two pages and a spine.
+	local function indexIcon(icon: Instance, color: Color3)
+		for index, x in { 0.28, 0.72 } do
+			local page = rect(icon, `Page{index}`, color, UDim2.fromScale(x, 0.5), UDim2.fromScale(0.4, 0.7))
+			page.BackgroundTransparency = 1
+			new("UIStroke", { Color = color, Thickness = 2 }, page)
+			for line, y in { 0.34, 0.5, 0.66 } do
+				rect(icon, `Line{index}{line}`, color, UDim2.fromScale(x, y), UDim2.fromScale(0.26, 0.06))
+			end
+		end
+		rect(icon, "Spine", color, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.05, 0.74))
+	end
 	local function menuIcon(icon: Instance, color: Color3)
 		for index, y in { 0.24, 0.5, 0.76 } do
 			rect(icon, `Line{index}`, color, UDim2.fromScale(0.5, y), UDim2.fromScale(0.84, 0.13))
@@ -436,6 +451,8 @@ return function()
 		local settingsButton = sideButtons:FindFirstChild("Settings")
 		remove(sideButtons, "Menu")
 		remove(sideButtons, "Quests")
+		-- The Index lives in the Menu popup now.
+		remove(sideButtons, "Index")
 		local source = settingsButton or sideButtons.Research
 		local menu = source:Clone()
 		menu.Name = "Menu"
@@ -493,12 +510,13 @@ return function()
 
 	---------------------------------------------------------------- Menu popup
 	do
-		local menu, body = window("Menu", "Menu", "Where to?", WHITE, Vector2.new(340, 252))
+		local menu, body = window("Menu", "Menu", "Where to?", WHITE, Vector2.new(340, 304))
 		body.UIPadding.PaddingTop = UDim.new(0, 14)
 		new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, body)
 		for index, entry in
 			{
-				{ "Achievements", GOLD, medalIcon },
+				{ "Index", SAGE, indexIcon },
+					{ "Achievements", GOLD, medalIcon },
 				{ "Stats", LAVENDER, statsIcon },
 				{ "Settings", MUTED, nil },
 			}

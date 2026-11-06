@@ -172,6 +172,8 @@ end
 local placed = placedFolder()
 local blocks: { [Model]: Block } = {}
 local sprinklers: { [Block]: boolean } = {}
+-- Blocks that pull loose drops into their slots (`collects`).
+local collectors: { [Block]: boolean } = {}
 -- Shipping bin sales not yet toasted, and coins not yet turned into XP, per owner.
 local xpCoins: { [Player]: number } = {}
 local saleRemainders: { [Player]: number } = {}
@@ -499,12 +501,47 @@ end
 -- beside it. Only blocks in the drop's cell and the one under it count for lying on, and those
 -- and the cells around them for beside, so a belt never reaches through a block above it.
 -- Returns how many it took and where they went.
+-- A settled drop of `dropper`'s within an Auto Collector's reach of theirs goes into it, as
+-- much as fits: the nearest collector with room, on the drop's own plot. Any drop counts, even
+-- one a belt threw off its end, since a collector keeps what it takes.
+local function collectInto(itemId: string, count: number, position: Vector3, dropper: Player): (number, Vector3?)
+	local best, bestDistance = nil :: Block?, math.huge
+	for block in collectors do
+		local machine = block.machine
+		local cells = block.def.collects
+		if not machine or not cells or not Build.canEdit(dropper, block.origin, block.footprint) then
+			continue
+		end
+		if not Plot.same(block.origin, cellOf(position)) or Machine.room(machine, itemId) <= 0 then
+			continue
+		end
+		-- How far outside the footprint's box the drop lies, per axis, in studs.
+		local box, size = Build.box(block.origin, block.footprint)
+		local offset = box:PointToObjectSpace(position)
+		local outside = (offset:Abs() - size / 2):Max(Vector3.zero)
+		local reachStuds = cells * Build.GRID
+		if outside.X <= reachStuds and outside.Z <= reachStuds and outside.Y <= Build.GRID * 2 then
+			local distance = outside.Magnitude
+			if distance < bestDistance then
+				best, bestDistance = block, distance
+			end
+		end
+	end
+	local machine = if best then best.machine else nil
+	if not best or not machine then
+		return 0, nil
+	end
+	-- Its status attributes catch up on the next status pass.
+	return Machine.insert(machine, itemId, count), centreOf(best)
+end
+
 local function catch(
 	itemId: string,
 	count: number,
 	position: Vector3,
 	dropper: Player?,
-	reach: boolean
+	reach: boolean,
+	settled: boolean
 ): (number, Vector3?)
 	if not dropper then
 		return 0, nil
@@ -530,6 +567,12 @@ local function catch(
 			if taken > 0 then
 				return taken, port.position
 			end
+		end
+	end
+	if settled then
+		local taken, point = collectInto(itemId, count, position, dropper)
+		if taken > 0 then
+			return taken, point
 		end
 	end
 	if not reach then
@@ -1073,6 +1116,9 @@ local function register(model: Instance)
 	if def.sprinkles then
 		sprinklers[block] = true
 	end
+	if def.collects and block.machine then
+		collectors[block] = true
+	end
 	topology += 1
 end
 
@@ -1086,6 +1132,7 @@ local function unregister(model: Instance)
 	end
 	blocks[model] = nil
 	sprinklers[block] = nil
+	collectors[block] = nil
 	eachCell(block.origin, block.footprint, function(cell)
 		if cellIndex[cellKey(cell)] == block then
 			cellIndex[cellKey(cell)] = nil

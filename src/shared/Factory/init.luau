@@ -241,8 +241,8 @@ function Factory.portKey(position: Vector3): string
 end
 
 -- Whether a block would take `itemId` from a player's hand, ignoring how full it is. A
--- filter takes anything (it sets the filter); a machine takes what a recipe uses, its
--- fuel, what it plants, and any resource if it sells.
+-- filter takes anything (it sets the filter); a chest takes anything; a machine takes what a
+-- recipe uses, its fuel, what it plants, and any resource if it sells.
 function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	local def = Blocks[blockItemId]
 	if not def then
@@ -251,7 +251,7 @@ function Factory.takesByHand(blockItemId: string, itemId: string): boolean
 	if def.kind ~= "Machine" then
 		return false
 	end
-	if (def.fuel and def.fuel[itemId]) or (def.plants and table.find(def.plants, itemId)) then
+	if def.stores or (def.fuel and def.fuel[itemId]) or (def.plants and table.find(def.plants, itemId)) then
 		return true
 	end
 	if def.sells and Inventory.getItem(itemId).kind == "Resource" then

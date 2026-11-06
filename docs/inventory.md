@@ -110,7 +110,7 @@ plot-relative cell, rotation, Against and factory contents. See [plots.md](plots
 
 ## Index
 
-The Index side button opens a window of every plain item in the catalogue (IndexScreen).
+The Index row in the Menu popup opens a window of every plain item in the catalogue (IndexScreen).
 GardenService keeps the item ids each player has had, in their inventory (any
 `InventoryService.give`) or harvested on their plot, and sends them all over `IndexSync` on load
 and on each new one; at load, whatever the inventory already holds counts. Items not yet had are

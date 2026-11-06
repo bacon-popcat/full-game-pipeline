@@ -95,7 +95,7 @@ layer of blocks and digging uncovers the cells round the hole. `GroundService` o
   over into grass after a random 60-120 seconds; something solid on top restarts the wait.
   Saved like digging and tilling (`grassed`).
 - **Wet Farmland.** Farmland is wet while a sprinkler covers the crop cell above it (the
-  sprinkler's own level, `WorldService.speedAt`) or it is raining (Rain or Thunderstorm), checked
+  sprinkler's own level, `WorldService.speedAt`) or a wetting event is on (Rain, Drizzle or Thunderstorm), checked
   every second, and dries `Ground.WET_FOR` (120) seconds after neither reaches it. Wet is a darker
   look and a `Wet` attribute that the hover panel names ("Wet Farmland"); it changes nothing else
   and is not saved.
@@ -154,10 +154,11 @@ sparkles it in all of them.
 
 ## Weather
 
-`WeatherService` chooses equally among Rain, Thunderstorm and Golden Hour, with 8-12 minutes
-between event starts. It begins clear and waits before the first event. Event lengths and
-effects follow [overhaul.md](overhaul.md#weather). Rain and storms add 0.5 growth seconds per
-real second, including regrowth. The bonus clock clips at the event end even if the scheduler
+`Shared/World/Weather` owns every event (Rain, Drizzle, Thunderstorm, Golden Hour, Fog, Breezy,
+Rainbow): its length, pick weight, extra growth, whether it wets soil, mutation chances, rain rate,
+tint and wind. `WeatherService` picks by weight, with 5-8 clear minutes between one event's end and
+the next start; it begins clear. An event's `growth` adds that many growth seconds per real second
+(Rain 0.5), including regrowth. The bonus clock clips at the event end even if the scheduler
 wakes late. No weather event harms crops.
 
 `ReplicatedStorage.Weather` is a runtime Folder. `Event` is an event name or an empty string;

@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Lighting = require(Players.LocalPlayer.PlayerScripts.Libraries.Lighting)
+local Weather = require(ReplicatedStorage.Shared.World.Weather)
 local WeatherController = {}
 function WeatherController.init()
 	local state = ReplicatedStorage:WaitForChild("Weather")
@@ -64,16 +65,9 @@ function WeatherController.init()
 		end
 		event = wanted
 		Lighting.clear("lightning", 0.5)
-		if event == "Rain" or event == "Thunderstorm" then
-			Lighting.set(
-				"weather",
-				if event == "Rain" then Color3.fromRGB(196, 209, 230) else Color3.fromRGB(172, 186, 214),
-				if event == "Rain" then -0.1 else -0.18,
-				0.05,
-				3
-			)
-		elseif event == "Golden Hour" then
-			Lighting.set("weather", Color3.fromRGB(255, 231, 187), 0.03, 0.02, 3)
+		local def = Weather.get(event)
+		if def and def.tint then
+			Lighting.set("weather", def.tint, def.brightness, def.contrast, 3)
 		else
 			Lighting.clear("weather", 3)
 		end
@@ -94,14 +88,15 @@ function WeatherController.init()
 		end
 		elapsed = 0
 		refresh()
-		local wet = event == "Rain" or event == "Thunderstorm"
+		local def = Weather.get(event)
+		local drops = if def then def.rain else 0
 		local character = Players.LocalPlayer.Character
 		params.FilterDescendantsInstances = if character then { cloud, character } else { cloud }
 		local covered = camera and workspace:Raycast(camera.CFrame.Position, Vector3.new(0, 80, 0), params) ~= nil
-		setRate(if camera and wet and not covered then (if GuiService.ReducedMotionEnabled then 120 else 380) else 0)
+		setRate(if camera and drops > 0 and not covered then (if GuiService.ReducedMotionEnabled then drops / 3 else drops) else 0)
 		if os.clock() >= nextFlash then
 			nextFlash = os.clock() + random:NextNumber(12, 24)
-			if event == "Thunderstorm" and not GuiService.ReducedMotionEnabled then
+			if def and def.lightning and not GuiService.ReducedMotionEnabled then
 				Lighting.set("lightning", Color3.new(1, 1, 1), 0.1, 0, 0.15)
 				task.delay(0.25, function()
 					Lighting.clear("lightning", 0.7)

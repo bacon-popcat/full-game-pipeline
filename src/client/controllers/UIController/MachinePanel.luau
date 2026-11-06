@@ -3,9 +3,11 @@
 -- It shows what the block is doing -- worded by BlockText, from the attributes
 -- FactoryService publishes -- and turns its buttons and item cells into Interact requests:
 -- load an item from anywhere in the inventory, collect the output, take back what is
--- loaded and unused, switch a split conveyor, pick a filter's items. A chest (`stores`)
--- shows what it holds in the grid instead, one cell a slot, and a press takes that item out. The server checks
--- every request; the panel never changes anything itself.
+-- loaded and unused, switch a split conveyor, pick a filter's items. A chest (`stores`: the
+-- Storage Chest and Auto Collector) shows what it holds in the grid instead, one cell a slot,
+-- and a press takes that item out; its Switch button flips the grid to the backpack, where a
+-- press puts that item in, as many as fit, and back. The server checks every request; the
+-- panel never changes anything itself.
 --
 -- The window is authored in StarterGui.HUD.MachinePanel (place file only) from the same
 -- pieces as the backpack, and takes the backpack's place on screen, so only one of them
@@ -90,6 +92,8 @@ local strips: { [BlockText.Side]: Strip } = {}
 type Dropdown = { frame: Frame, chips: { [string]: TextButton } }
 local dropdown: Dropdown? = nil
 local expanded: string? = nil
+-- Whether a chest's grid shows the backpack to put items in, instead of what it holds.
+local putting = false
 -- `render`, for the strip's arrows, which are made before it is defined.
 local rerender: () -> () = function() end
 local model: Model? = nil
@@ -528,6 +532,11 @@ local function isChest(): boolean
 	return def ~= nil and def.stores ~= nil
 end
 
+-- A chest's grid showing what it holds, where a press takes an item out.
+local function takingOut(): boolean
+	return isChest() and not putting
+end
+
 -- The grid's hint names the item under the pointer or focus, and says what a press does.
 local function showHint(cell: Cell?)
 	hovered = cell
@@ -538,14 +547,15 @@ local function showHint(cell: Cell?)
 	if not itemId then
 		ui.hint.Text = if isFilter()
 			then "Click an item: left, again for right, again straight on. Its arrow picks mutations."
-			elseif isChest() then "Click an item to take it out."
+			elseif takingOut() then "Click an item to take it out."
+			elseif isChest() then "Click an item to put in as many as fit."
 			else look.hint
 	elseif isFilter() then
 		local side = if model then BlockText.filter(model)[itemId] else nil
 		local now = if side then string.lower(side) else "straight on"
 		local after = if side == "Left" then "right" elseif side == "Right" then "straight on" else "left"
 		ui.hint.Text = `{BlockText.itemName(itemId)} goes {now}: click to send it {after}.`
-	elseif isChest() then
+	elseif takingOut() then
 		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to take it all out.`
 	else
 		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to put in as many as fit.`
@@ -574,7 +584,7 @@ local function createCell(): Cell
 		onActivate = function()
 			local itemId = cell.itemId
 			if itemId then
-				send(if isFilter() then "Filter" elseif isChest() then "TakeOut" else "Load", itemId)
+				send(if isFilter() then "Filter" elseif takingOut() then "TakeOut" else "Load", itemId)
 			end
 		end,
 	}))
@@ -617,7 +627,7 @@ local function chestSlots(target: Model): { Offer }
 end
 
 local function renderGrid(def: Factory.Def, itemId: string)
-	if def.stores and model then
+	if def.stores and model and not putting then
 		local list = chestSlots(model)
 		for index, offer in list do
 			paintCell(cells[index] or createCell(), offer, false)
@@ -687,15 +697,21 @@ local function render()
 	setButton(ui.Collect, isMachine, BlockText.hasOutput(target))
 	setButton(ui.TakeBack, isMachine, BlockText.hasContents(target))
 	ui.TakeBack.Text = if def.stores then "Take all" else look.takeBack
-	setButton(ui.Switch, def.route == "Split", true)
-	ui.Switch.Text = if powered then "Send straight on" else "Send to the side"
+	setButton(ui.Switch, def.route == "Split" or def.stores ~= nil, true)
+	ui.Switch.Text = if def.stores
+		then (if putting then "Take out" else "Put in")
+		elseif powered then "Send straight on"
+		else "Send to the side"
 	setButton(ui.ClearFilter, def.route == "Filter", next(BlockText.filter(target)) ~= nil)
 	ui.actions.Visible = isMachine or def.route ~= nil
 
 	local showsGrid = def.route == "Filter" or def.stores ~= nil or (isMachine and takesAnythingByHand(itemId))
 	ui.load.Visible = showsGrid
-	ui.heading.Text = if def.route == "Filter" then "[ Filter ]" elseif def.stores then "[ Chest ]" else look.heading
-	ui.empty.Text = if def.route == "Filter"
+	ui.heading.Text = if def.route == "Filter"
+		then "[ Filter ]"
+		elseif def.stores then (if putting then "[ Put in ]" else "[ Chest ]")
+		else look.heading
+	ui.empty.Text = if def.route == "Filter" or (def.stores and putting)
 		then "Your backpack is empty."
 		elseif def.stores then "Nothing collected yet."
 		else look.empty
@@ -758,6 +774,7 @@ function MachinePanel.open(target: Model, itemId: string)
 	Screens.claim("MachinePanel")
 	model = target
 	expanded = nil
+	putting = false
 	blockItemId = itemId
 	local current = GuiService.SelectedObject
 	priorSelection = if current and not current:IsDescendantOf(ui.window) then current else nil
@@ -836,7 +853,13 @@ function MachinePanel.init(hud: ScreenGui)
 		trove:Add(UI.bindButton(button, {
 			hoverScale = 1.04,
 			onActivate = function()
-				if button.Active then
+				if not button.Active then
+					return
+				elseif name == "Switch" and isChest() then
+					-- A chest's Switch only flips its grid; nothing goes to the server.
+					putting = not putting
+					render()
+				else
 					send(name)
 				end
 			end,

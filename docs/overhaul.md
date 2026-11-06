@@ -104,13 +104,19 @@ mutations makes that set's product (`Carrot Crate+Golden`, x20).
 
 ### Weather
 
-The server rolls an event every 8 to 12 minutes, shown as a banner for everyone:
+The server rolls a weighted event, shown as a banner for everyone:
 
 | Event | Lasts | Effect |
 |---|---|---|
-| Rain | 2 min | Crops grow 1.5x faster; Wet chance |
-| Thunderstorm | 90 s | Rain's effects plus the Shocked chance |
-| Golden Hour | 60 s | Golden chance x5 |
+| Rain | 5 min | Crops grow 1.5x faster; Wet chance |
+| Drizzle | 6 min | Crops grow 1.25x; smaller Wet chance |
+| Thunderstorm | 4 min | Rain's effects plus the Shocked chance |
+| Golden Hour | 3 min | Golden chance x5 |
+| Fog | 5 min | Crops grow 1.15x; small Wet chance; soft haze |
+| Breezy | 5 min | Crops grow 1.2x; plants sway hard |
+| Rainbow | 2.5 min | Crops grow 1.25x; Rainbow chance x5, a little Golden |
+
+Shared/World/Weather holds the exact numbers; 5-8 clear minutes separate events.
 
 ## Shops
 
@@ -132,7 +138,8 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Conveyor, turns, ramps | 1 | 25 | Carry items (tier 2 runs twice as fast) |
 | Split, Merger, Filter, Sensor | 3 | 150 | Route items; the filter sorts mutations |
 | Shipping Bin | 2 | 300 | Sells what a belt brings it for the owner |
-| Storage Chest | 2 | 200 | Holds 12 slots from a belt (the Industrial Chest) |
+| Storage Chest | 2 | 200 | Holds 12 slots from a belt or put in by hand (the Industrial Chest) |
+| Auto Collector | - | crafted | A chest of 18 slots that pulls in loose items within 4 cells (factory.md) |
 | Seed Planter | 4 | 800 | Plants seeds from its hopper into empty soil in a 3 x 5 patch in front |
 | Sprinkler | 5 | 1,000 | Crops within 3 cells grow 1.25x faster and can turn out Wet |
 | Harvester | 6 | 2,000 | Harvests ripe crops in a 5 x 3 patch behind it onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |

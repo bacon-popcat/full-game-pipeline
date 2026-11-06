@@ -1,11 +1,11 @@
--- Shop: the authored catalogue window behind the Seed Shop, Gear Shop and Robux Shop stalls. A
--- stall's prompt opens it, as does the Shop side button from anywhere, and its tabs
--- (Body.Tabs.<stall>) switch between the three. The open stall decides the catalogue: seeds with
--- this player's stock and restock countdown, Shared/Economy/Shops' Gear Shop offers with their
--- level locks, or its Robux packs (priced in Robux, bought through Roblox's own prompt). Machines
--- are never sold here: they are crafted (CraftingScreen). No prices come from the UI; the server
--- checks every purchase and answers with Notify, or for a pack with the purchase prompt.
-local MarketplaceService = game:GetService("MarketplaceService")
+-- Shop: the authored catalogue window behind the Seed Shop and Gear Shop stalls. A stall's prompt
+-- opens it, as does the Shop side button from anywhere, and its rail of tab tiles
+-- (Body.Tabs.<stall>) switches between the two. The open stall decides the catalogue: seeds with
+-- this player's stock and restock countdown, or Shared/Economy/Shops' Gear Shop offers with their
+-- level locks, laid out as a grid of tall cards (Assets.UI.Shop.Row) tinted by rarity or
+-- category. Machines are never sold here: they are crafted (CraftingScreen). The Robux packs have
+-- their own window (RobuxScreen). No prices come from the UI; the server checks every purchase
+-- and answers with Notify.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -31,9 +31,6 @@ export type Offer = {
 	order: number,
 	stock: number?,
 	level: number?,
-	-- Robux packs: the pack's own name, and its price is in Robux rather than coins.
-	name: string?,
-	robux: boolean?,
 }
 type Row = {
 	offer: Offer,
@@ -70,8 +67,8 @@ local function render()
 		local offer = row.offer
 		local locked = offer.level ~= nil and economy.level < offer.level
 		local soldOut = offer.stock == 0
-		local owned = not offer.robux and Inventory.getItem(offer.itemId).kind == "Tool" and countOf(offer.itemId) > 0
-		local affordable = offer.robux or economy.coins >= offer.price
+		local owned = Inventory.getItem(offer.itemId).kind == "Tool" and countOf(offer.itemId) > 0
+		local affordable = economy.coins >= offer.price
 		local enabled = not pending and not locked and not soldOut and not owned and affordable
 		row.stock.Text = if offer.stock
 			then (if offer.stock > 0 then `x{offer.stock}` else "Sold out")
@@ -139,22 +136,16 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 			frame:Destroy()
 			continue
 		end
-		name.Text = offer.name or Inventory.getItem(offer.itemId).name
+		name.Text = Inventory.getItem(offer.itemId).name
 		rarity.Text = offer.label
 		rarity.TextColor3 = offer.color
-		price.Text = if offer.robux then `R$ {Hud.number(offer.price)}` else Hud.number(offer.price)
-		if offer.robux then
-			-- No coin model in Assets yet: a coin glyph stands in the icon.
-			local glyph = Instance.new("TextLabel")
-			glyph.Name = "Glyph"
-			glyph.BackgroundTransparency = 1
-			glyph.Size = UDim2.fromScale(1, 1)
-			glyph.Text = "\u{1FA99}"
-			glyph.TextScaled = true
-			glyph.Parent = icon
-		else
-			ItemIcon.show(icon, offer.itemId)
+		rarity.BackgroundColor3 = offer.color
+		local outline = frame:FindFirstChildOfClass("UIStroke")
+		if outline then
+			outline.Color = offer.color
 		end
+		price.Text = Hud.number(offer.price)
+		ItemIcon.show(icon, offer.itemId)
 		frame.LayoutOrder = index
 		frame.Visible = true
 		frame.Parent = list
@@ -234,8 +225,7 @@ function Shop.init(hud: ScreenGui)
 			tab.TextColor3 = if selected then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
 		end
 		local shop = Shops.SHOPS[stall]
-		local robux = stall == Shops.ROBUX_SHOP
-		local offers: { Offer } = if shop or robux then {} else seedOffers
+		local offers: { Offer } = if shop then {} else seedOffers
 		for _, each in if shop then shop.offers else {} do
 			table.insert(offers, {
 				itemId = each.itemId,
@@ -246,26 +236,13 @@ function Shop.init(hud: ScreenGui)
 				level = each.level,
 			})
 		end
-		if robux then
-			for order, pack in Shops.ROBUX_PACKS do
-				table.insert(offers, {
-					itemId = pack.id,
-					name = pack.name,
-					price = pack.robux,
-					label = `+{Hud.number(pack.coins)} coins`,
-					color = Shops.CATEGORY_COLORS.Robux,
-					order = order,
-					robux = true,
-				})
-			end
-		end
-		restock.Visible = not shop and not robux
-		local heading = if shop then shop.title elseif robux then "Robux Shop" else "Seed Shop"
+		restock.Visible = not shop
+		local heading = if shop then shop.title else "Seed Shop"
 		Shop.configure(heading, offers, function(id: string, count: number)
 			Remotes.ShopBuy:FireServer(stall, id, count)
 		end)
 	end
-	local stalls = { "SeedShop", "GearShop", Shops.ROBUX_SHOP }
+	local stalls = { "SeedShop", "GearShop" }
 	local window = HubWindow.bind(hud, "Shop", stalls, render, catalogue)
 	if not window then
 		return
@@ -304,14 +281,7 @@ function Shop.init(hud: ScreenGui)
 		pending = false
 		render()
 	end)
-	-- Every purchase is answered with a toast, which also ends the Gear Shop's wait; a Robux pack's
-	-- wait ends when Roblox's purchase prompt closes.
-	trove:Connect(MarketplaceService.PromptProductPurchaseFinished, function()
-		if pending then
-			pending = false
-			render()
-		end
-	end)
+	-- Every purchase is answered with a toast, which also ends the wait.
 	trove:Connect(Remotes.Notify.OnClientEvent, function()
 		if pending then
 			pending = false

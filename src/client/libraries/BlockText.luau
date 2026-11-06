@@ -164,6 +164,9 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		if def.stores and typeof(slots) == "number" then
 			add("Slots", `{slots} / {def.stores}`)
 		end
+		if def.collects then
+			add("Reach", `pulls in loose items {def.collects} cells around`)
+		end
 	elseif def.route == "Filter" then
 		local names: { [Side]: { string } } = { Left = {}, Right = {} }
 		local ticks = BlockText.filterMutations(model)

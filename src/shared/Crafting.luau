@@ -59,7 +59,7 @@ Crafting.TIERS = {
 		name = "Workshop",
 		level = 3,
 		inputs = { WoodPlanks = 40, Stone = 30, IronBar = 8 },
-		description = "Adds the Assembler, Seed Planter, Sprinkler, mills, presses and belt routers.",
+		description = "Adds the Assembler, Seed Planter, Sprinkler, mills, presses, belt routers and the Auto Collector.",
 	},
 	{
 		name = "Machine Works",
@@ -103,6 +103,7 @@ local RECIPES: { Recipe } = {
 	define("SplitConveyor", 1, { ConveyorBelt = 2, Gear = 1, IronBar = 1 }, 2),
 	define("Merger", 1, { ConveyorBelt = 2, Gear = 1, IronBar = 1 }, 2),
 	define("Randomizer", 1, { ConveyorBelt = 2, Gear = 2 }, 2),
+	define("AutoCollector", 1, { StorageChest = 1, Gear = 2, CopperWire = 2 }, 2),
 	define("FilterConveyor", 1, { ConveyorBelt = 2, Gear = 1, CopperWire = 2 }, 2),
 	define("ConveyorSensor", 2, { ConveyorBelt = 2, CopperWire = 2, Glass = 1 }, 2),
 
