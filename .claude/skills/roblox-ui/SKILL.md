@@ -47,6 +47,27 @@ wins where they differ.
   Each feature requests a value under its own source id and clears that request later, and
   the result is derived from the live requests. Never assign these directly.
 
+## This project
+
+Authorities, in order: `conventions.md` (UI section), `docs/economy.md` § Authored HUD contract,
+`docs/inventory.md` and `docs/progress.md` for those windows.
+
+- `StarterGui.HUD` and `SaveMenu` live only in the place file. Templates are in
+  `ReplicatedStorage.Assets.UI.<Consumer>`; find nodes with `libraries/Hud` (`Hud.find`).
+- New HUD pieces (Menu, progress windows, Crafting catalogue, notice look, prompt card) come from
+  the rerunnable builders in `tools/hud` (`progress_hud.luau`, `prompt_hud.luau`), run through
+  Studio MCP. Extend a builder rather than hand-editing, so a rerun doesn't undo the change.
+- Shared client modules: `UI` (button layer), `Screens` (which window is open), `PopupMotion`
+  (window transitions), `Backdrop`, `HudVisibility` (arbitrated HUD/chat/player-list hiding),
+  `Controls` (bindings and hints), `Sound`.
+- Layers (ZIndexBehavior Sibling): modal windows at ZIndex 30, toasts at 50. Anything that must
+  show over an open window needs a higher value.
+- Keep the Sol-style look (brackets, Sarpanch) but Islands-style screens; ask before copying a
+  reference layout. Glows and strokes that belong to that look are fine despite the generic
+  "restraint" gates below.
+- After changing the HUD, verify in Studio with the `studio-playtest` skill at desktop and phone
+  sizes.
+
 ## Workflow
 
 1. **Inspect before designing.** In Explorer, inventory existing `ScreenGui`s, UI modules,

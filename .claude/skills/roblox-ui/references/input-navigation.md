@@ -50,7 +50,7 @@ an ability-bar shortcut that is not already owned by a button. Bind on screen ac
 `UnbindAction()` on close. Return `Enum.ContextActionResult.Sink` only when the UI intentionally
 consumes the action; otherwise allow gameplay to receive it.
 
-Do not create a second input system inside a menu. Coordinate screen actions with `input-systems`
+Do not create a second input system inside a menu. Coordinate screen actions with `roblox-skills:roblox-input`
 and preserve the project's existing action names and bindings.
 
 For cross-device action binding defined at edit time, the Input Action System
