@@ -55,11 +55,24 @@ function Factory.beltMultiplier(cell: Vector3): number
 	return if typeof(speed) == "number" then speed else 1
 end
 
--- Whether the block has a panel of controls (UIController/MachinePanel): every machine,
--- and the routers with a setting (split and filter conveyors).
+-- Whether the block has a panel of controls (UIController/MachinePanel), and so a prompt
+-- (BlockPrompts): a machine with something to load, collect or take out -- recipes, fuel,
+-- seeds, a sale, storage or an output -- and the routers with a setting (split and filter
+-- conveyors). A machine that only works on its own, like a Sprinkler, has none.
 function Factory.hasControls(itemId: string): boolean
 	local def = Blocks[itemId]
-	return def ~= nil and (def.kind == "Machine" or def.route == "Split" or def.route == "Filter")
+	if not def then
+		return false
+	end
+	if def.kind == "Machine" then
+		return def.recipes ~= nil
+			or def.fuel ~= nil
+			or def.plants ~= nil
+			or def.sells == true
+			or def.stores ~= nil
+			or def.output ~= nil
+	end
+	return def.route == "Split" or def.route == "Filter"
 end
 
 -- Whether a dropped item can land on the block's belt: a conveyor or router's lanes, or a

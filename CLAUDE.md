@@ -48,7 +48,7 @@ Rock Drill (Machine Shop, level 7) digs quarry materials on your own plot from c
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builder that authors the Menu, progress windows, Crafting window and notice look in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, Crafting window, notice look and prompt card in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

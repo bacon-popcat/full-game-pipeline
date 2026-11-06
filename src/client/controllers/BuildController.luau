@@ -6,11 +6,13 @@
 --   * machines and filter conveyors are only set through their panel
 --     (UIController/MachinePanel), so a press never feeds, empties or changes one, and a
 --     Hammer picks them up like any block;
---   * the Hammer picks up the player's own placed block; a Pickaxe breaks their own
+--   * the Hammer picks up the player's own placed block, and digs up their own crop (its
+--     seed back, or when ripe its harvest: action "Dig"); a Pickaxe breaks their own
 --     cubes it fits and mines the world nodes it fits, their own garden's ground included;
 --   * a Hoe tills their own grass and dirt, ground or placed cubes, into Farmland;
 --   * a resource aimed at a conveyor is dropped onto it (DropService puts it on the belt);
---   * an empty hand takes from a conveyor (its belt items) or switches a split conveyor, or harvests a crop (a ripe one for its produce, a growing one for its seed);
+--   * an empty hand takes from a conveyor (its belt items) or switches a split conveyor (a
+--     ripe crop is harvested at its prompt instead: BlockPrompts);
 --   * a seed's ghost is the sprout it plants as, and only green over Farmland (Shared/World/Soil);
 --   * a planter, harvester or sprinkler's ghost also lays a soft sheet over the cells it
 --     will work (Factory.area), at its own level.
@@ -42,7 +44,7 @@ local Controls = require(Players.LocalPlayer.PlayerScripts.Libraries.Controls)
 -- `against`: the axis the aimed surface faces, so the server knows which block it went
 -- against.
 type Placement = { origin: Vector3, valid: boolean, against: Vector3 }
-type Action = { kind: "Place" | "PickUp" | "Use" | "Take" | "Drop", model: Model? }
+type Action = { kind: "Place" | "PickUp" | "Use" | "Take" | "Drop" | "Dig", model: Model? }
 
 local ROTATE_ACTION = "RotateBlock"
 local DROP_ACTION = "DropItem"
@@ -347,10 +349,7 @@ local function decide(): Action?
 		if placed and placedDef and not isMachine(placedId) and placedDef.route ~= "Filter" then
 			return { kind = "Take", model = placed }
 		end
-		local def = if node then nodeDef(node) else nil
-		if node and def and def.harvest then
-			return { kind = "Take", model = node }
-		end
+		-- A ripe crop is harvested through its prompt (BlockPrompts), not a click.
 		return nil
 	end
 	if placed and placedId and not isMachine(placedId) and Factory.takesByHand(placedId, item.id) then
@@ -360,7 +359,12 @@ local function decide(): Action?
 		return { kind = "Drop", model = placed }
 	end
 	if item.picksUp then
-		return if placed and isOwn(placed) then { kind = "PickUp", model = placed } else nil
+		if placed and isOwn(placed) then
+			return { kind = "PickUp", model = placed }
+		end
+		-- The Hammer also digs up a crop of yours: its seed back, or when ripe its harvest.
+		local def = if node then nodeDef(node) else nil
+		return if node and def and def.harvest then { kind = "Dig", model = node } else nil
 	end
 	if item.kind == "Tool" then
 		if placed and placedId and isOwn(placed) and Inventory.getItem(placedId).breaksWith == item.id then

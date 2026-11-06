@@ -23,7 +23,7 @@ export type Node = {
 	drops: { [string]: number }?,
 	-- Seconds until a broken node the world spawned comes back. Grown ones don't.
 	respawn: number?,
-	-- An empty-handed click uproots it for these: a crop's seed back, or when ripe its harvest.
+	-- A Hammer digs it up for these: a crop's seed back, or when ripe its harvest.
 	harvest: { [string]: number }?,
 	-- A crop stage: which crop (a CROPS key), and its stage, 1 to #STAGES (the last is ripe).
 	crop: string?,
@@ -204,8 +204,8 @@ for cropId, crop in CROPS do
 		NODES[cropId .. suffix] = {
 			name = if stage == 1 then `{crop.name} Sprout` else `{suffix} {crop.name}`,
 			hint = if ripe
-				then "Ripe. Harvest it empty-handed, or let a Harvester reap it."
-				else "Growing. Dig it up empty-handed to get its seed back.",
+				then "Ripe. Harvest it at its prompt, or let a Harvester reap it."
+				else "Growing. Dig it up with a Hammer to get its seed back.",
 			harvest = if ripe then { [crop.produce] = crop.yield } else { [crop.seed] = 1 },
 			crop = cropId,
 			stage = stage,

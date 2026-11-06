@@ -78,8 +78,9 @@ return {
 	-- client -> server: (target: Model, action: string, itemId: string?) a placed factory
 	-- block or a world node. "Use" applies the held item to a world node (mine a rock or your
 	-- garden's ground, water a crop, till grass or dirt with a Hoe) or tills a placed Grass or
-	-- Dirt block with a Hoe; "Take" is an empty hand (take belt items, pick berries, switch a split
-	-- conveyor). The machine panel sends the rest, whatever is held: "Load" (itemId, from
+	-- Dirt block with a Hoe; "Take" is an empty hand (take belt items, switch a split conveyor);
+	-- "Harvest" picks a ripe crop of yours whatever is held (its prompt, BlockPrompts); "Dig"
+	-- digs a crop of yours up with the Hammer (its seed back, or when ripe its harvest). The machine panel sends the rest, whatever is held: "Load" (itemId, from
 	-- anywhere in the inventory), "Collect", "TakeBack", "Switch", "Filter" (itemId: moves it
 	-- on from straight to left to right and back), "Mutation" (not an item id but
 	-- "Carrot:Golden", ticking or unticking a mutation on a filter's pick) and "ClearFilter".

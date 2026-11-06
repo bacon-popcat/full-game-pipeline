@@ -26,7 +26,8 @@ export type Item = {
 	-- when it has none of its own, tinted `color` when given. ItemArt resolves it.
 	art: string?,
 	color: Color3?,
-	-- Tools only: swinging it at one of your placed blocks picks the block back up.
+	-- Tools only: swinging it at one of your placed blocks picks the block back up, and at one
+	-- of your crops digs it up.
 	picksUp: boolean?,
 	-- Tools only: swinging it at your grass or dirt, ground or placed, tills it into Farmland.
 	tills: boolean?,

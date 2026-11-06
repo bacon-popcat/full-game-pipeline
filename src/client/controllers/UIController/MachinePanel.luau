@@ -1,5 +1,5 @@
--- MachinePanel: the popup for the machine or router (Factory.hasControls) the player aims
--- at, opened with the interact key (Controls.INTERACT; an on-screen Open button on touch).
+-- MachinePanel: the popup for a machine or router (Factory.hasControls) of the player's,
+-- opened from its prompt (BlockPrompts: the interact key, Controls.INTERACT, or a tap on its card).
 -- It shows what the block is doing -- worded by BlockText, from the attributes
 -- FactoryService publishes -- and turns its buttons and item cells into Interact requests:
 -- load an item from anywhere in the inventory, collect the output, take back what is
@@ -35,7 +35,6 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
-local Aim = require(Libraries.Aim)
 local BlockText = require(Libraries.BlockText)
 local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
@@ -59,11 +58,8 @@ type Cell = {
 type Offer = { itemId: string, count: number }
 
 local INTERACT_ACTION = "MachinePanelInteract"
-local TOUCH_ACTION = "MachinePanelOpen"
 local BACK_ACTION = "MachinePanelBack"
--- Studs the interact key looks; the block must also be within Build.REACH.
-local AIM_DISTANCE = 150
--- Seconds between checks of what is aimed at (for the touch button) and of reach.
+-- Seconds between checks of reach.
 local CHECK_EVERY = 0.2
 -- Pixels across a filter strip's slots, and between them.
 local STRIP_SLOT = 44
@@ -80,8 +76,6 @@ local BUTTONS = { "Collect", "TakeBack", "Switch", "ClearFilter" }
 local MachinePanel = {}
 
 local player = Players.LocalPlayer
-local raycastParams = RaycastParams.new()
-raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 local trove = Trove.new()
 -- Connections that last while one block's panel is open.
 local openTrove = trove:Extend()
@@ -103,7 +97,6 @@ local blockItemId: string? = nil
 local animateWindow: ((boolean) -> ())? = nil
 -- The grid cell under the pointer or focus, whose item the hint names.
 local hovered: Cell? = nil
-local touchShown = false
 local priorSelection: GuiObject? = nil
 -- Whether each block id takes anything by hand at all, so a pure producer shows no grid.
 local takesAnything: { [string]: boolean } = {}
@@ -231,20 +224,6 @@ local function inReach(target: Model): boolean
 	end
 	local footprint = Build.footprint(itemId, rotation)
 	return footprint ~= nil and Build.canEdit(player, origin, footprint) and Build.inReach(from, origin, footprint)
-end
-
--- The placed block with controls under the aim and within reach, and its item id.
-local function aimed(): (Model?, string?)
-	local character = player.Character
-	raycastParams.FilterDescendantsInstances = if character then { character } else {}
-	-- The art, as the hover panel aims, so the key opens what the hover panel names.
-	local result = Aim.castArt(raycastParams, AIM_DISTANCE)
-	local target = if result then Aim.modelUnder(result.Instance, "Placed") else nil
-	local itemId = if target then target:GetAttribute("ItemId") else nil
-	if target and typeof(itemId) == "string" and Factory.hasControls(itemId) and inReach(target) then
-		return target, itemId
-	end
-	return nil, nil
 end
 
 local function send(action: string, itemId: string?)
@@ -770,7 +749,7 @@ function MachinePanel.isOpen(): boolean
 end
 
 function MachinePanel.open(target: Model, itemId: string)
-	if not ui then
+	if not ui or not Factory.hasControls(itemId) or not inReach(target) then
 		return
 	end
 	if model then
@@ -832,40 +811,13 @@ function MachinePanel.close()
 	animateWindow(false)
 end
 
-local function toggle()
-	if model then
-		MachinePanel.close()
-		return
-	end
-	local target, itemId = aimed()
-	if target and itemId then
-		MachinePanel.open(target, itemId)
-	end
-end
-
+-- The interact key closes the panel again; BlockPrompts opens it from the block's prompt.
 local function onInteract(_: string, state: Enum.UserInputState): Enum.ContextActionResult
-	if state ~= Enum.UserInputState.Begin then
+	if state ~= Enum.UserInputState.Begin or not model then
 		return Enum.ContextActionResult.Pass
 	end
-	if not model and not aimed() then
-		return Enum.ContextActionResult.Pass
-	end
-	toggle()
+	MachinePanel.close()
 	return Enum.ContextActionResult.Sink
-end
-
--- Touch has no interact key: an Open button shows while a block with controls is aimed at.
-local function showTouchButton(shown: boolean)
-	if shown == touchShown then
-		return
-	end
-	touchShown = shown
-	if shown then
-		ContextActionService:BindAction(TOUCH_ACTION, onInteract, true)
-		ContextActionService:SetTitle(TOUCH_ACTION, "Open")
-	else
-		ContextActionService:UnbindAction(TOUCH_ACTION)
-	end
 end
 
 function MachinePanel.init(hud: ScreenGui)
@@ -901,7 +853,6 @@ function MachinePanel.init(hud: ScreenGui)
 	ContextActionService:BindAction(INTERACT_ACTION, onInteract, false, table.unpack(Controls.INTERACT))
 	trove:Add(function()
 		ContextActionService:UnbindAction(INTERACT_ACTION)
-		ContextActionService:UnbindAction(TOUCH_ACTION)
 		ContextActionService:UnbindAction(BACK_ACTION)
 	end)
 
@@ -916,8 +867,6 @@ function MachinePanel.init(hud: ScreenGui)
 		if target and not inReach(target) then
 			MachinePanel.close()
 		end
-		local touch = UserInputService.PreferredInput == Enum.PreferredInput.Touch
-		showTouchButton(touch and model == nil and aimed() ~= nil)
 	end)
 	trove:Connect(hud.Destroying, function()
 		trove:Destroy()

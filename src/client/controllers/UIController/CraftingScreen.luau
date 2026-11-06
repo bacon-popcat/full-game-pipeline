@@ -1,6 +1,6 @@
 -- CraftingScreen: the authored Crafting window (HUD.Crafting) of the player's own Crafting
--- Bench, opened with the interact key (Controls.INTERACT; an on-screen Open button on touch)
--- while aiming at one in reach, and closed on walking away. Laid out like a workshop catalogue:
+-- Bench, opened from the bench's prompt (BlockPrompts: the interact key, Controls.INTERACT, or a
+-- tap on its card) while in reach, and closed by the interact key again or on walking away. Laid out like a workshop catalogue:
 --
 --   * Body.Categories: one Assets.UI.Crafting.Category button per category that has recipes
 --     (Craftable, All, then by the output's item kind).
@@ -26,7 +26,6 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Research = require(ReplicatedStorage.Shared.Research)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
-local Aim = require(Libraries.Aim)
 local Controls = require(Libraries.Controls)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
@@ -37,9 +36,6 @@ local Turntable = require(Libraries.Turntable)
 local UI = require(Libraries.UI)
 
 local INTERACT_ACTION = "CraftingInteract"
-local TOUCH_ACTION = "CraftingOpen"
--- Studs the aim reaches to find a bench, as far as the hover panel looks.
-local AIM_DISTANCE = 150
 -- Seconds a press waits for the server's answer before the buttons wake again anyway.
 local PENDING_FOR = 1.5
 -- Pixels between the pointer and the hover card.
@@ -59,8 +55,9 @@ type Card = {
 local CraftingScreen = {}
 
 local player = Players.LocalPlayer
-local raycastParams = RaycastParams.new()
-raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+-- Set once the window is bound: open it on a bench, and whether it is open.
+local openAt: ((Model) -> ())? = nil
+local isOpen: (() -> boolean)? = nil
 
 local function countOf(itemId: string): number
 	local count = 0
@@ -91,15 +88,6 @@ local function inReach(bench: Model): boolean
 		and bench:GetAttribute("Owner") == player.UserId
 		and bench:IsDescendantOf(workspace)
 		and Build.inReach(from, origin, footprint)
-end
-
--- The player's own bench under the aim and within reach.
-local function aimed(): Model?
-	local character = player.Character
-	raycastParams.FilterDescendantsInstances = if character then { character } else {}
-	local result = Aim.castArt(raycastParams, AIM_DISTANCE)
-	local bench = if result then Aim.modelUnder(result.Instance, "Placed") else nil
-	return if bench and bench:GetAttribute("ItemId") == Crafting.BENCH and inReach(bench) then bench else nil
 end
 
 local function locked(recipe: Crafting.Recipe): boolean
@@ -580,48 +568,29 @@ function CraftingScreen.init(hud: ScreenGui)
 		nodes.search:ReleaseFocus()
 		nodes.search.Text = ""
 	end
-	local function toggle(): boolean
+	-- The interact key closes the window again; BlockPrompts opens it from the bench's prompt.
+	local function onInteract(_: string, state: Enum.UserInputState): Enum.ContextActionResult
+		if state ~= Enum.UserInputState.Begin or not window.isOpen() then
+			return Enum.ContextActionResult.Pass
+		end
+		close()
+		return Enum.ContextActionResult.Sink
+	end
+	ContextActionService:BindAction(INTERACT_ACTION, onInteract, false, table.unpack(Controls.INTERACT))
+	trove:Add(function()
+		ContextActionService:UnbindAction(INTERACT_ACTION)
+	end)
+	openAt = function(target: Model)
+		if not inReach(target) then
+			return
+		end
 		if window.isOpen() then
 			close()
-			return true
-		end
-		local target = aimed()
-		if not target then
-			return false
 		end
 		bench = target
 		window.open()
-		return true
 	end
-	local function onInteract(_: string, state: Enum.UserInputState): Enum.ContextActionResult
-		if state ~= Enum.UserInputState.Begin then
-			return Enum.ContextActionResult.Pass
-		end
-		-- Only this window's own key presses: an open machine panel or a machine under the aim
-		-- has its own binding, which passes when it isn't aimed at one.
-		if not window.isOpen() and not aimed() then
-			return Enum.ContextActionResult.Pass
-		end
-		return if toggle() then Enum.ContextActionResult.Sink else Enum.ContextActionResult.Pass
-	end
-	ContextActionService:BindAction(INTERACT_ACTION, onInteract, false, table.unpack(Controls.INTERACT))
-	local touchShown = false
-	local function showTouchButton(shown: boolean)
-		if shown == touchShown then
-			return
-		end
-		touchShown = shown
-		if shown then
-			ContextActionService:BindAction(TOUCH_ACTION, onInteract, true)
-			ContextActionService:SetTitle(TOUCH_ACTION, "Open")
-		else
-			ContextActionService:UnbindAction(TOUCH_ACTION)
-		end
-	end
-	trove:Add(function()
-		ContextActionService:UnbindAction(INTERACT_ACTION)
-		ContextActionService:UnbindAction(TOUCH_ACTION)
-	end)
+	isOpen = window.isOpen
 
 	trove:Connect(ResearchClient.changed, function()
 		sortCards()
@@ -654,8 +623,6 @@ function CraftingScreen.init(hud: ScreenGui)
 		if window.isOpen() and (not bench or not inReach(bench)) then
 			close()
 		end
-		local touch = UserInputService.PreferredInput == Enum.PreferredInput.Touch
-		showTouchButton(touch and not window.isOpen() and aimed() ~= nil)
 	end)
 	trove:Connect(hud.Destroying, function()
 		trove:Destroy()
@@ -663,6 +630,17 @@ function CraftingScreen.init(hud: ScreenGui)
 	end)
 	sortCards()
 	render()
+end
+
+-- Opens the window on `bench`, the player's own Crafting Bench in reach (BlockPrompts).
+function CraftingScreen.open(bench: Model)
+	if openAt then
+		openAt(bench)
+	end
+end
+
+function CraftingScreen.isOpen(): boolean
+	return if isOpen then isOpen() else false
 end
 
 return CraftingScreen

@@ -3,7 +3,9 @@
 -- growth -- and what
 -- a press would do with what is in hand. It only reads: the attributes FactoryService
 -- publishes on placed blocks, worded by BlockText, and the hints in Shared/World. It shows
--- only while the aim is on a block's or node's art, not the empty cells of its hitbox.
+-- only while the aim is on a block's or node's art, not the empty cells of its hitbox, and
+-- not for the player's own machines, routers and benches: their prompt (BlockPrompts) says
+-- what they are doing and opens them.
 --
 -- The panel is authored in StarterGui.HUD.BlockInfo, sized by its Content frame (the
 -- corner brackets stay outside it, since they size to the panel), and its rows are clones
@@ -25,7 +27,6 @@ local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Aim = require(Libraries.Aim)
 local BlockText = require(Libraries.BlockText)
 local Hud = require(Libraries.Hud)
-local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
 
 type Row = BlockText.Row
@@ -83,23 +84,17 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 			info.hint = "Click to take the items on it."
 		end
 	end
-	if Factory.hasControls(itemId) then
-		local open = Controls.interactHint(UserInputService.PreferredInput)
-		info.hint = if info.hint == "" then open else `{info.hint}\n{open}`
-	end
 	return info
 end
 
--- A Crafting Bench isn't a factory block: its window (CraftingScreen) does the work.
-local function benchInfo(model: Model): Info
-	local open = if model:GetAttribute("Owner") == player.UserId
-		then Controls.interactHint(UserInputService.PreferredInput)
-		else "Only its owner can craft at it."
+-- A Crafting Bench isn't a factory block: its window (CraftingScreen) does the work. The
+-- player's own benches have a prompt instead, so this one is someone else's.
+local function benchInfo(): Info
 	return {
 		title = itemName(Crafting.BENCH),
 		working = false,
 		rows = {},
-		hint = `{Inventory.getItem(Crafting.BENCH).description}\n{open}`,
+		hint = `{Inventory.getItem(Crafting.BENCH).description}\nOnly its owner can craft at it.`,
 	}
 end
 
@@ -115,8 +110,8 @@ local function nodeInfo(model: Model, nodeType: string): Info?
 		hint = "Click to till it into Farmland."
 	elseif held and node.tool == held.id then
 		hint = "Click to mine it."
-	elseif not held and node.harvest then
-		hint = if ripe then "Click to harvest it." else "Click to dig it up for its seed."
+	elseif held and held.picksUp and node.harvest then
+		hint = if ripe then "Click to dig it up for its harvest." else "Click to dig it up for its seed."
 	end
 	local info: Info = { title = node.name, status = nil, working = false, rows = {}, hint = hint }
 	if node.soil and model:GetAttribute("Wet") then
@@ -157,12 +152,17 @@ local function target(): Info?
 		return nil
 	end
 	local placed = Aim.modelUnder(result.Instance, "Placed")
+	-- The player's own machines, routers and benches are described by their prompt's card.
+	local root = if placed then placed.PrimaryPart else nil
+	if root and root:FindFirstChild("BlockPrompt") then
+		return nil
+	end
 	local itemId = if placed then placed:GetAttribute("ItemId") else nil
 	local def = if typeof(itemId) == "string" then Factory.get(itemId) else nil
 	if placed and typeof(itemId) == "string" and def then
 		return blockInfo(placed, itemId, def)
 	elseif placed and itemId == Crafting.BENCH then
-		return benchInfo(placed)
+		return benchInfo()
 	end
 	local node = Aim.modelUnder(result.Instance, "World")
 	local nodeType = if node then node:GetAttribute("NodeType") else nil

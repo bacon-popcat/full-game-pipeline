@@ -167,7 +167,13 @@ ticked sends Golden and Wet Golden Carrots to its side. A pick with none ticked 
 
 ## Machine panel and hand
 
-The interaction binding in `client/libraries/Controls` (Open on touch) opens an owned machine, Split or Filter within reach. The panel
+Each of the player's blocks with controls (`Factory.hasControls`: a machine with something to
+load, collect or take out, a Split or a Filter; not a Sprinkler) gets a local ProximityPrompt
+from `UIController/BlockPrompts`, hung at the centre of its box. Walking up to it shows the
+custom card PromptController draws on the block and highlights the block; the interact key
+(`Controls.INTERACT`: F, D-pad up) or a tap on the card opens the panel, and the same key closes
+it (prompts hide while a panel is open). The mouse aim no longer opens anything, and the hover
+panel doesn't describe these blocks: the card names them and their status. The panel
 closes when ownership/reach is lost or the block disappears. Every request is checked again
 on the server, including item ids from the panel.
 
@@ -180,7 +186,8 @@ on the server, including item ids from the panel.
 
 Hammer picks up owned blocks; Pickaxe breaks matching cubes, mines quarry rocks and digs the
 owner's ground; Hoe tills the owner's grass and dirt into Farmland. An empty
-hand takes belt items, switches routers or harvests owned crops. Machines are worked through
+hand takes belt items or switches routers. Ripe crops are harvested at their prompt, and only
+the Hammer digs a crop up (farming.md). Machines are worked through
 their panel. Picking up a machine refunds active recipe ingredients with its contents; partial
 processing progress is discarded. Inventory overflow on block pickup retains the existing
 behavior: it is lost, so empty a full machine before picking it up.
@@ -203,9 +210,9 @@ chips, leaves and the Chop and TreeFall sounds. Wood has no sell value, so Sell 
 A block (Machine Shop, level 1, 100 coins) that crafts by hand, not from belts: the Workbench
 stays the belt-fed parts machine. `Shared/Crafting` owns its recipes, each an output and count
 from inputs, some unlocked by a research project (overhaul.md § Wood and crafting has the
-table). Its owner opens the Crafting window with the interact key aimed at it within reach
-(`UIController/CraftingScreen`; an Open button on touch), and it closes on walking away; the
-hover panel says how. The window is laid out like a catalogue: `Body.Categories` (Craftable,
+table). Its owner opens the Crafting window from its Craft prompt (BlockPrompts: the interact key or a
+tap on the card, within reach; `UIController/CraftingScreen`), and it closes on the same key or
+on walking away. The window is laid out like a catalogue: `Body.Categories` (Craftable,
 All and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
 box and a `Grid` of `Assets.UI.Crafting.Card`s (the output, its count, a gold `Ready` tick when
 the inventory can make it now and a `Lock` while research hasn't unlocked it; craftable first,

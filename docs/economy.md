@@ -160,7 +160,11 @@ on exit or touch input. Labels expand right and fade in, then retract left and f
 interrupted tweens reverse from their current state, and reduced motion skips the transition.
 Settings uses an authored geometric gear rather than an emoji.
 `PromptController` maps world proximity prompts to `Controls.INTERACT`, reserving the
-inventory binding for inventory even beside shops and section purchases.
+inventory binding for inventory even beside shops and section purchases, and draws every
+prompt in the Custom style: a clone of `Assets.UI.Prompt.Card` (authored by
+`tools/hud/prompt_hud.luau`) with a key cap that fills while held, the action, the object and
+an optional status line; a tap or click on the card holds the prompt, which is how touch works
+it. A prompt with the `Highlight` attribute also outlines its model while its card shows.
 
 ```text
 StarterGui.HUD [ScreenGui]

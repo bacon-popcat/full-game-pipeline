@@ -20,7 +20,7 @@ local STEPS: { Step } = {
 	{ text = "Open the Shop and buy some Carrot Seeds", reward = 10, condition = "SeedBought" },
 	{ text = "Hold your Hoe and click the grass in your garden to till Farmland", reward = 10, condition = "Tilled" },
 	{ text = "Hold your seeds and click the Farmland to plant them", reward = 10, condition = "Planted" },
-	{ text = "Wait for a crop to ripen, then click it to harvest", reward = 20, condition = "Harvested" },
+	{ text = "Wait for a crop to ripen, then walk up and press F to harvest it", reward = 20, condition = "Harvested" },
 	{ text = "Open Sell and sell your harvest for coins", reward = 20, condition = "StandSold" },
 	{ text = "Reach level 2", reward = 30, condition = "LevelTwo" },
 	{ text = "Buy a Shipping Bin at the Machine Shop", reward = 20, condition = "BinBought" },

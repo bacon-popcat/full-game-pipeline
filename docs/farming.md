@@ -22,15 +22,19 @@ same table. WheatSeeds, CarrotSeeds, PotatoSeeds and their produce ids remain co
 PlaceBlock -> BuildService (held seed, Farmland under it, reach, ownership, overlap)
               -> WorldService.plant -> crop node in Workspace.World
                  -> grow -> stage art + replicated attributes
-Interact Take -> capacity check -> yield -> harvest XP/discovery
+Interact Harvest / Dig -> capacity check -> yield -> harvest XP/discovery
 FactoryService -> source (current variant) -> output room check -> reap -> yield
 DataService -> snapshot/restore crop cycle and rain credit
 ```
 
-- Unripe hand digging returns one seed. Ripe single crops give only their yield and are
+- A ripe crop in your garden has a Harvest prompt (`UIController/BlockPrompts`): press the
+  interact key at it (or tap its card), whatever is in hand, to harvest it (Interact
+  "Harvest"). Digging a crop up is the Hammer's alone: a click with it sends "Dig", which
+  removes the plant for its seed, or its harvest when ripe. An empty-handed click does nothing.
+- Unripe Hammer digging returns one seed. Ripe single crops give only their yield and are
   removed. A machine restarts a single crop at Sprout without spending a seed.
 - Ripe multi crops give their fruit and return to Mature. Each subsequent fruit cycle
-  takes `regrow` seconds; harvesting never removes the plant. Hand digging while unripe
+  takes `regrow` seconds; harvesting never removes the plant. Hammer digging while unripe
   removes it and returns its seed. Mining the Farmland under any crop uproots it into owned
   drops (`WorldService.uproot`).
 - A full inventory leaves the entire hand harvest intact, with a toast. Harvester output

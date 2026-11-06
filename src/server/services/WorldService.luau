@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Build = require(ReplicatedStorage.Shared.Build)
+local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Plot = require(ReplicatedStorage.Shared.Plot)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
@@ -755,8 +756,10 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		else
 			GardenEvents.Mined:Fire(player, node.nodeType, node.cell)
 		end
-	elseif action == "Take" and def.harvest then
-		if held then
+	elseif (action == "Harvest" and def.crop and World.isRipe(def)) or (action == "Dig" and def.harvest) then
+		-- A ripe crop is harvested whatever is in hand (its prompt); only the Hammer digs a crop
+		-- up, for its seed back or, when ripe, its harvest.
+		if action == "Dig" and not (held and Inventory.getItem(held).picksUp) then
 			return
 		end
 		local harvest = harvestItems(node, true)
