@@ -362,6 +362,13 @@ if its parts have not already been made. A player can start making them after le
 | Oven | 10 | 99.4 | 54.8 | 54.8 |
 | Mill II | 10 | 99.4 | 54.8 | Parts separate |
 | Harvester II | 12 | 120.4 | 66.2 | Parts separate |
+| Rock Drill | 7 | new | 32.7 | Parts separate |
+
+The Rock Drill (factory.md) is not bought in the model. Its parts are 8 Iron and 2 Copper Bars,
+about 2 minutes of supplied crafting and 4 Coal, a deliberately small gate once the Workbench
+runs: it repays itself in materials, at about 3 Iron and 2 Copper Ore a minute per drill
+(roughly half the iron one player can mine from the quarry's three iron rocks), so a few drills
+cover a tier-two bundle in 10-15 unattended minutes.
 
 The Shipping Bin costs 300; the modeled wallet when level two is reached is 143 with
 mutation EV and 173 with plain crops, so the coin price, not the level, now gates it

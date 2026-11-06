@@ -517,7 +517,9 @@ def main():
     for item, offer in current["offers"].items():
         if offer["category"] not in ("Machine", "Crafting", "Router", "Conveyor"):
             continue
-        timing = " / ".join(fmt(parts_time(c, c["offers"][item]["parts"])["minutes"]) for c in (before, current)) if offer["parts"] else "-"
+        # An offer added since before.json has no "before" timing.
+        timing = " / ".join(fmt(parts_time(c, c["offers"][item]["parts"])["minutes"]) if item in c["offers"] else "new"
+                            for c in (before, current)) if offer["parts"] else "-"
         purchase = fmt(median(results[1], 'bought', item)) if offer["category"] in ("Machine", "Crafting") and not offer["parts"] else "not purchased"
         print(f"| {item} | {offer['level']} | {fmt(median(results[0], 'afford', item))} | {fmt(median(results[1], 'afford', item))} | {purchase} | {timing} |")
     print("\nShipping Bin wallet at level 2:", " / ".join(fmt(median(r, "wallet_at_unlock", "ShippingBin")) for r in results))
@@ -527,7 +529,8 @@ def main():
     for item, offer in current["offers"].items():
         if offer["parts"]:
             print(item, parts_time(current, offer["parts"]))
-            assert 4 <= parts_time(current, offer["parts"])["minutes"] <= 10, "tier-two parts are 4-10 min of supplied crafting (economy.md)"
+            if item.endswith("Tier2"):
+                assert 4 <= parts_time(current, offer["parts"])["minutes"] <= 10, "tier-two parts are 4-10 min of supplied crafting (economy.md)"
 
 
 if __name__ == "__main__":

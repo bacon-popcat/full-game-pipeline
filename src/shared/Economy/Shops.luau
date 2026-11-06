@@ -85,6 +85,7 @@ local SHOPS: { [string]: Shop } = {
 			offer("Workbench", 400, 3, "Crafting"),
 			offer("CraftingBench", 100, 1, "Crafting"),
 			offer("Smelter", 500, 3, "Crafting"),
+			offer("RockDrill", 3000, 7, "Crafting", { Gear = 4, CopperWire = 2 }),
 		},
 	},
 }

@@ -44,12 +44,21 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   any conveyor or router it stands on, at that lane's speed, and turns it to face the belt. Machine belts don't carry players.
 - **Queued input can bypass an unwanted item.** A machine checks up to twelve queued items,
   including through a Merger. Other routers decide per item.
-- **Only the Smelter burns fuel.** It consumes coal while working and smelts iron or
-  copper ore. Farm machines and processors run without fuel.
-  Machine-speed research scales work and coal burn together, preserving fuel per bar.
+- **Only the Smelter and the Rock Drill burn fuel.** Each consumes coal while working (30 s a
+  coal); the Smelter smelts iron or copper ore. Farm machines and other processors run
+  without fuel. Machine-speed research scales work and coal burn together, preserving fuel per
+  bar.
+- **Rock Drill** (Machine Shop, level 7, 3,000 coins plus 4 Gear and 2 Copper Wire) is the
+  automated source of quarry materials. Its one recipe has no inputs and `rolls` instead of
+  outputs: every 6 s of work it adds one item picked by weight (Stone 30, Iron Ore 30, Copper
+  Ore 20, Coal 20) to its output, which leaves by its +Z belt like any processor's. It takes
+  only coal, by hand or on its -Z belt, so a Filter sending its Coal back round keeps it
+  roughly fuel-neutral (5 rolls a coal, a fifth of them coal). One drill makes about 3 Iron
+  Ore, 2 Copper Ore and 3 Stone a minute. A rolled recipe never runs in a mutation, and an
+  interrupted roll mints nothing. The hover panel lists what it digs.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
-  the Smelter and Workbench for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
+  the Smelter, Workbench and Rock Drill for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
   Harvester (bigger patch, faster). All are bought in the Machine Shop (economy.md); tier 2
   ones also cost Workbench parts. Tier 2 defs come from the same constructors as tier 1 in
   Blocks, so a tier differs only in its numbers.

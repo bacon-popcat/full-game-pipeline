@@ -36,11 +36,16 @@ export type LaneDef = {
 	emits: boolean?,
 }
 
+export type Roll = { item: string, weight: number }
+
 export type Recipe = {
 	inputs: { [string]: number },
 	outputs: { [string]: number },
 	-- Seconds per batch.
 	time: number,
+	-- Instead of `outputs`, a batch makes one item picked from these by weight (the Rock Drill).
+	-- A rolled recipe only runs plain.
+	rolls: { Roll }?,
 }
 
 export type Source = {
@@ -275,6 +280,22 @@ local BLOCKS: { [string]: Def } = {
 	Smelter = processor({
 		recipe({ IronOre = 1 }, { IronBar = 1 }, 10),
 		recipe({ CopperOre = 1 }, { CopperBar = 1 }, 10),
+	}, { Coal = 30 }),
+	-- Digs into the plot's own ground: no inputs, one roll every 6 s, on coal. A coal lasts 5
+	-- rolls and a fifth of rolls are coal, so a drill whose coal is belted back in about pays
+	-- its own fuel; one makes some 3 Iron Ore, 2 Copper Ore and 3 Stone a minute.
+	RockDrill = processor({
+		{
+			inputs = {},
+			outputs = {},
+			time = 6,
+			rolls = {
+				{ item = "Stone", weight = 30 },
+				{ item = "IronOre", weight = 30 },
+				{ item = "CopperOre", weight = 20 },
+				{ item = "Coal", weight = 20 },
+			},
+		},
 	}, { Coal = 30 }),
 	Workbench = processor(productRecipes("Workbench")),
 	Mill = processor(productRecipes("Mill")),

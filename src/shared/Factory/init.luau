@@ -20,6 +20,7 @@ local Plot = require(ReplicatedStorage.Shared.Plot)
 export type Def = Blocks.Def
 export type LaneDef = Blocks.LaneDef
 export type Recipe = Blocks.Recipe
+export type Roll = Blocks.Roll
 export type Source = Blocks.Source
 export type Extents = Blocks.Extents
 export type Face = Blocks.Face

@@ -13,7 +13,8 @@
 -- room, a batch takes all its inputs in one mutation (plain first, then rising rarity), and
 -- its products come out in that mutation too (Golden Carrots make a Golden Carrot Crate). A
 -- recipe with an input that has no variant (bars, parts) only runs plain. Rare variants wait
--- inside until a whole batch of them is in, without holding up the plain ones.
+-- inside until a whole batch of them is in, without holding up the plain ones. A recipe with
+-- `rolls` (the Rock Drill) makes one item picked by weight instead of fixed outputs.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -258,13 +259,34 @@ local function burn(state: State, dt: number): boolean
 end
 
 local function outputCount(recipe: Factory.Recipe): number
-	return total(recipe.outputs)
+	return if recipe.rolls then 1 else total(recipe.outputs)
+end
+
+local rollRandom = Random.new()
+
+-- One item from a rolled recipe, picked by weight.
+local function roll(rolls: { Factory.Roll }): string
+	local sum = 0
+	for _, each in rolls do
+		sum += each.weight
+	end
+	local pick = rollRandom:NextNumber() * sum
+	for _, each in rolls do
+		pick -= each.weight
+		if pick < 0 then
+			return each.item
+		end
+	end
+	return rolls[#rolls].item
 end
 
 -- Recipes are static defs, so each one's variants are worked out once (false: none).
 local variantCache: { [Factory.Recipe]: { [string]: Factory.Recipe | false } } = {}
 
 local function buildVariant(recipe: Factory.Recipe, mutation: string): Factory.Recipe?
+	if recipe.rolls then
+		return nil
+	end
 	local inputs: { [string]: number } = {}
 	for itemId, need in recipe.inputs do
 		local id = itemId .. "+" .. mutation
@@ -351,6 +373,9 @@ local function stepRecipes(state: State, dt: number)
 	job.elapsed += dt
 	local recipe = job.recipe
 	if job.elapsed >= job.time and recipe then
+		if recipe.rolls then
+			table.insert(state.outputs, roll(recipe.rolls))
+		end
 		for itemId, count in recipe.outputs do
 			for _ = 1, count do
 				table.insert(state.outputs, itemId)

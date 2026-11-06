@@ -21,7 +21,8 @@ one step past it, rippling open from the middle and closed from the edge, with r
 in its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
 Since then: a side Menu opens Achievements, Quests, Stats and Settings (progress.md); notices are
 coloured by kind and stack above the hotbar; the backpack button sits after hotbar slot 9; and the
-Crafting window is an Islands-style catalogue (categories, search, cards, a details panel).
+Crafting window is an Islands-style catalogue (categories, search, cards, a details panel). The
+Rock Drill (Machine Shop, level 7) digs quarry materials on your own plot from coal (factory.md).
 
 ## Domain docs
 

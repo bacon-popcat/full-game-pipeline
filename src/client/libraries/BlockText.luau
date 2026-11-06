@@ -148,6 +148,15 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		if def.produce then
 			add("Reaps", `{def.produce.size.width} wide, {def.produce.size.depth} deep behind`)
 		end
+		for _, recipe in def.recipes or {} do
+			if recipe.rolls then
+				local names = {}
+				for _, each in recipe.rolls do
+					table.insert(names, BlockText.itemName(each.item))
+				end
+				add("Digs", table.concat(names, ", "))
+			end
+		end
 		if def.plantSize then
 			add("Plants", `{def.plantSize.width} wide, {def.plantSize.depth} deep in front`)
 		end

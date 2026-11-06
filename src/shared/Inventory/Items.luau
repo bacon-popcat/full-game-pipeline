@@ -131,6 +131,11 @@ local ITEMS: { Item } = {
 	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
 
 	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
+	machine(
+		"RockDrill",
+		"Rock Drill",
+		"Drills your plot's ground for stone, coal, iron and copper ore onto its output belt. Runs on coal."
+	),
 	machine("Workbench", "Workbench", "Makes gears, copper wire, circuits and steel frames from bars."),
 	machine(
 		"CraftingBench",
@@ -181,7 +186,7 @@ local ITEMS: { Item } = {
 		"Collects whatever a conveyor brings it, 12 slots of it. Open it to take the items out."
 	),
 
-	resource("Coal", "Coal", "Fuel for the Industrial Smelter."),
+	resource("Coal", "Coal", "Fuel for the Smelter and the Rock Drill."),
 	resource("IronOre", "Iron Ore", "Smelt it into an iron bar."),
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
 	resource("IronBar", "Iron Bar", "Smelted iron for future crafting."),

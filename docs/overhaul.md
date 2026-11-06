@@ -142,6 +142,7 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Crate Packer | 9 | 6,000 | 10 of any crop -> its Crate (12x the crop) |
 | Smelter | 3 | 500 | Ore + Coal -> Bar |
 | Workbench | 3 | 400 | Bars -> parts (below) |
+| Rock Drill | 7 | 3,000 + 4 Gear, 2 Copper Wire | On coal, digs one Stone, Iron Ore, Copper Ore or Coal (30/30/20/20) every 6 s onto its output belt |
 
 Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus parts:
 
@@ -154,7 +155,8 @@ Tier 2 Harvester, Sprinkler, Planter and Mill (faster, wider) cost coins plus pa
 
 ## Crafting
 
-The quarry in the hub gives Stone, Coal, Iron Ore and Copper Ore to the Pickaxe. A Smelter makes
+The quarry in the hub gives Stone, Coal, Iron Ore and Copper Ore to the Pickaxe; later, a Rock
+Drill on your own plot digs the same four without the trip (factory.md). A Smelter makes
 Iron and Copper Bars, and a Workbench makes parts:
 
 | Part | From |
