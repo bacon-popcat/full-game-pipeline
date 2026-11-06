@@ -1,6 +1,6 @@
 --[[
-Authors the HUD pieces for notices, the hotbar's backpack button, the side Menu and its windows
-(Achievements, Quests, Stats) and the Islands-style Crafting window, in StarterGui.HUD and
+Authors the HUD pieces for notices, the hotbar's backpack button, the side Menu and Quests buttons,
+the progress windows (Achievements, Quests, Stats) and the Islands-style Crafting window, in StarterGui.HUD and
 ReplicatedStorage.Assets.UI (the place file only; conventions.md § UI).
 
 Run it through the Studio MCP in the Edit datamodel: serve the repo (python -m http.server 34998
@@ -430,14 +430,16 @@ return function()
 		table.insert(log, "backpack button: in Hotbar, white")
 	end
 
-	---------------------------------------------------------------- side Menu button
+	---------------------------------------------------------------- side Menu and Quests buttons
 	local sideButtons = hud.SideButtons
 	do
 		local settingsButton = sideButtons:FindFirstChild("Settings")
 		remove(sideButtons, "Menu")
+		remove(sideButtons, "Quests")
 		local source = settingsButton or sideButtons.Research
 		local menu = source:Clone()
 		menu.Name = "Menu"
+		remove(menu, "Badge")
 		menu.LayoutOrder = 100
 		menu.Icon:ClearAllChildren()
 		menuIcon(menu.Icon, WHITE)
@@ -449,12 +451,22 @@ return function()
 		if tooltipStroke then
 			tooltipStroke.Color = BLACK
 		end
-		badge(menu, UDim2.fromScale(0.92, 0.08), 18)
 		menu.Parent = sideButtons
+		local quests = menu:Clone()
+		quests.Name = "Quests"
+		quests.LayoutOrder = 90
+		quests.Icon:ClearAllChildren()
+		questIcon(quests.Icon, SKY)
+		paintBars(quests, SKY)
+		quests.UIStroke.Color = SKY
+		quests.Tooltip.Label.Text = "Quests"
+		quests.Tooltip.Label.TextColor3 = SKY
+		badge(quests, UDim2.fromScale(0.92, 0.08), 18)
+		quests.Parent = sideButtons
 		if settingsButton then
 			settingsButton:Destroy()
 		end
-		-- Five buttons now (Shop, Sell, Index, Research, Menu): keep their authored pixel size and gap.
+		-- Preserve the authored button size and gap, including on repeat runs.
 		local count = 0
 		for _, child in sideButtons:GetChildren() do
 			if child:IsA("GuiButton") then
@@ -462,10 +474,10 @@ return function()
 			end
 		end
 		local reference = 720
-		local height = sideButtons.Size.Y.Scale * reference
+		local height = sideButtons.Size.Y.Scale * reference + sideButtons.Size.Y.Offset
 		local layout = sideButtons:FindFirstChildOfClass("UIListLayout")
-		local buttonPx = sideButtons.Research.Size.Y.Scale * height
-		local gapPx = layout.Padding.Scale * height
+		local buttonPx = sideButtons.Research.Size.Y.Scale * height + sideButtons.Research.Size.Y.Offset
+		local gapPx = layout.Padding.Scale * height + layout.Padding.Offset
 		local newHeight = buttonPx * count + gapPx * (count - 1)
 		for _, child in sideButtons:GetChildren() do
 			if child:IsA("GuiButton") then
@@ -473,21 +485,20 @@ return function()
 			end
 		end
 		layout.Padding = UDim.new(gapPx / newHeight, 0)
-		local width = sideButtons.Size.X.Scale * 1280
-		sideButtons.Size = UDim2.fromScale(sideButtons.Size.X.Scale, newHeight / reference)
+		local width = sideButtons.Size.X.Scale * 1280 + sideButtons.Size.X.Offset
+		sideButtons.Size = UDim2.new(sideButtons.Size.X, UDim.new(newHeight / reference, 0))
 		sideButtons:FindFirstChildOfClass("UIAspectRatioConstraint").AspectRatio = width / newHeight
-		table.insert(log, `side buttons: {count}, Menu replaces Settings`)
+		table.insert(log, `side buttons: {count}, Quests owns the badge, Menu replaces Settings`)
 	end
 
 	---------------------------------------------------------------- Menu popup
 	do
-		local menu, body = window("Menu", "Menu", "Where to?", WHITE, Vector2.new(340, 292))
+		local menu, body = window("Menu", "Menu", "Where to?", WHITE, Vector2.new(340, 252))
 		body.UIPadding.PaddingTop = UDim.new(0, 14)
 		new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, body)
 		for index, entry in
 			{
 				{ "Achievements", GOLD, medalIcon },
-				{ "Quests", SKY, questIcon },
 				{ "Stats", LAVENDER, statsIcon },
 				{ "Settings", MUTED, nil },
 			}
@@ -533,9 +544,6 @@ return function()
 				Position = UDim2.fromOffset(52, 0),
 				Size = UDim2.new(1, -60, 1, 0),
 			}, row)
-			if name == "Quests" then
-				badge(row, UDim2.new(1, -18, 0.5, 0), 22)
-			end
 		end
 		menu.Header.Subtitle.TextColor3 = DIM
 		table.insert(log, "Menu popup")
@@ -815,11 +823,13 @@ return function()
 			Position = UDim2.fromOffset(10, 36),
 			Size = UDim2.new(1, -20, 0, 16),
 		}, details)
+		-- The preview takes a share of the panel's height, so short screens keep room for the
+		-- ingredients; a recipe has up to four, and the list scrolls past what fits.
 		new("ViewportFrame", {
 			Name = "Preview",
 			BackgroundTransparency = 1,
 			Position = UDim2.fromOffset(10, 54),
-			Size = UDim2.new(1, -20, 0, 140),
+			Size = UDim2.new(1, -20, 0.26, 0),
 			Ambient = Color3.fromRGB(170, 170, 180),
 			LightColor = WHITE,
 			LightDirection = Vector3.new(-1, -1.5, -1),
@@ -829,14 +839,21 @@ return function()
 			Text = "Needs",
 			TextSize = 14,
 			Color = SAGE,
-			Position = UDim2.fromOffset(12, 198),
+			Position = UDim2.new(0, 12, 0.26, 58),
 			Size = UDim2.new(1, -24, 0, 18),
 		}, details)
-		local ingredients = new("Frame", {
+		local ingredients = new("ScrollingFrame", {
 			Name = "Ingredients",
 			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(10, 218),
-			Size = UDim2.new(1, -20, 1, -218 - 128),
+			BorderSizePixel = 0,
+			Position = UDim2.new(0, 10, 0.26, 78),
+			Size = UDim2.new(1, -20, 0.74, -78 - 128),
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollingDirection = Enum.ScrollingDirection.Y,
+			ScrollBarThickness = 4,
+			ScrollBarImageColor3 = STROKE,
+			ScrollBarImageTransparency = 0.4,
 		}, details)
 		new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, ingredients)
 		label({

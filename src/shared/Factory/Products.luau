@@ -1,9 +1,9 @@
 --!strict
--- Products: what the processing machines and the Workbench make, from what, and what each is
--- worth. Items turns these into items and Factory/Blocks into recipes, so a product's numbers
+-- Products: what the processing machines and the Assembler (id Workbench) make, from what, and
+-- what each is worth. Items turns these into items and Factory/Blocks into recipes, so a product's numbers
 -- live only here. Crop values come from World.CROPS. A batch takes inputs of one mutation only
 -- and its product keeps that mutation (Machine; Items makes the variants of every valued
--- product). Parts have no value: they are spent in the Machine Shop (Shared/Economy/Shops).
+-- product). Parts have no value: they are spent crafting machines (Shared/Crafting).
 --
 -- Art: products borrow an existing Assets.Items model (`art`), tinted `color` when given, until
 -- the art phase.
@@ -111,7 +111,7 @@ for _, cropId in cropIds do
 	})
 end
 
--- Workbench parts, from the quarry's ore smelted into bars.
+-- Assembler parts, from the quarry's ore smelted into bars.
 local function part(
 	id: string,
 	name: string,
@@ -135,7 +135,7 @@ end
 
 table.insert(
 	PRODUCTS,
-	part("Gear", "Gear", "A cut iron gear for machine upgrades.", { IronBar = 2 }, 4, "SteelPlate", STEEL_COLOR)
+	part("Gear", "Gear", "A cut iron gear, for building machines.", { IronBar = 2 }, 4, "SteelPlate", STEEL_COLOR)
 )
 table.insert(PRODUCTS, part("CopperWire", "Copper Wire", "Drawn copper, coiled.", { CopperBar = 1 }, 3, "CopperBar"))
 table.insert(

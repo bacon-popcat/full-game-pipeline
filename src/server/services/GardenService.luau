@@ -3,6 +3,7 @@
 -- it); `indexed` holds every item id the player has had in their inventory or harvested, which
 -- the client's Index shows (IndexSync). Purchases and sales never yield between validation and mutation.
 -- Values in Items already include mutation multipliers; selling must not multiply twice.
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -168,17 +169,7 @@ local function countOf(player: Player, itemId: string): number
 	return count
 end
 
--- "4 Gear and 2 Steel Frame": the parts an offer needs, in words.
-local function partsText(parts: { [string]: number }): string
-	local names = {}
-	for itemId, count in parts do
-		table.insert(names, `{count} {Inventory.getItem(itemId).name}`)
-	end
-	table.sort(names)
-	return if #names > 1 then table.concat(names, ", ", 1, #names - 1) .. " and " .. names[#names] else names[1]
-end
-
--- Why a Gear or Machine Shop purchase can't go ahead, or nil once it is paid for.
+-- Why a Gear Shop purchase can't go ahead, or nil once it is paid for.
 local function buyOffer(player: Player, offer: Shops.Offer, count: number): string?
 	local item = Inventory.getItem(offer.itemId)
 	local economy = EconomyService.get(player)
@@ -189,30 +180,38 @@ local function buyOffer(player: Player, offer: Shops.Offer, count: number): stri
 	elseif not InventoryService.canGive(player, offer.itemId, count) then
 		return "Your inventory is full."
 	end
-	local parts = offer.parts or {}
-	local needed: { [string]: number } = {}
-	for itemId, each in parts do
-		needed[itemId] = each * count
-	end
-	for itemId, amount in needed do
-		if countOf(player, itemId) < amount then
-			return `You need {partsText(needed)}.`
-		end
-	end
 	if not EconomyService.trySpend(player, offer.price * count) then
 		return "You need more coins."
-	end
-	for itemId, amount in needed do
-		InventoryService.take(player, itemId, amount)
 	end
 	InventoryService.give(player, offer.itemId, count)
 	GardenEvents.Bought:Fire(player, offer.itemId, count)
 	return nil
 end
 
+-- A Robux pack is bought through Roblox's own prompt; MonetizationService grants it from the
+-- receipt. The client ends its wait when that prompt closes, so only a refusal sends a notice.
+local function buyPack(player: Player, packId: unknown)
+	local pack = if typeof(packId) == "string" then Shops.pack(packId) else nil
+	if not pack then
+		return
+	end
+	local reason = refusal(player)
+	if reason then
+		Remotes.Notify:FireClient(player, reason, "Error")
+	elseif pack.productId == 0 then
+		Remotes.Notify:FireClient(player, `The {pack.name} isn't on sale yet.`, "Error")
+	else
+		MarketplaceService:PromptProductPurchase(player, pack.productId)
+	end
+end
+
 local function buy(player: Player, shopId: unknown, itemId: unknown, count: unknown)
 	local state = states[player]
 	if not state or typeof(shopId) ~= "string" or not Hub.STALLS[shopId] then
+		return
+	end
+	if shopId == Shops.ROBUX_SHOP then
+		buyPack(player, itemId)
 		return
 	end
 	restock(player, state)

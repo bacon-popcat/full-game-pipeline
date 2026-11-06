@@ -78,10 +78,12 @@ Queued syncs cannot outlive their garden state. Notice kinds belong to `Shared/N
 ## Screens
 
 The side `SideButtons.Menu` button opens `HUD.Menu`, a small popup whose rows (Achievements,
-Quests, Stats, Settings) open those windows through `libraries/Screens.open`, so the Menu
-requires none of their controllers (`UIController/MenuScreen`). The button and the Quests row
-carry a gold `Badge` counting quests waiting to be claimed. `libraries/ProgressClient` holds
-the latest ProgressSync and extrapolates playtime between syncs.
+Stats, Settings) open those windows through `libraries/Screens.open`, so the Menu requires
+none of their controllers (`UIController/MenuScreen`). `SideButtons.Quests` toggles
+`HUD.Quests` directly through its HubWindow. `QuestsScreen` updates that button's gold
+`Badge.Count` from `ProgressClient.claimable()` on every progress sync, even while closed;
+zero hides the badge and counts above nine show `9+`. Menu has no quests row or badge.
+`libraries/ProgressClient` holds the latest ProgressSync and extrapolates playtime between syncs.
 
 - `HUD.Achievements` (`AchievementsScreen`): a Summary line and one
   `Assets.UI.Progress.Achievement` row per achievement, in `Shared/Progress` order, with its
@@ -92,5 +94,9 @@ the latest ProgressSync and extrapolates playtime between syncs.
   from `Assets.UI.Progress.Heading` and `Stat`; time played counts up while it is open.
 
 Each is a HubWindow with the Crafting window's shell. `tools/hud/progress_hud.luau` authors
-them, their templates, the Menu button and the Crafting window in the place file; its header
-says how to run it.
+them, their templates, the Menu and Quests side buttons and the Crafting window in the place
+file; its header says how to run it. After syncing code, run that builder once in Studio's
+Edit datamodel (no other HUD builder is needed for this change), then playtest. Rerunning
+replaces both buttons and rebuilds Menu without its old Quests row, preserving side-button
+size and spacing. Check a second run for duplicates, and check Quests toggle/close, switching
+to other windows, and badge changes after completing and claiming a quest.

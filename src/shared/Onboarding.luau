@@ -23,7 +23,11 @@ local STEPS: { Step } = {
 	{ text = "Wait for a crop to ripen, then walk up and press F to harvest it", reward = 20, condition = "Harvested" },
 	{ text = "Open Sell and sell your harvest for coins", reward = 20, condition = "StandSold" },
 	{ text = "Reach level 2", reward = 30, condition = "LevelTwo" },
-	{ text = "Buy a Shipping Bin at the Machine Shop", reward = 20, condition = "BinBought" },
+	{
+		text = "Place your Crafting Bench and craft a Shipping Bin from 10 Wood Planks",
+		reward = 20,
+		condition = "BinBought",
+	},
 	{ text = "Place your Shipping Bin on your plot", reward = 50, condition = "BinPlaced" },
 }
 

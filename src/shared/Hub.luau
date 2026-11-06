@@ -7,7 +7,7 @@ Hub.STALLS = {
 	SeedShop = Vector3.new(-24, 0, -15),
 	SellStand = Vector3.new(24, 0, -15),
 	GearShop = Vector3.new(-24, 0, 15),
-	MachineShop = Vector3.new(24, 0, 15),
+	RobuxShop = Vector3.new(24, 0, 15),
 }
 
 function Hub.inReach(player: Player, name: string): boolean

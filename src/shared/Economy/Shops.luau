@@ -1,37 +1,38 @@
 --!strict
--- Shops: what the Gear Shop and Machine Shop sell, at what price, from what level and, for tier 2
--- machines, for which Workbench parts (Shared/Factory/Products) as well as coins. Seed
--- prices belong to World.CROPS and seed stock to GardenService. These two shops never run
--- out; a tool can't be bought while you carry one. Each shop is a hub stall (Hub.STALLS)
--- of the same name, and its title is what the shop window shows.
+-- Shops: what the Gear Shop sells for coins, at what price and from what level, and the Robux
+-- Shop's packs. Machines, conveyors and routers are never sold: they are crafted (Shared/Crafting).
+-- Seed prices belong to World.CROPS and seed stock to GardenService. The Gear Shop never runs out;
+-- a tool can't be bought while you carry one. Each shop is a hub stall (Hub.STALLS) of the same
+-- name, and its title is what the shop window shows.
+--
+-- Robux packs are developer products: MonetizationService grants a pack when Roblox reports its
+-- receipt. A pack whose `productId` is 0 has no product yet and only says so when bought; set each
+-- id to the developer product made for it on the Creator Dashboard.
 
 export type Offer = {
 	itemId: string,
 	price: number,
 	level: number,
 	category: string,
-	-- Taken from the buyer's inventory along with the coins.
-	parts: { [string]: number }?,
 }
 export type Shop = { title: string, offers: { Offer } }
+export type RobuxPack = {
+	id: string,
+	name: string,
+	-- What the pack shows for its price, in Robux; Roblox charges whatever the product is set to.
+	robux: number,
+	productId: number,
+	coins: number,
+}
 
 local CATEGORY_COLORS: { [string]: Color3 } = {
 	Tool = Color3.fromRGB(150, 205, 190),
 	Block = Color3.fromRGB(205, 186, 152),
-	Conveyor = Color3.fromRGB(170, 190, 215),
-	Router = Color3.fromRGB(190, 175, 220),
-	Machine = Color3.fromRGB(225, 196, 130),
-	Crafting = Color3.fromRGB(214, 160, 128),
+	Robux = Color3.fromRGB(120, 200, 120),
 }
 
-local function offer(
-	itemId: string,
-	price: number,
-	level: number,
-	category: string,
-	parts: { [string]: number }?
-): Offer
-	return { itemId = itemId, price = price, level = level, category = category, parts = parts }
+local function offer(itemId: string, price: number, level: number, category: string): Offer
+	return { itemId = itemId, price = price, level = level, category = category }
 end
 
 local SHOPS: { [string]: Shop } = {
@@ -51,47 +52,21 @@ local SHOPS: { [string]: Shop } = {
 			offer("Glass", 20, 1, "Block"),
 		},
 	},
-	MachineShop = {
-		title = "Machine Shop",
-		offers = {
-			offer("ConveyorBelt", 25, 1, "Conveyor"),
-			offer("ConveyorBeltLeft", 25, 1, "Conveyor"),
-			offer("ConveyorBeltRight", 25, 1, "Conveyor"),
-			offer("ConveyorRamp", 25, 1, "Conveyor"),
-			offer("ConveyorRampDown", 25, 1, "Conveyor"),
-			offer("ConveyorBeltTier2", 75, 4, "Conveyor"),
-			offer("ConveyorBeltLeftTier2", 75, 4, "Conveyor"),
-			offer("ConveyorBeltRightTier2", 75, 4, "Conveyor"),
-			offer("ConveyorRampTier2", 75, 4, "Conveyor"),
-			offer("ConveyorRampDownTier2", 75, 4, "Conveyor"),
-			offer("SplitConveyor", 150, 3, "Router"),
-			offer("Merger", 150, 3, "Router"),
-			offer("FilterConveyor", 150, 3, "Router"),
-			offer("Randomizer", 150, 3, "Router"),
-			offer("ConveyorSensor", 150, 3, "Router"),
-			offer("StorageChest", 200, 2, "Machine"),
-			offer("ShippingBin", 300, 2, "Machine"),
-			offer("SeedPlanter", 800, 4, "Machine"),
-			offer("Sprinkler", 1000, 5, "Machine"),
-			offer("Harvester", 2000, 6, "Machine"),
-			offer("Mill", 2500, 7, "Machine"),
-			offer("Juicer", 4000, 8, "Machine"),
-			offer("CratePacker", 6000, 9, "Machine"),
-			offer("Oven", 8000, 10, "Machine"),
-			offer("SeedPlanterTier2", 4000, 8, "Machine", { Gear = 6, SteelFrame = 3 }),
-			offer("SprinklerTier2", 5000, 9, "Machine", { Circuit = 6, CopperWire = 6 }),
-			offer("MillTier2", 6000, 10, "Machine", { Gear = 8, SteelFrame = 2 }),
-			offer("HarvesterTier2", 10000, 12, "Machine", { Circuit = 6, SteelFrame = 3 }),
-			offer("Workbench", 400, 3, "Crafting"),
-			offer("CraftingBench", 100, 1, "Crafting"),
-			offer("Smelter", 500, 3, "Crafting"),
-			offer("RockDrill", 3000, 7, "Crafting", { Gear = 4, CopperWire = 2 }),
-		},
-	},
+}
+
+-- The Robux Shop's stall and window tab.
+local ROBUX_SHOP = "RobuxShop"
+local ROBUX_PACKS: { RobuxPack } = {
+	{ id = "CoinsSmall", name = "Pouch of Coins", robux = 49, productId = 0, coins = 2500 },
+	{ id = "CoinsMedium", name = "Sack of Coins", robux = 99, productId = 0, coins = 6000 },
+	{ id = "CoinsLarge", name = "Chest of Coins", robux = 249, productId = 0, coins = 17500 },
+	{ id = "CoinsHuge", name = "Vault of Coins", robux = 499, productId = 0, coins = 40000 },
 }
 
 local Shops = {}
 Shops.SHOPS = SHOPS
+Shops.ROBUX_SHOP = ROBUX_SHOP
+Shops.ROBUX_PACKS = ROBUX_PACKS
 Shops.CATEGORY_COLORS = CATEGORY_COLORS
 
 function Shops.find(shopId: string, itemId: string): Offer?
@@ -101,6 +76,24 @@ function Shops.find(shopId: string, itemId: string): Offer?
 	end
 	for _, each in shop.offers do
 		if each.itemId == itemId then
+			return each
+		end
+	end
+	return nil
+end
+
+function Shops.pack(id: string): RobuxPack?
+	for _, each in ROBUX_PACKS do
+		if each.id == id then
+			return each
+		end
+	end
+	return nil
+end
+
+function Shops.packForProduct(productId: number): RobuxPack?
+	for _, each in ROBUX_PACKS do
+		if each.productId ~= 0 and each.productId == productId then
 			return each
 		end
 	end

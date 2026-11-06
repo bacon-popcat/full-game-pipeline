@@ -89,9 +89,11 @@ end
 
 -- A Crafting Bench isn't a factory block: its window (CraftingScreen) does the work. The
 -- player's own benches have a prompt instead, so this one is someone else's.
-local function benchInfo(): Info
+local function benchInfo(bench: Model): Info
+	local owner = Players:GetPlayerByUserId(tonumber(bench:GetAttribute("Owner")) or 0)
+	local tier = Crafting.sanitizeTier(if owner then owner:GetAttribute("BenchTier") else nil)
 	return {
-		title = itemName(Crafting.BENCH),
+		title = Crafting.TIERS[tier].name,
 		working = false,
 		rows = {},
 		hint = `{Inventory.getItem(Crafting.BENCH).description}\nOnly its owner can craft at it.`,
@@ -162,7 +164,7 @@ local function target(): Info?
 	if placed and typeof(itemId) == "string" and def then
 		return blockInfo(placed, itemId, def)
 	elseif placed and itemId == Crafting.BENCH then
-		return benchInfo()
+		return benchInfo(placed)
 	end
 	local node = Aim.modelUnder(result.Instance, "World")
 	local nodeType = if node then node:GetAttribute("NodeType") else nil

@@ -102,7 +102,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "CrateMaking",
 		name = "Crate Making",
-		description = "Unlocks the Shipping Bin recipe at the Crafting Bench.",
+		description = "Unlocks the Crate Packer recipe at a Machine Works bench.",
 		category = "Crafting",
 		level = 3,
 		coins = 250,
@@ -173,8 +173,8 @@ local PROJECTS: { Project } = {
 	},
 	{
 		id = "WoodenBelts",
-		name = "Wooden Belts",
-		description = "Unlocks the Conveyor recipe at the Crafting Bench.",
+		name = "Conveyor Ramps",
+		description = "Unlocks the Conveyor Ramp recipes at the Crafting Bench.",
 		category = "Crafting",
 		level = 6,
 		coins = 1200,
@@ -222,7 +222,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "HandTools",
 		name = "Hand-Cut Gears",
-		description = "Unlocks the Gear recipe at the Crafting Bench.",
+		description = "Unlocks cutting Gears by hand at the Crafting Bench.",
 		category = "Crafting",
 		level = 8,
 		coins = 2500,
@@ -234,7 +234,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "Machines1",
 		name = "Quick Machines I",
-		description = "Processors, Workbenches and Smelters on your plot work 10% faster.",
+		description = "Processors, Assemblers and Smelters on your plot work 10% faster.",
 		category = "Automation",
 		level = 9,
 		coins = 3000,
@@ -245,8 +245,8 @@ local PROJECTS: { Project } = {
 	},
 	{
 		id = "SprinklerPlans",
-		name = "Sprinkler Plans",
-		description = "Unlocks the Sprinkler recipe at the Crafting Bench.",
+		name = "Sprinkler Mk II Plans",
+		description = "Unlocks the Sprinkler Mk II recipe at a Fabricator bench.",
 		category = "Crafting",
 		level = 9,
 		coins = 4000,
@@ -305,8 +305,8 @@ local PROJECTS: { Project } = {
 	},
 	{
 		id = "PlanterPlans",
-		name = "Planter Plans",
-		description = "Unlocks the Seed Planter recipe at the Crafting Bench.",
+		name = "Planter Mk II Plans",
+		description = "Unlocks the Seed Planter Mk II recipe at a Fabricator bench.",
 		category = "Crafting",
 		level = 12,
 		coins = 8000,
@@ -377,8 +377,8 @@ local PROJECTS: { Project } = {
 	},
 	{
 		id = "HarvesterPlans",
-		name = "Harvester Plans",
-		description = "Unlocks the Harvester recipe at the Crafting Bench.",
+		name = "Harvester Mk II Plans",
+		description = "Unlocks the Harvester Mk II recipe at a Fabricator bench.",
 		category = "Crafting",
 		level = 17,
 		coins = 18000,
@@ -426,7 +426,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "Machines2",
 		name = "Quick Machines II",
-		description = "Processors, Workbenches and Smelters on your plot work 10% faster.",
+		description = "Processors, Assemblers and Smelters on your plot work 10% faster.",
 		category = "Automation",
 		level = 20,
 		coins = 25000,
@@ -558,7 +558,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "Machines3",
 		name = "Quick Machines III",
-		description = "Processors, Workbenches and Smelters on your plot work 10% faster.",
+		description = "Processors, Assemblers and Smelters on your plot work 10% faster.",
 		category = "Automation",
 		level = 34,
 		coins = 150000,

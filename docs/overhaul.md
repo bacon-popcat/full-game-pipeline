@@ -581,3 +581,21 @@ Built by Claude: Codex was still at its usage limit.
   Copper Wire and a Circuit; the "Need parts" row and refusal; and buying Sprinkler II, which
   took the coins and every part. A smelter whose outlet faces a machine it doesn't line up
   with keeps its bars waiting on its belt; nothing is lost.
+
+### Crafted-only progression decisions
+
+- **Machines are crafted, never bought.** The Machine Shop is gone; every machine, conveyor and
+  router is a Crafting Bench recipe made of what it is built from (factory.md § Crafting Bench
+  has the table). Coins still buy seeds, tools, plain blocks, research and garden sections.
+- **The bench has four tiers** (Crafting Bench, Workshop, Machine Works, Fabricator), upgraded
+  with materials from levels 3, 6 and 9, which take over the shop's level locks. The tier is the
+  player's, saved with the garden, not a property of one placed bench, so every bench they own
+  works at it and no new bench art is needed.
+- **Research plans move up a tier.** Sprinkler, Planter and Harvester Plans now unlock the Mk II
+  machines; Crate Making unlocks the Crate Packer; Wooden Belts became Conveyor Ramps. Tier 1
+  machines need only the bench tier, so automation starts as early as the shop allowed.
+- **Display names only.** Logical names (Assembler, Belt Switch, Sorter, Fruit Press, ... Mk II)
+  replace the old ones; item ids stay, so saves and `Assets.Blocks` templates are untouched.
+- **The Robux tab** replaces the Machines tab and the Machine Shop stall: coin packs as developer
+  products, granted from `ProcessReceipt` with receipt ids kept in the save. Product ids are
+  0 (not on sale) until they are made on the Creator Dashboard.

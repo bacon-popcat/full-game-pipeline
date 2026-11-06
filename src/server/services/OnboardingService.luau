@@ -5,6 +5,7 @@
 -- A seed purchase or stand sale has no saved evidence, so it must be observed live.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
@@ -67,6 +68,12 @@ function OnboardingService.init(): ()
 		if World.PLANTS[itemId] then
 			observe(player, "SeedBought")
 		elseif itemId == "ShippingBin" then
+			observe(player, "BinBought")
+		end
+	end)
+	GardenEvents.Crafted:Connect(function(player: Player, recipeId: string)
+		local recipe = Crafting.get(recipeId)
+		if recipe and recipe.output == "ShippingBin" then
 			observe(player, "BinBought")
 		end
 	end)

@@ -13,12 +13,18 @@ local PLAZA_COLOR = Color3.fromRGB(233, 223, 203)
 local LAMPS = { Vector3.new(-14, 0, -15), Vector3.new(14, 0, -15), Vector3.new(-14, 0, 15), Vector3.new(14, 0, 15) }
 local FLOWER_BOXES = { Vector3.new(-7, 0, -8), Vector3.new(7, 0, -8), Vector3.new(-7, 0, 8), Vector3.new(7, 0, 8) }
 
--- Each stall's canopy colour and prompt words.
-local LOOKS: { [string]: { canopy: Color3, action: string, title: string } } = {
+-- Each stall's canopy colour and prompt words, and the Assets.Props model it borrows when it has
+-- none of its own name (the Robux Shop stands in the old Machine Shop's stall).
+local LOOKS: { [string]: { canopy: Color3, action: string, title: string, prop: string? } } = {
 	SeedShop = { canopy = Color3.fromRGB(179, 207, 158), action = "Shop", title = "Seed Shop" },
 	SellStand = { canopy = Color3.fromRGB(242, 211, 164), action = "Sell", title = "Sell Stand" },
 	GearShop = { canopy = Color3.fromRGB(160, 205, 214), action = "Shop", title = "Gear Shop" },
-	MachineShop = { canopy = Color3.fromRGB(214, 190, 222), action = "Shop", title = "Machine Shop" },
+	RobuxShop = {
+		canopy = Color3.fromRGB(150, 214, 150),
+		action = "Shop",
+		title = "Robux Shop",
+		prop = "MachineShop",
+	},
 }
 
 local function part(parent: Instance, name: string, size: Vector3, position: Vector3, color: Color3): Part
@@ -55,7 +61,12 @@ function HubService.init()
 		local look = LOOKS[name]
 		-- the prop's counter faces -Z; stalls north of the spawn turn round to face it
 		local facing = if position.Z < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity
-		local prop = Props.place(name, CFrame.new(position) * facing, hub)
+		local propName = if Props.template(name) then name else look.prop or name
+		local prop = Props.place(propName, CFrame.new(position) * facing, hub)
+		if prop then
+			-- Stall windows know a stall by its model's name (HubWindow).
+			prop.Name = name
+		end
 		local propCounter = if prop then Props.part(prop, "Counter") else nil
 		if prop and propCounter then
 			local prompt = Instance.new("ProximityPrompt")

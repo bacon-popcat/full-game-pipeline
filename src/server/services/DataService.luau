@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 
 local Economy = require(ReplicatedStorage.Shared.Economy)
+local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
@@ -29,9 +30,11 @@ local Progress = require(ReplicatedStorage.Shared.Progress)
 local World = require(ReplicatedStorage.Shared.World)
 local ProfileStore = require(ServerStorage.ServerPackages.ProfileStore)
 local BuildService = require(script.Parent.BuildService)
+local CraftingService = require(script.Parent.CraftingService)
 local DropService = require(script.Parent.DropService)
 local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
+local MonetizationService = require(script.Parent.MonetizationService)
 local OnboardingService = require(script.Parent.OnboardingService)
 local PlotService = require(script.Parent.PlotService)
 local ResearchService = require(script.Parent.ResearchService)
@@ -66,6 +69,10 @@ type Data = {
 	onboarding: number,
 	research: Research.Saved,
 	progress: Progress.Saved,
+	-- The Crafting Bench tier (Shared/Crafting.TIERS) every bench in this garden works at.
+	benchTier: number,
+	-- PurchaseIds of Robux packs already granted (MonetizationService).
+	receipts: { string },
 	-- Unix seconds this save was last opened, so a join reopens the one played last (zero: never).
 	loadedAt: number,
 }
@@ -75,6 +82,7 @@ for _, stack in
 		{ itemId = "Hammer", count = 1 },
 		{ itemId = "Pickaxe", count = 1 },
 		{ itemId = "Hoe", count = 1 },
+		{ itemId = "CraftingBench", count = 1 },
 	}
 do
 	Inventory.add(starter, stack.itemId, stack.count)
@@ -91,6 +99,8 @@ local PROFILE_TEMPLATE: Data = {
 	onboarding = 1,
 	research = { done = {}, active = nil },
 	progress = Progress.empty(),
+	benchTier = 1,
+	receipts = {},
 	loadedAt = 0,
 }
 
@@ -426,6 +436,18 @@ local function sanitize(player: Player, data: any)
 	if owesHoe and Inventory.add(data.inventory, "Hoe", 1) > 0 then
 		warn(`DataService: no room for {player.UserId}'s Hoe; the Gear Shop sells one`)
 	end
+	-- Machines are crafted only, so a garden with no Crafting Bench, placed or carried, gets one
+	-- (saves from when the Machine Shop sold them may have none).
+	local hasBench = false
+	for _, stack in data.inventory do
+		hasBench = hasBench or (stack and stack.itemId == Crafting.BENCH)
+	end
+	for _, block in data.plot.blocks do
+		hasBench = hasBench or (typeof(block) == "table" and block.itemId == Crafting.BENCH)
+	end
+	if not hasBench and Inventory.add(data.inventory, Crafting.BENCH, 1) > 0 then
+		warn(`DataService: no room for {player.UserId}'s Crafting Bench`)
+	end
 	local blocks = {}
 	for _, block in data.plot.blocks do
 		local item = if typeof(block) == "table" then knownItems[block.itemId] else nil
@@ -473,6 +495,8 @@ local function snapshot(player: Player, session: Session)
 	local research = ResearchService.snapshot(player)
 	assert(research, "DataService: loaded session lost research state")
 	data.research = research
+	data.benchTier = CraftingService.snapshot(player) or data.benchTier
+	data.receipts = MonetizationService.snapshot(player) or data.receipts
 	local progress = ProgressService.snapshot(player)
 	assert(progress, "DataService: loaded session lost progress state")
 	data.progress = progress
@@ -498,6 +522,8 @@ local function clear(player: Player)
 	EconomyService.release(player)
 	GardenService.release(player)
 	ResearchService.release(player)
+	CraftingService.release(player)
+	MonetizationService.release(player)
 	PlotService.release(player)
 end
 
@@ -630,6 +656,8 @@ local function load(player: Player, slot: number)
 		local index = PlotService.assign(player, profile.Data.plot.sections)
 		assert(index, "All six gardens are occupied")
 		ResearchService.load(player, profile.Data.research)
+		CraftingService.load(player, profile.Data.benchTier)
+		MonetizationService.load(player, profile.Data.receipts)
 		-- Ground first, so blocks can stand in the holes dug in it and crops find their Farmland.
 		GroundService.restore(index, profile.Data.plot.ground)
 		for _, block in profile.Data.plot.blocks do

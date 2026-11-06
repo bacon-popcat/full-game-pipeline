@@ -1,9 +1,11 @@
--- Shop: the authored catalogue window behind the Seed Shop, Gear Shop and Machine Shop
--- stalls. A stall's prompt opens it, as does the Shop side button from anywhere, and its tabs
--- (Body.Tabs.<stall>) switch between the three. The open stall decides the catalogue: seeds
--- with this player's stock and restock countdown, or Shared/Economy/Shops' offers with their
--- level locks. No prices come from the UI; the server checks every purchase and answers with
--- Notify.
+-- Shop: the authored catalogue window behind the Seed Shop, Gear Shop and Robux Shop stalls. A
+-- stall's prompt opens it, as does the Shop side button from anywhere, and its tabs
+-- (Body.Tabs.<stall>) switch between the three. The open stall decides the catalogue: seeds with
+-- this player's stock and restock countdown, Shared/Economy/Shops' Gear Shop offers with their
+-- level locks, or its Robux packs (priced in Robux, bought through Roblox's own prompt). Machines
+-- are never sold here: they are crafted (CraftingScreen). No prices come from the UI; the server
+-- checks every purchase and answers with Notify, or for a pack with the purchase prompt.
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -29,8 +31,9 @@ export type Offer = {
 	order: number,
 	stock: number?,
 	level: number?,
-	-- Workbench parts spent with the coins (tier 2 machines).
-	parts: { [string]: number }?,
+	-- Robux packs: the pack's own name, and its price is in Robux rather than coins.
+	name: string?,
+	robux: boolean?,
 }
 type Row = {
 	offer: Offer,
@@ -61,36 +64,19 @@ local function countOf(itemId: string): number
 	return count
 end
 
--- "+ 4 Gear, 2 Steel Frame", and whether this player carries them all.
-local function partsOf(offer: Offer): (string, boolean)
-	local names, enough = {}, true
-	local parts: { [string]: number } = offer.parts or {}
-	for itemId, count in parts do
-		table.insert(names, `{count} {Inventory.getItem(itemId).name}`)
-		enough = enough and countOf(itemId) >= count
-	end
-	table.sort(names)
-	return if #names > 0 then "+ " .. table.concat(names, ", ") else "", enough
-end
-
 local function render()
 	local economy = EconomyClient.get()
 	for _, row in rows do
 		local offer = row.offer
 		local locked = offer.level ~= nil and economy.level < offer.level
 		local soldOut = offer.stock == 0
-		local owned = Inventory.getItem(offer.itemId).kind == "Tool" and countOf(offer.itemId) > 0
-		local parts, hasParts = partsOf(offer)
-		local enabled = not pending
-			and not locked
-			and not soldOut
-			and not owned
-			and hasParts
-			and economy.coins >= offer.price
+		local owned = not offer.robux and Inventory.getItem(offer.itemId).kind == "Tool" and countOf(offer.itemId) > 0
+		local affordable = offer.robux or economy.coins >= offer.price
+		local enabled = not pending and not locked and not soldOut and not owned and affordable
 		row.stock.Text = if offer.stock
 			then (if offer.stock > 0 then `x{offer.stock}` else "Sold out")
 			elseif locked then `Lv {offer.level}`
-			else parts
+			else ""
 		row.buy.Active = enabled
 		row.buy.Selectable = enabled
 		row.buy.BackgroundTransparency = if enabled
@@ -104,8 +90,7 @@ local function render()
 			elseif locked then "Locked"
 			elseif owned then "Owned"
 			elseif soldOut then "Sold out"
-			elseif economy.coins < offer.price then "Need coins"
-			elseif not hasParts then "Need parts"
+			elseif not affordable then "Need coins"
 			else "Buy"
 	end
 end
@@ -154,11 +139,22 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 			frame:Destroy()
 			continue
 		end
-		name.Text = Inventory.getItem(offer.itemId).name
+		name.Text = offer.name or Inventory.getItem(offer.itemId).name
 		rarity.Text = offer.label
 		rarity.TextColor3 = offer.color
-		price.Text = Hud.number(offer.price)
-		ItemIcon.show(icon, offer.itemId)
+		price.Text = if offer.robux then `R$ {Hud.number(offer.price)}` else Hud.number(offer.price)
+		if offer.robux then
+			-- No coin model in Assets yet: a coin glyph stands in the icon.
+			local glyph = Instance.new("TextLabel")
+			glyph.Name = "Glyph"
+			glyph.BackgroundTransparency = 1
+			glyph.Size = UDim2.fromScale(1, 1)
+			glyph.Text = "\u{1FA99}"
+			glyph.TextScaled = true
+			glyph.Parent = icon
+		else
+			ItemIcon.show(icon, offer.itemId)
+		end
 		frame.LayoutOrder = index
 		frame.Visible = true
 		frame.Parent = list
@@ -228,8 +224,7 @@ function Shop.init(hud: ScreenGui)
 		table.insert(seedOffers, offer)
 		seedById[crop.seed] = offer
 	end
-	local categories: { [string]: number } =
-		{ Tool = 1, Block = 2, Conveyor = 1, Router = 2, Machine = 3, Crafting = 4 }
+	local categories: { [string]: number } = { Tool = 1, Block = 2 }
 	local function catalogue(stall: string)
 		current = stall
 		for name, tab in tabs do
@@ -239,7 +234,8 @@ function Shop.init(hud: ScreenGui)
 			tab.TextColor3 = if selected then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
 		end
 		local shop = Shops.SHOPS[stall]
-		local offers: { Offer } = if shop then {} else seedOffers
+		local robux = stall == Shops.ROBUX_SHOP
+		local offers: { Offer } = if shop or robux then {} else seedOffers
 		for _, each in if shop then shop.offers else {} do
 			table.insert(offers, {
 				itemId = each.itemId,
@@ -248,18 +244,28 @@ function Shop.init(hud: ScreenGui)
 				color = Shops.CATEGORY_COLORS[each.category],
 				order = categories[each.category] * 100 + each.level,
 				level = each.level,
-				parts = each.parts,
 			})
 		end
-		restock.Visible = shop == nil
-		Shop.configure(if shop then shop.title else "Seed Shop", offers, function(id: string, count: number)
+		if robux then
+			for order, pack in Shops.ROBUX_PACKS do
+				table.insert(offers, {
+					itemId = pack.id,
+					name = pack.name,
+					price = pack.robux,
+					label = `+{Hud.number(pack.coins)} coins`,
+					color = Shops.CATEGORY_COLORS.Robux,
+					order = order,
+					robux = true,
+				})
+			end
+		end
+		restock.Visible = not shop and not robux
+		local heading = if shop then shop.title elseif robux then "Robux Shop" else "Seed Shop"
+		Shop.configure(heading, offers, function(id: string, count: number)
 			Remotes.ShopBuy:FireServer(stall, id, count)
 		end)
 	end
-	local stalls = { "SeedShop" }
-	for stall in Shops.SHOPS do
-		table.insert(stalls, stall)
-	end
+	local stalls = { "SeedShop", "GearShop", Shops.ROBUX_SHOP }
 	local window = HubWindow.bind(hud, "Shop", stalls, render, catalogue)
 	if not window then
 		return
@@ -298,7 +304,14 @@ function Shop.init(hud: ScreenGui)
 		pending = false
 		render()
 	end)
-	-- Every purchase is answered with a toast, which also ends the Gear and Machine Shops' wait.
+	-- Every purchase is answered with a toast, which also ends the Gear Shop's wait; a Robux pack's
+	-- wait ends when Roblox's purchase prompt closes.
+	trove:Connect(MarketplaceService.PromptProductPurchaseFinished, function()
+		if pending then
+			pending = false
+			render()
+		end
+	end)
 	trove:Connect(Remotes.Notify.OnClientEvent, function()
 		if pending then
 			pending = false

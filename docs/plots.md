@@ -134,9 +134,9 @@ into that level and its cost. Level is derived, not independently saved. GardenS
 awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClient.
 See [economy.md](economy.md).
 
-DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, Hoe, ten Carrot
-Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub
-and machines at the Machine Shop; playtests can still grant items through the server's
+DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, Hoe, Crafting Bench, ten
+Carrot Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub
+and machines crafted at the Crafting Bench; playtests can still grant items through the server's
 InventoryService.give API. Selected hotbar slot resets to one on load.
 
 ## Profile contents

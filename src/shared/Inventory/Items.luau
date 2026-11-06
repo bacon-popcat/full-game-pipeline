@@ -103,33 +103,33 @@ local ITEMS: { Item } = {
 	block("Glass", "Glass", "See-through and surprisingly sturdy.", "Pickaxe"),
 
 	machine("ConveyorBelt", "Conveyor Belt", "Carries items forward.", CONVEYOR_STACK),
-	machine("ConveyorBeltLeft", "Conveyor Belt Left", "Turns items to the left.", CONVEYOR_STACK),
-	machine("ConveyorBeltRight", "Conveyor Belt Right", "Turns items to the right.", CONVEYOR_STACK),
-	machine("ConveyorBeltTier2", "Conveyor Belt Tier 2", "Carries items forward at twice the speed.", CONVEYOR_STACK),
-	machine("ConveyorBeltLeftTier2", "Conveyor Belt Left Tier 2", "A fast left turn.", CONVEYOR_STACK),
-	machine("ConveyorBeltRightTier2", "Conveyor Belt Right Tier 2", "A fast right turn.", CONVEYOR_STACK),
-	machine("ConveyorRamp", "Conveyor Ramp", "Lifts items up one block.", CONVEYOR_STACK),
-	machine("ConveyorRampDown", "Conveyor Ramp Down", "Lowers items one block.", CONVEYOR_STACK),
-	machine("ConveyorRampTier2", "Conveyor Ramp Tier 2", "Lifts items up one block, fast.", CONVEYOR_STACK),
-	machine("ConveyorRampDownTier2", "Conveyor Ramp Down Tier 2", "Lowers items one block, fast.", CONVEYOR_STACK),
+	machine("ConveyorBeltLeft", "Conveyor Turn (Left)", "Turns items to the left.", CONVEYOR_STACK),
+	machine("ConveyorBeltRight", "Conveyor Turn (Right)", "Turns items to the right.", CONVEYOR_STACK),
+	machine("ConveyorBeltTier2", "Fast Conveyor Belt", "Carries items forward at twice the speed.", CONVEYOR_STACK),
+	machine("ConveyorBeltLeftTier2", "Fast Conveyor Turn (Left)", "A fast left turn.", CONVEYOR_STACK),
+	machine("ConveyorBeltRightTier2", "Fast Conveyor Turn (Right)", "A fast right turn.", CONVEYOR_STACK),
+	machine("ConveyorRamp", "Conveyor Ramp (Up)", "Lifts items up one block.", CONVEYOR_STACK),
+	machine("ConveyorRampDown", "Conveyor Ramp (Down)", "Lowers items one block.", CONVEYOR_STACK),
+	machine("ConveyorRampTier2", "Fast Conveyor Ramp (Up)", "Lifts items up one block, fast.", CONVEYOR_STACK),
+	machine("ConveyorRampDownTier2", "Fast Conveyor Ramp (Down)", "Lowers items one block, fast.", CONVEYOR_STACK),
 	machine(
 		"ConveyorSensor",
-		"Conveyor Sensor",
-		"Flashes when an item passes and powers split conveyors touching it for a moment.",
+		"Belt Sensor",
+		"Flashes when an item passes and powers the Belt Switches touching it for a moment.",
 		CONVEYOR_STACK
 	),
 	machine(
 		"FilterConveyor",
-		"Filter Conveyor",
+		"Sorter",
 		"Sends the items and mutations you pick left or right; everything else goes straight on. Open it to set it up."
 	),
 	machine(
 		"SplitConveyor",
-		"Split Conveyor",
-		"Sends items straight on, or to the side while powered by a sensor. Click empty-handed to switch it."
+		"Belt Switch",
+		"Sends items straight on, or to the side while powered by a Belt Sensor. Click empty-handed to switch it."
 	),
-	machine("Merger", "Merger", "Merges the conveyors at its back and front into the one at its side."),
-	machine("Randomizer", "Randomizer", "Sends each item straight on or to the side at random."),
+	machine("Merger", "Belt Merger", "Merges the conveyors at its back and front into the one at its side."),
+	machine("Randomizer", "Random Splitter", "Sends each item straight on or to the side at random."),
 
 	machine("Smelter", "Smelter", "Smelts iron and copper ore into bars. Runs on coal."),
 	machine(
@@ -137,11 +137,15 @@ local ITEMS: { Item } = {
 		"Rock Drill",
 		"Drills your plot's ground for stone, coal, iron and copper ore onto its output belt. Runs on coal."
 	),
-	machine("Workbench", "Workbench", "Makes gears, copper wire, circuits and steel frames from bars."),
+	machine(
+		"Workbench",
+		"Assembler",
+		"Assembles the iron and copper bars a belt brings it into gears, copper wire, circuits and steel frames."
+	),
 	machine(
 		"CraftingBench",
 		"Crafting Bench",
-		"Open it to craft Wood and bars into planks, frames and machines. Research teaches it more."
+		"Open it to craft planks, frames and every machine. Upgrade it with materials to build more complex ones."
 	),
 	machine(
 		"SeedPlanter",
@@ -154,32 +158,32 @@ local ITEMS: { Item } = {
 		"Harvester",
 		"Harvests ripe crops within 4 cells onto its output belt, and replants the ones that need it."
 	),
-	machine("Mill", "Mill", "Grinds 2 wheat into flour."),
-	machine("Juicer", "Juicer", "Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice."),
-	machine("Oven", "Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie."),
+	machine("Mill", "Grain Mill", "Grinds 2 wheat into flour."),
+	machine("Juicer", "Fruit Press", "Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice."),
+	machine("Oven", "Baking Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie."),
 	machine("CratePacker", "Crate Packer", "Packs 10 of any crop into its crate, worth more than the crops alone."),
 	machine(
 		"SeedPlanterTier2",
-		"Seed Planter II",
+		"Seed Planter Mk II",
 		"Plants a seed a second into empty soil, 5 wide and 7 deep, in front of it.",
 		nil,
 		"SeedPlanter"
 	),
 	machine(
 		"SprinklerTier2",
-		"Sprinkler II",
+		"Sprinkler Mk II",
 		"Crops within 5 cells grow half again as fast, and come out Wet more often.",
 		nil,
 		"Sprinkler"
 	),
 	machine(
 		"HarvesterTier2",
-		"Harvester II",
+		"Harvester Mk II",
 		"Harvests ripe crops within 6 cells, twice as fast, and replants the ones that need it.",
 		nil,
 		"Harvester"
 	),
-	machine("MillTier2", "Mill II", "Grinds wheat into flour twice as fast.", nil, "Mill"),
+	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", nil, "Mill"),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine(
 		"StorageChest",
@@ -190,8 +194,8 @@ local ITEMS: { Item } = {
 	resource("Coal", "Coal", "Fuel for the Smelter and the Rock Drill."),
 	resource("IronOre", "Iron Ore", "Smelt it into an iron bar."),
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
-	resource("IronBar", "Iron Bar", "Smelted iron for future crafting."),
-	resource("CopperBar", "Copper Bar", "Smelted copper for future crafting."),
+	resource("IronBar", "Iron Bar", "Smelted iron, for crafting frames, gears and machines."),
+	resource("CopperBar", "Copper Bar", "Smelted copper, for wire, sprinklers and machines."),
 	resource("Wood", "Wood", "Chopped from the forest's trees. Saw it into planks at a Crafting Bench.", "Log"),
 	resource("TimberFrame", "Timber Frame", "Planks braced with iron, for crafting machines.", "Pallet"),
 }

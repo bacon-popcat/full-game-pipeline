@@ -1,6 +1,8 @@
--- CraftingService: the Crafting Bench. A player within reach of one of their own placed benches
--- sends Remotes.Craft(recipeId, times); the rules are Shared/Crafting's, checked again here against
--- the live inventory and the player's research (server/libraries/Bonuses). The trade is first
+-- CraftingService: the Crafting Bench and its tier. A player within reach of one of their own placed
+-- benches sends Remotes.Craft(recipeId, times); the rules are Shared/Crafting's, checked again here
+-- against the live inventory, the player's research (server/libraries/Bonuses), level and bench
+-- tier. The tier is saved per garden (DataService loads and snapshots it) and replicates as the
+-- player's BenchTier attribute; an upgrade recipe spends its inputs and raises it. The trade is first
 -- tried on a copy of the inventory, inputs out and then the output in, so the room the inputs
 -- free counts and it happens whole or not at all; then it is applied without yielding.
 
@@ -14,6 +16,7 @@ local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
+local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 
 -- Seconds between one player's crafts.
@@ -22,6 +25,7 @@ local COOLDOWN = 0.25
 local CraftingService = {}
 
 local lastCraft: { [Player]: number } = {}
+local tiers: { [Player]: number } = {}
 
 local function rootOf(player: Player): BasePart?
 	local character = player.Character
@@ -85,7 +89,7 @@ local function fits(slots: Inventory.Slots, recipe: Crafting.Recipe, times: numb
 			return false
 		end
 	end
-	return Inventory.canAdd(probe, recipe.output, recipe.count * times)
+	return recipe.count == 0 or Inventory.canAdd(probe, recipe.output, recipe.count * times)
 end
 
 local function craft(player: Player, recipeId: unknown, times: unknown)
@@ -105,7 +109,9 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	local recipe = Crafting.get(recipeId)
 	local root = rootOf(player)
 	local slots = InventoryService.snapshot(player)
-	if not recipe or not root or not slots then
+	local tier = tiers[player]
+	local economy = EconomyService.get(player)
+	if not recipe or not root or not slots or not tier or not economy then
 		return
 	end
 	if not atBench(player, root.Position) then
@@ -116,7 +122,7 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	if recipe.research and Bonuses.has(player, recipe.research) then
 		done[recipe.research] = true
 	end
-	local blocked = Crafting.blocker(recipe, times, done, counter(slots))
+	local blocked = Crafting.blocker(recipe, times, done, counter(slots), tier, economy.level)
 	if blocked then
 		Remotes.Notify:FireClient(player, `{blocked}.`, "Error")
 		return
@@ -129,6 +135,13 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 		local taken = InventoryService.take(player, itemId, need * times)
 		assert(taken == need * times, "CraftingService: the inventory changed during a craft")
 	end
+	if recipe.upgrade then
+		tiers[player] = recipe.upgrade
+		player:SetAttribute("BenchTier", recipe.upgrade)
+		Remotes.Notify:FireClient(player, `Your bench is now a {Crafting.TIERS[recipe.upgrade].name}!`, "Reward")
+		GardenEvents.Crafted:Fire(player, recipe.id, times)
+		return
+	end
 	local made = recipe.count * times
 	InventoryService.give(player, recipe.output, made)
 	Remotes.Notify:FireClient(player, `Crafted {made} {Inventory.getItem(recipe.output).name}.`, "Success")
@@ -139,7 +152,23 @@ function CraftingService.init()
 	Remotes.Craft.OnServerEvent:Connect(craft)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		lastCraft[player] = nil
+		tiers[player] = nil
 	end)
+end
+
+function CraftingService.load(player: Player, tier: unknown)
+	local loaded = Crafting.sanitizeTier(tier)
+	tiers[player] = loaded
+	player:SetAttribute("BenchTier", loaded)
+end
+
+function CraftingService.snapshot(player: Player): number?
+	return tiers[player]
+end
+
+function CraftingService.release(player: Player)
+	tiers[player] = nil
+	player:SetAttribute("BenchTier", nil)
 end
 
 return CraftingService

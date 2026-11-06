@@ -40,8 +40,10 @@ return {
 	-- sent on load and whenever an item is had for the first time.
 	IndexSync = get("IndexSync"),
 	-- client -> server: (shopId: string, itemId: string, count: number). shopId is a hub stall
-	-- (SeedShop, GearShop, MachineShop), bought from anywhere; count is a positive integer, within your own
-	-- stock for seeds, and the server checks level, coins and room. Answered with Notify.
+	-- (SeedShop, GearShop, RobuxShop), bought from anywhere; count is a positive integer, within your
+	-- own stock for seeds, and the server checks level, coins and room. Answered with Notify. For the
+	-- RobuxShop, itemId is a Shops.ROBUX_PACKS id: the server shows Roblox's purchase prompt, or
+	-- answers with Notify when the pack has no product yet.
 	ShopBuy = get("ShopBuy"),
 	-- client -> server: (x: number, z: number), a section of your own garden to buy. The server
 	-- checks DataReady, that it is locked and touches owned land, your reach to its centre and
@@ -112,8 +114,10 @@ return {
 	SaveMenu = get("SaveMenu"),
 	-- client -> server: (recipeId: string, times: number) craft a Shared/Crafting recipe `times`
 	-- times (a whole number, 1 to Crafting.MAX_TIMES) at one of your own placed Crafting Benches
-	-- within reach. The server checks DataReady, the recipe's research, every input and room for
-	-- the output, then trades them in one step. Answered with Notify.
+	-- within reach. The server checks DataReady, the recipe's research and bench tier, every input
+	-- and room for the output, then trades them in one step. An upgrade recipe (Crafting.TIERS)
+	-- instead spends its inputs and raises the player's bench tier, which replicates as the
+	-- player's BenchTier attribute. Answered with Notify.
 	Craft = get("Craft"),
 	-- client -> server: (name: Settings.Name, value: string) change one saved player preference
 	-- (Shared/Settings), from anywhere, at any time. The server checks the value is allowed,

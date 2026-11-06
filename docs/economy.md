@@ -78,13 +78,14 @@ and one changed signal. First harvest also marks the crop id in saved `discovere
 ## Hub and screens
 
 HubService stands four soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
-SellStand, GearShop and MachineShop, each its `Assets.Props` model or a plain placeholder.
+SellStand, GearShop and RobuxShop, each its `Assets.Props` model or a plain placeholder (the
+Robux Shop borrows the old `MachineShop` prop until it has its own).
 Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
 its window, and so do the authored `SideButtons.Shop` and `SideButtons.Sell` from anywhere:
 buying and selling need no walk to the hub. The Shop window's authored `Body.Tabs.SeedShop`,
-`GearShop` and `MachineShop` buttons switch catalogues; the selected tab is opaque and the
+`GearShop` and `RobuxShop` ("Robux") buttons switch catalogues; the selected tab is opaque and the
 side button reopens the last one. Windows close on Close, gamepad B or losing DataReady, and
 treat the server reply as authoritative.
 
@@ -95,15 +96,21 @@ text feedback as well as a muted appearance. Reduced motion skips spatial pops/X
 
 One `HUD.Shop` window serves three stalls: whichever stall's prompt opened it decides the
 catalogue (`HubWindow.bind` takes a list of stalls and tells the screen which one). The Seed
-Shop shows stock and the restock countdown; the Gear Shop and Machine Shop
-(`Shared/Economy/Shops`: price, unlock level and category per item) never run out. A row's
-`Rarity` label shows the rarity or category, `Stock` shows stock or "Lv N" while locked, and
-the button reads Buy, Need coins, Locked, Owned (a tool you carry) or Sold out. A tier 2 machine
-also costs Workbench parts: its row lists them in `Stock` ("+ 6 Gear, 3 Steel Frame") and the
-button reads "Need parts" until you carry them all. The server rechecks level, ownership,
-room, every part, coins and reach before changing anything, then takes coins and parts and
-gives the machine in one step. Rows sort by rarity or category and level,
-then price. No price is
+Shop shows stock and the restock countdown; the Gear Shop (`Shared/Economy/Shops`: price, unlock
+level and category per item) never runs out. No shop sells machines, conveyors or routers: they
+are crafted at the Crafting Bench (factory.md § Crafting Bench). A row's `Rarity` label shows the
+rarity or category, `Stock` shows stock or "Lv N" while locked, and the button reads Buy, Need
+coins, Locked, Owned (a tool you carry) or Sold out. The server rechecks level, ownership, room,
+coins and reach before changing anything, then takes coins and gives the item in one step. Rows
+sort by rarity or category and level, then price.
+
+The Robux tab lists `Shops.ROBUX_PACKS`: coin packs priced in Robux (`R$ 49` for 2,500 coins up to
+`R$ 499` for 40,000), each showing its coins in `Rarity` and a coin glyph for its icon. Buy sends
+`ShopBuy("RobuxShop", packId)`; GardenService shows Roblox's purchase prompt for the pack's
+developer product, and `MonetizationService` grants the coins from `ProcessReceipt`, keeping the
+last 50 granted PurchaseIds in the save (`receipts`) so a resent receipt never pays twice. Every
+pack's `productId` is 0 until its developer product exists on the Creator Dashboard; until then
+Buy only says the pack isn't on sale yet. No price is
 sent back as authority. Sell previews the held-stack and whole-inventory totals.
 
 ## Authored HUD contract (place file only)
@@ -440,7 +447,7 @@ first five steps teach farming by hand: buy seeds, till, plant, harvest, sell.
 | 4 | Wait for a crop to ripen, then click it to harvest | Harvested, or restored discoveries | 20 |
 | 5 | Open Sell and sell your harvest for coins | Sold with positive coins and no position | 20 |
 | 6 | Reach level 2 | LevelUp >= 2, or current level already >= 2 | 30 |
-| 7 | Buy a Shipping Bin at the Machine Shop | Bought ShippingBin, or restored owned Bin | 20 |
+| 7 | Place your Crafting Bench and craft a Shipping Bin from 10 Wood Planks | Crafted ShippingBin (or bought one), or restored owned Bin | 20 |
 | 8 | Place your Shipping Bin on your plot | Placed ShippingBin, or restored placed Bin | 50 |
 
 Step 2 was inserted later; DataService moves a save's step past it once (layout 5).

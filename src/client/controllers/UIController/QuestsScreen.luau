@@ -1,4 +1,5 @@
--- QuestsScreen: the Quests window (HUD.Quests), opened from the Menu. One Assets.UI.Progress.Quest
+-- QuestsScreen: the Quests window (HUD.Quests), toggled by SideButtons.Quests, whose Badge.Count
+-- shows ProgressClient.claimable() even while the window is closed. One Assets.UI.Progress.Quest
 -- row per active quest slot (ProgressClient), in slot order: what to do, its reward, progress and
 -- a Claim button that wakes once the quest is done. A claim waits for the next ProgressSync
 -- (ProgressService replaces the quest and pays out), or PENDING_FOR seconds on a dropped answer.
@@ -129,8 +130,33 @@ function QuestsScreen.init(hud: ScreenGui)
 		trove:Destroy()
 		return
 	end
+	local opener = Hud.find(hud, "SideButtons.Quests", "TextButton")
+	local badge = Hud.find(hud, "SideButtons.Quests.Badge", "Frame")
+	local badgeCount = Hud.find(hud, "SideButtons.Quests.Badge.Count", "TextLabel")
+	local function paintBadge()
+		local count = ProgressClient.claimable()
+		if badge and badge:IsA("GuiObject") then
+			badge.Visible = count > 0
+		end
+		if badgeCount and badgeCount:IsA("TextLabel") then
+			badgeCount.Text = if count > 9 then "9+" else tostring(count)
+		end
+	end
+	if opener then
+		trove:Add(UI.bindButton(opener, {
+			hoverScale = 1.08,
+			onActivate = function()
+				if window.isOpen() then
+					window.close()
+				else
+					window.open()
+				end
+			end,
+		}))
+	end
 	trove:Connect(ProgressClient.changed, function()
 		pendingSince = nil
+		paintBadge()
 		if window.isOpen() then
 			render()
 		end
@@ -144,6 +170,7 @@ function QuestsScreen.init(hud: ScreenGui)
 	trove:Connect(hud.Destroying, function()
 		trove:Destroy()
 	end)
+	paintBadge()
 	render()
 end
 

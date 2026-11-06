@@ -3,17 +3,20 @@
 -- tap on its card) while in reach, and closed by the interact key again or on walking away. Laid out like a workshop catalogue:
 --
 --   * Body.Categories: one Assets.UI.Crafting.Category button per category that has recipes
---     (Craftable, All, then by the output's item kind).
+--     (Craftable, All, Upgrades, then by the output's item kind).
 --   * Body.Main: a Search box and a Grid of Assets.UI.Crafting.Card, one per Shared/Crafting
 --     recipe; a card shows its output, how many one craft makes, `Ready` when the inventory can
---     make it now and `Lock` while research hasn't unlocked it. Hovering one shows HUD.Crafting.Tooltip
---     (name, description, and each input as have / need).
+--     make it now and `Lock` while research or the bench's tier hasn't unlocked it. Hovering one
+--     shows HUD.Crafting.Tooltip (name, description, and each input as have / need). The next bench
+--     upgrade (Crafting.TIERS) is a card too, listed first; upgrades already made are hidden.
+--   * Header.Title, when the place has one, names the bench's tier ("Workshop").
 --   * Body.Details: the picked recipe's output turning in Preview, its Ingredients (one
 --     Assets.UI.Crafting.Ingredient each, have / need in green or red), a Status line saying what
 --     is missing, the Amount stepper (1 to Crafting.MAX_TIMES crafts) and Craft.
 --
--- Crafting.blocker says what's missing from this player's inventory and research; the server
--- checks it all again and answers with Notify.
+-- Crafting.blocker says what's missing from this player's inventory, research, level and bench
+-- tier (the BenchTier attribute CraftingService sets); the server checks it all again and answers
+-- with Notify.
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +30,7 @@ local Research = require(ReplicatedStorage.Shared.Research)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Controls = require(Libraries.Controls)
+local EconomyClient = require(Libraries.EconomyClient)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
 local InventoryClient = require(Libraries.InventoryClient)
@@ -90,8 +94,22 @@ local function inReach(bench: Model): boolean
 		and Build.inReach(from, origin, footprint)
 end
 
+local function benchTier(): number
+	return Crafting.sanitizeTier(player:GetAttribute("BenchTier"))
+end
+
 local function locked(recipe: Crafting.Recipe): boolean
-	return recipe.research ~= nil and not ResearchClient.done()[recipe.research]
+	return Crafting.locked(recipe, ResearchClient.done(), benchTier())
+end
+
+-- Why it can't be crafted `times` times now, or nil.
+local function blockerOf(recipe: Crafting.Recipe, times: number): string?
+	return Crafting.blocker(recipe, times, ResearchClient.done(), countOf, benchTier(), EconomyClient.get().level)
+end
+
+-- An upgrade the bench already has.
+local function spent(recipe: Crafting.Recipe): boolean
+	return recipe.upgrade ~= nil and benchTier() >= recipe.upgrade
 end
 
 -- How many times the inventory could craft it now, ignoring room for the output.
@@ -117,7 +135,7 @@ end
 
 local function kindShows(kind: string): (Crafting.Recipe) -> boolean
 	return function(recipe: Crafting.Recipe): boolean
-		return Inventory.getItem(recipe.output).kind == kind
+		return recipe.upgrade == nil and Inventory.getItem(recipe.output).kind == kind
 	end
 end
 
@@ -125,13 +143,19 @@ local CATEGORIES: { Category } = {
 	{
 		name = "Craftable",
 		shows = function(recipe: Crafting.Recipe): boolean
-			return not locked(recipe) and makeable(recipe) > 0
+			return blockerOf(recipe, 1) == nil
 		end,
 	},
 	{
 		name = "All",
 		shows = function(): boolean
 			return true
+		end,
+	},
+	{
+		name = "Upgrades",
+		shows = function(recipe: Crafting.Recipe): boolean
+			return recipe.upgrade ~= nil
 		end,
 	},
 	{ name = "Materials", shows = kindShows("Resource") },
@@ -150,7 +174,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		itemName = { "Body.Details.ItemName", "TextLabel" },
 		kind = { "Body.Details.Kind", "TextLabel" },
 		preview = { "Body.Details.Preview", "ViewportFrame" },
-		ingredients = { "Body.Details.Ingredients", "Frame" },
+		ingredients = { "Body.Details.Ingredients", "ScrollingFrame" },
 		status = { "Body.Details.Status", "TextLabel" },
 		minus = { "Body.Details.Amount.Minus", "GuiButton" },
 		plus = { "Body.Details.Amount.Plus", "GuiButton" },
@@ -223,7 +247,7 @@ function CraftingScreen.init(hud: ScreenGui)
 			return true
 		end
 		local item = Inventory.getItem(recipe.output)
-		return string.find(string.lower(item.name), query, 1, true) ~= nil
+		return string.find(string.lower(Crafting.nameOf(recipe)), query, 1, true) ~= nil
 			or string.find(string.lower(item.kind), query, 1, true) ~= nil
 	end
 
@@ -286,13 +310,14 @@ function CraftingScreen.init(hud: ScreenGui)
 			return
 		end
 		local item = Inventory.getItem(recipe.output)
-		nodes.itemName.Text = if recipe.count * times > 1 then `{item.name} x{recipe.count * times}` else item.name
-		nodes.kind.Text = item.kind
+		local name = Crafting.nameOf(recipe)
+		nodes.itemName.Text = if recipe.count * times > 1 then `{name} x{recipe.count * times}` else name
+		nodes.kind.Text = if recipe.upgrade then "Bench upgrade" else item.kind
 		turntable.show(recipe.output)
 		local ids = inputsOf(recipe)
 		rowsFor(ingredientRows, ingredientTemplate, nodes.ingredients, #ids)
 		paintAmounts(ingredientRows, recipe, times, true)
-		local blocked = Crafting.blocker(recipe, times, ResearchClient.done(), countOf)
+		local blocked = blockerOf(recipe, times)
 		local pending = pendingSince ~= nil
 		local enabled = blocked == nil and not pending
 		nodes.status.Text = if blocked then blocked else ""
@@ -300,7 +325,11 @@ function CraftingScreen.init(hud: ScreenGui)
 		nodes.craft.Active = enabled
 		nodes.craft.Selectable = enabled
 		nodes.craft.BackgroundColor3 = if enabled then craftLook.color else craftLook.disabled
-		nodes.craftLabel.Text = if pending then "..." elseif locked(recipe) then "LOCKED" else "CRAFT"
+		nodes.craftLabel.Text = if pending
+			then "..."
+			elseif locked(recipe) then "LOCKED"
+			elseif recipe.upgrade then "UPGRADE"
+			else "CRAFT"
 	end
 
 	local function paintTooltip()
@@ -310,11 +339,26 @@ function CraftingScreen.init(hud: ScreenGui)
 			return
 		end
 		local item = Inventory.getItem(recipe.output)
-		nodes.tipName.Text = if recipe.count > 1 then `{item.name} x{recipe.count}` else item.name
-		local project = if locked(recipe) and recipe.research then Research.get(recipe.research) else nil
-		nodes.tipText.Text = if project
-			then `{item.description or ""}\nResearch {project.name} to unlock.`
+		local name = Crafting.nameOf(recipe)
+		nodes.tipName.Text = if recipe.count > 1 then `{name} x{recipe.count}` else name
+		local target = if recipe.upgrade then Crafting.TIERS[recipe.upgrade] else nil
+		local description = if target
+			then `{target.description} Needs level {target.level}.`
 			else item.description or ""
+		local tier = benchTier()
+		local project = if recipe.research and not ResearchClient.done()[recipe.research]
+			then Research.get(recipe.research)
+			else nil
+		local needs = {}
+		if tier < recipe.tier then
+			table.insert(needs, `Upgrade your bench to {Crafting.TIERS[recipe.tier].name}`)
+		end
+		if project then
+			table.insert(needs, `research {project.name}`)
+		end
+		nodes.tipText.Text = if #needs > 0
+			then `{description}\n{table.concat(needs, " and ")} to unlock.`
+			else description
 		local ids = inputsOf(recipe)
 		rowsFor(tipRows, lineTemplate, nodes.tipLines, #ids)
 		paintAmounts(tipRows, recipe, 1, false)
@@ -325,14 +369,14 @@ function CraftingScreen.init(hud: ScreenGui)
 		local visible = 0
 		for _, card in cards do
 			local recipe = card.recipe
-			local shown = shows(recipe) and matches(recipe)
+			local shown = shows(recipe) and matches(recipe) and not spent(recipe)
 			card.button.Visible = shown
 			if shown then
 				visible += 1
 			end
 			local isLocked = locked(recipe)
 			card.lock.Visible = isLocked
-			card.ready.Visible = not isLocked and makeable(recipe) > 0
+			card.ready.Visible = not isLocked and blockerOf(recipe, 1) == nil
 			if card.stroke then
 				local selected = picked == recipe
 				card.stroke.Color = if selected then cardLook.selected else cardLook.stroke
@@ -381,7 +425,11 @@ function CraftingScreen.init(hud: ScreenGui)
 	local function sortCards()
 		for index, card in cards do
 			local recipe = card.recipe
-			local rank = if locked(recipe) then 2000 elseif makeable(recipe) > 0 then 0 else 1000
+			local rank = if recipe.upgrade and not locked(recipe)
+				then -1000
+				elseif locked(recipe) then 2000
+				elseif makeable(recipe) > 0 then 0
+				else 1000
 			card.button.LayoutOrder = rank + index
 		end
 	end
@@ -406,7 +454,7 @@ function CraftingScreen.init(hud: ScreenGui)
 			return
 		end
 		ItemIcon.show(icon, recipe.output)
-		name.Text = Inventory.getItem(recipe.output).name
+		name.Text = Crafting.nameOf(recipe)
 		count.Text = if recipe.count > 1 then `x{recipe.count}` else ""
 		button.LayoutOrder = index
 		button.Parent = nodes.grid
@@ -524,7 +572,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		sortCards()
 		if not picked then
 			for _, recipe in Crafting.RECIPES do
-				if not locked(recipe) then
+				if not locked(recipe) and not spent(recipe) then
 					picked = recipe
 					break
 				end
@@ -592,9 +640,27 @@ function CraftingScreen.init(hud: ScreenGui)
 	end
 	isOpen = window.isOpen
 
-	trove:Connect(ResearchClient.changed, function()
+	local title = Hud.find(hud, "Crafting.Header.Title", "TextLabel")
+	local function paintTitle()
+		if title and title:IsA("TextLabel") then
+			title.Text = Crafting.TIERS[benchTier()].name
+		end
+	end
+	paintTitle()
+	local function refresh()
+		paintTitle()
+		if picked and spent(picked) then
+			picked = nil
+		end
 		sortCards()
 		render()
+	end
+	trove:Connect(ResearchClient.changed, refresh)
+	trove:Connect(player:GetAttributeChangedSignal("BenchTier"), refresh)
+	trove:Connect(EconomyClient.changed, function()
+		if window.isOpen() then
+			render()
+		end
 	end)
 	trove:Connect(InventoryClient.changed, function()
 		pendingSince = nil

@@ -19,13 +19,18 @@ sounds like a plant pulled from soil. Research is now one five-fold tree of diam
 round a hub (each category a coloured fan), showing what is in reach plus undiscovered "?" tiles
 one step past it, rippling open from the middle and closed from the edge, with requirement cards
 in its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
-Since then: a side Menu opens Achievements, Quests, Stats and Settings (progress.md); notices are
+Since then: a side Menu opens Achievements, Stats and Settings, and Quests has its own side
+button and claimable badge (progress.md); notices are
 coloured by kind and stack above the hotbar; the backpack button sits after hotbar slot 9; and the
 Crafting window is an Islands-style catalogue (categories, search, cards, a details panel). The
-Rock Drill (Machine Shop, level 7) digs quarry materials on your own plot from coal (factory.md).
+Rock Drill digs quarry materials on your own plot from coal (factory.md). Machines are now
+crafted only, at a Crafting Bench with four tiers upgraded with materials (factory.md § Crafting
+Bench); blocks have logical display names (the Workbench is the Assembler); and the Machine
+Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md).
 
 ## Domain docs
 
+- [docs/animations.md](docs/animations.md) — client-only placed-block motion, art keys and quality culling.
 - [docs/progress.md](docs/progress.md) — lifetime stats, achievements, repeatable quests, rewards and per-garden saving.
 - [docs/overhaul.md](docs/overhaul.md) — the target design: plots, coins, crops and mutations, shops, the machine roster, crafting, saving, phases and the decisions taken in each. Where it disagrees with the docs below, it is the target and they describe what is built so far.
 - [docs/plots.md](docs/plots.md) — plot layout, sections and ownership, economy APIs, profile loading/saving and offline growth, plus the Studio playtest checklist.

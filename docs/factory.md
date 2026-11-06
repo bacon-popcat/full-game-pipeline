@@ -48,7 +48,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   coal); the Smelter smelts iron or copper ore. Farm machines and other processors run
   without fuel. Machine-speed research scales work and coal burn together, preserving fuel per
   bar.
-- **Rock Drill** (Machine Shop, level 7, 3,000 coins plus 4 Gear and 2 Copper Wire) is the
+- **Rock Drill** (crafted at a Machine Works bench from 2 Steel Frame, 4 Gear and 4 Copper Wire) is the
   automated source of quarry materials. Its one recipe has no inputs and `rolls` instead of
   outputs: every 6 s of work it adds one item picked by weight (Stone 30, Iron Ore 30, Copper
   Ore 20, Coal 20) to its output, which leaves by its +Z belt like any processor's. It takes
@@ -58,10 +58,16 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   interrupted roll mints nothing. The hover panel lists what it digs.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin and Storage Chest, plus
-  the Smelter, Workbench and Rock Drill for crafting, and tier 2 Seed Planter, Sprinkler, Mill and
-  Harvester (bigger patch, faster). All are bought in the Machine Shop (economy.md); tier 2
-  ones also cost Workbench parts. Tier 2 defs come from the same constructors as tier 1 in
-  Blocks, so a tier differs only in its numbers.
+  the Smelter, Assembler (id `Workbench`) and Rock Drill for crafting, and the Mk II Seed Planter,
+  Sprinkler, Grain Mill and Harvester (bigger patch, faster). Every one is crafted at the
+  Crafting Bench (§ Crafting Bench); a Mk II is built on the machine it replaces. Mk II defs come
+  from the same constructors as tier 1 in Blocks, so a tier differs only in its numbers.
+- **Names.** Players see logical names; ids stay as they were so saves and `Assets.Blocks`
+  templates keep matching: `Workbench` is the **Assembler**, `SplitConveyor` the **Belt Switch**,
+  `Merger` the **Belt Merger**, `Randomizer` the **Random Splitter**, `FilterConveyor` the
+  **Sorter**, `ConveyorSensor` the **Belt Sensor**, `Mill` the **Grain Mill**, `Juicer` the
+  **Fruit Press**, `Oven` the **Baking Oven**, turns and ramps are "Conveyor Turn (Left)" or
+  "Conveyor Ramp (Up)", the `Tier2` belts are "Fast ..." and the `Tier2` machines "... Mk II".
 - **Own art.** The conveyors (belts, turns, ramps, sensor), the Seed Planter, Sprinkler,
   Harvester, Shipping Bin and Storage Chest (one cell wide, two deep) and the processors (one
   wide, three deep) and the routers have templates of their own, and their tier 2s draw them
@@ -207,23 +213,43 @@ chips, leaves and the Chop and TreeFall sounds. Wood has no sell value, so Sell 
 
 ## Crafting Bench
 
-A block (Machine Shop, level 1, 100 coins) that crafts by hand, not from belts: the Workbench
-stays the belt-fed parts machine. `Shared/Crafting` owns its recipes, each an output and count
-from inputs, some unlocked by a research project (overhaul.md § Wood and crafting has the
-table). Its owner opens the Crafting window from its Craft prompt (BlockPrompts: the interact key or a
+A block that crafts by hand, not from belts: the Assembler stays the belt-fed parts machine.
+Every new garden's starter kit has one, and DataService gives one to any save that has none,
+placed or carried; more are crafted from 8 Wood Planks and 4 Stone. Crafting is the only way to
+get a machine, conveyor or router. `Shared/Crafting` owns the bench's tiers and recipes, each an
+output and count from inputs, needing a bench tier and sometimes a research project.
+
+**Tiers.** The player's bench tier is saved with the garden (`benchTier`), applies to every bench
+they own and replicates as the player's `BenchTier` attribute. Upgrading is a recipe of its own,
+`BenchTier<N>` in the window's Upgrades category (the next one is listed first): it needs the
+level its tier names, spends its inputs and raises the tier by one, with no item made.
+
+| Tier | Name | Upgrade (level, materials) | Adds |
+|---|---|---|---|
+| 1 | Crafting Bench | start | Wood Planks, Timber Frame, Crafting Bench, Smelter, Shipping Bin, Storage Chest (Carpentry), belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
+| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor |
+| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Rock Drill, fast belts, turns and ramps |
+| 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans) |
+
+Recipes follow what a machine is made of: wood and iron for belts and frames, stone for the
+Smelter and the Grain Mill's millstones, glass for the Fruit Press and the Belt Sensor, bricks
+for the Baking Oven, copper for the Sprinkler's pipes, gears, wire and circuits from the Assembler
+for anything that moves or thinks, and steel frames for the heavy machines. `Shared/Crafting`
+holds every number. Its owner opens the Crafting window from its Craft prompt (BlockPrompts: the interact key or a
 tap on the card, within reach; `UIController/CraftingScreen`), and it closes on the same key or
-on walking away. The window is laid out like a catalogue: `Body.Categories` (Craftable,
-All and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
+on walking away. Its `Header.Title` names the bench's tier. The window is laid out like a
+catalogue: `Body.Categories` (Craftable, All, Upgrades and one per output kind, from `Assets.UI.Crafting.Category`), `Body.Main` with a `Search`
 box and a `Grid` of `Assets.UI.Crafting.Card`s (the output, its count, a gold `Ready` tick when
-the inventory can make it now and a `Lock` while research hasn't unlocked it; craftable first,
-locked last), and `Body.Details` for the picked recipe: the output turning in `Preview`, one
+the inventory can make it now and a `Lock` while research or the bench tier hasn't unlocked it;
+the next upgrade first, then craftable, locked last; upgrades already made are hidden), and `Body.Details` for the picked recipe: the output turning in `Preview`, one
 `Assets.UI.Crafting.Ingredient` per input showing have / need in green or red, a `Status` line
 naming what's missing, the `Amount` stepper (1 to `Crafting.MAX_TIMES` crafts, Max for as many as
 the inventory allows) and `Craft`. Hovering a card shows `HUD.Crafting.Tooltip` (name,
 description, each input's have / need) beside the pointer. `CraftingScreen.luau`'s header lists
 every node. `Remotes.Craft(recipeId, times)`
 goes to `CraftingService`, which rechecks DataReady, a cooldown, that one of the player's own
-benches is in reach, the research (`Bonuses.has`) and every input, then tries the trade on a
+benches is in reach, the research (`Bonuses.has`), the bench tier, the level an upgrade needs and
+every input, then tries the trade on a
 copy of the inventory (inputs out, output in, so the room the inputs free counts) and applies
 it whole without yielding, with a toast and `GardenEvents.Crafted` (a puff of wood shavings
 and the Craft sound). The window and its templates are authored in the place file, by `tools/hud/progress_hud.luau`.

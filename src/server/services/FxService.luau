@@ -22,8 +22,14 @@ local function cellTop(cell: Vector3): Vector3
 	return Build.box(cell, Vector3.one).Position - Vector3.yAxis * (Build.GRID / 2 - 0.4)
 end
 
--- "Level 6! Now in the Machine Shop: Harvester." or just "Level 6!".
+-- "Level 3! You can now upgrade your bench to a Workshop.", "Level 4! New in the shops: ..." or
+-- just "Level 5!".
 local function levelMessage(level: number): string
+	for tier, each in Crafting.TIERS do
+		if tier > 1 and each.level == level then
+			return `Level {level}! You can now upgrade your bench to a {each.name}.`
+		end
+	end
 	local names = {}
 	for _, shop in Shops.SHOPS do
 		for _, offer in shop.offers do

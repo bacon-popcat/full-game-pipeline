@@ -44,7 +44,7 @@ function ProgressClient.stat(id: string): number
 	return value
 end
 
--- How many quests are done and waiting to be claimed, for the Menu's badge.
+-- How many quests are done and waiting to be claimed, for the Quests side button's badge.
 function ProgressClient.claimable(): number
 	local count = 0
 	for _, quest in state.quests do
