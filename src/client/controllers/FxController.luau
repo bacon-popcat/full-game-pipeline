@@ -1,7 +1,7 @@
 -- FxController: shows and sounds the moments FxService sends (Remotes.Fx). Each is short and soft:
 -- a puff of soil when planting; a harvest that pops (the HarvestPop effect from Shared/VFX: a
--- glint, a ring of the crop's colour across the soil, soil and bright bits kicked up, sparkles,
--- and for a mutated one a wider ring, motes and a light in its colour; with leaves springing out
+-- glint, a thin ring of the crop's colour across the soil, solid bits and soil clods kicked up,
+-- sparkles, and for a mutated one a wider ring, sparkles and a light in its colour; with leaves springing out
 -- and the produce bouncing up and floating into whoever picked it); coins sparkling round you when you sell (a Shipping
 -- Bin's sales only sparkle, with no sound, so a busy factory stays quiet); a chopped tree tipping
 -- over and settling away; wood shavings when you craft; a warm ring when you level up; and when
