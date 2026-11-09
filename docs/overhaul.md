@@ -138,8 +138,9 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Conveyor, turns, ramps | 1 | 25 | Carry items (tier 2 runs twice as fast) |
 | Split, Merger, Filter, Sensor | 3 | 150 | Route items; the filter sorts mutations |
 | Shipping Bin | 2 | 300 | Sells what a belt brings it for the owner |
-| Storage Chest | 2 | 200 | Holds 12 slots from a belt or put in by hand (the Industrial Chest) |
-| Auto Collector | - | crafted | A chest of 18 slots that pulls in loose items within 4 cells (factory.md) |
+| Chest | - | crafted | Holds 12 slots put in by hand |
+| Auto Collector | 2 | 200 | Holds 18 slots from a belt and pulls in loose items within 4 cells (id `StorageChest`, once the Industrial Chest) |
+| Auto Crafter | - | crafted | Repeats a picked Crafting Bench recipe from belt inputs (factory.md) |
 | Seed Planter | 4 | 800 | Plants seeds from its hopper into empty soil in a 3 x 5 patch in front |
 | Sprinkler | 5 | 1,000 | Crops within 3 cells grow 1.25x faster and can turn out Wet |
 | Harvester | 6 | 2,000 | Harvests ripe crops in a 5 x 3 patch behind it onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |
@@ -303,7 +304,7 @@ What each effect does, summed over a player's finished projects:
 | WoodPlanks | 4 Wood Planks | 1 Wood | |
 | TimberFrame | 1 Timber Frame | 4 Wood Planks, 1 Iron Bar | |
 | ShippingBin | 1 Shipping Bin | 10 Wood Planks | Crate Making |
-| StorageChest | 1 Storage Chest | 12 Wood Planks, 1 Iron Bar | Carpentry |
+| StorageChest | 1 Auto Collector | 1 Chest, 2 Conveyor, 2 Gear, 2 Copper Wire | Carpentry |
 | ConveyorBelt | 8 Conveyor | 4 Wood Planks, 1 Iron Bar | Wooden Belts |
 | Gear | 1 Gear | 2 Iron Bar | Hand-Cut Gears |
 | Sprinkler | 1 Sprinkler | 2 Timber Frame, 3 Copper Bar | Sprinkler Plans |

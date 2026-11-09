@@ -164,6 +164,13 @@ function BlockText.rows(model: Model, def: Factory.Def, withProgress: boolean): 
 		if def.stores and typeof(slots) == "number" then
 			add("Slots", `{slots} / {def.stores}`)
 		end
+		local recipeId = model:GetAttribute("Recipe")
+		if def.crafts then
+			add(
+				"Crafts",
+				if typeof(recipeId) == "string" and recipeId ~= "" then BlockText.itemName(recipeId) else "nothing yet"
+			)
+		end
 		if def.collects then
 			add("Reach", `pulls in loose items {def.collects} cells around`)
 		end

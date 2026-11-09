@@ -167,8 +167,10 @@ unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn
 can stand in its holes, then blocks, then crops, so their Farmland exists first. A dug or tilled
 cell off the garden's land, out of range, or tilled where it can't be (stone) is skipped. A saved stack, block, crop or machine's contents that no longer checks out (an item
 renamed or cut since it was saved, a missing template) is skipped with a warning, so a content
-change never locks a player out. Only bad balances, a broken save shape or a full server fail
-loading, and those keep the original profile.
+change never locks a player out. An Auto Crafter's recipe since cut is dropped on its own,
+keeping what the crafter holds. Only bad balances, a broken save shape or a full server fail
+loading, and those keep the original profile. A garden with no Crafting Bench anywhere --
+carried, placed, or held in a chest, machine or belt -- gets one in its inventory on load.
 
 The section layout keeps `GardenFoundation_v1`. A save without `plotLayout = 2` was laid out
 from the corner of the old square garden, which is now the start block's corner, so
@@ -231,7 +233,8 @@ the same server but do not survive Studio Stop.
    checklist in [economy.md](economy.md#studio-verification-still-required).
 7. With API access enabled in a test place, verify persistence across Stop/new server,
    shutdown during processing, and session locking from a second server. A deliberately
-   invalid saved item should fail loading without replacing the original layout.
+   invalid saved item should be skipped with a warning while the rest of the garden loads;
+   only bad balances or a broken save shape should fail loading, keeping the original profile.
 8. Buy sections in several directions: the last owned cell, the first locked cell, a rotated
    footprint across a notch, planting on placed soil, and planter/harvester/sprinkler areas
    across a section edge. A bought section must be usable at once by ghost and server, its

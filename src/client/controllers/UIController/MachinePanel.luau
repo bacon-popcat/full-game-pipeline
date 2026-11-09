@@ -4,10 +4,12 @@
 -- FactoryService publishes -- and turns its buttons and item cells into Interact requests:
 -- load an item from anywhere in the inventory, collect the output, take back what is
 -- loaded and unused, switch a split conveyor, pick a filter's items. A chest (`stores`: the
--- Storage Chest and Auto Collector) shows what it holds in the grid instead, one cell a slot,
+-- Chest and Auto Collector) shows what it holds in the grid instead, one cell a slot,
 -- and a press takes that item out; its Switch button flips the grid to the backpack, where a
 -- press puts that item in, as many as fit, and back. The server checks every request; the
--- panel never changes anything itself.
+-- panel never changes anything itself. An Auto Crafter's grid lists the bench recipes its owner
+-- has unlocked (a press picks one, ringed while picked); its Switch flips the grid to the
+-- backpack items that recipe takes, where a press loads them.
 --
 -- The window is authored in StarterGui.HUD.MachinePanel (place file only) from the same
 -- pieces as the backpack, and takes the backpack's place on screen, so only one of them
@@ -30,6 +32,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
+local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
@@ -43,6 +46,7 @@ local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
 local PopupMotion = require(Libraries.PopupMotion)
+local ResearchClient = require(Libraries.ResearchClient)
 local Screens = require(Libraries.Screens)
 
 type Cell = {
@@ -537,6 +541,22 @@ local function takingOut(): boolean
 	return isChest() and not putting
 end
 
+local function isCrafter(): boolean
+	local def = if blockItemId then Factory.get(blockItemId) else nil
+	return def ~= nil and def.crafts == true
+end
+
+-- An Auto Crafter's grid listing recipes, where a press picks one.
+local function picking(): boolean
+	return isCrafter() and not putting
+end
+
+-- The recipe an Auto Crafter is set to, from its Recipe attribute.
+local function pickedRecipe(): Crafting.Recipe?
+	local id = if model then model:GetAttribute("Recipe") else nil
+	return if typeof(id) == "string" and id ~= "" then Crafting.get(id) else nil
+end
+
 -- The grid's hint names the item under the pointer or focus, and says what a press does.
 local function showHint(cell: Cell?)
 	hovered = cell
@@ -549,12 +569,21 @@ local function showHint(cell: Cell?)
 			then "Click an item: left, again for right, again straight on. Its arrow picks mutations."
 			elseif takingOut() then "Click an item to take it out."
 			elseif isChest() then "Click an item to put in as many as fit."
+			elseif picking() then "Click a recipe for it to craft over and over."
 			else look.hint
 	elseif isFilter() then
 		local side = if model then BlockText.filter(model)[itemId] else nil
 		local now = if side then string.lower(side) else "straight on"
 		local after = if side == "Left" then "right" elseif side == "Right" then "straight on" else "left"
 		ui.hint.Text = `{BlockText.itemName(itemId)} goes {now}: click to send it {after}.`
+	elseif picking() then
+		local recipe = Crafting.get(itemId)
+		local parts = {}
+		for inputId, need in if recipe then recipe.inputs else {} do
+			table.insert(parts, `{need} {BlockText.itemName(inputId)}`)
+		end
+		table.sort(parts)
+		ui.hint.Text = `{BlockText.itemName(itemId)} from {table.concat(parts, ", ")}: click to craft it.`
 	elseif takingOut() then
 		ui.hint.Text = `{BlockText.itemName(itemId)} ({cell and cell.amount or 0}): click to take it all out.`
 	else
@@ -584,7 +613,14 @@ local function createCell(): Cell
 		onActivate = function()
 			local itemId = cell.itemId
 			if itemId then
-				send(if isFilter() then "Filter" elseif takingOut() then "TakeOut" else "Load", itemId)
+				send(
+					if isFilter()
+						then "Filter"
+						elseif takingOut() then "TakeOut"
+						elseif picking() then "Recipe"
+						else "Load",
+					itemId
+				)
 			end
 		end,
 	}))
@@ -631,6 +667,36 @@ local function renderGrid(def: Factory.Def, itemId: string)
 		local list = chestSlots(model)
 		for index, offer in list do
 			paintCell(cells[index] or createCell(), offer, false)
+		end
+		for index = #list + 1, #cells do
+			paintCell(cells[index], nil, false)
+		end
+		ui.empty.Visible = #list == 0
+		return
+	end
+	if def.crafts then
+		local picked = pickedRecipe()
+		local list: { Offer } = {}
+		if putting then
+			local inputs = if picked then picked.inputs else {}
+			list = offers(function(candidate)
+				local ok, item = pcall(Inventory.getItem, candidate)
+				return ok and inputs[item.base or candidate] ~= nil
+			end)
+		else
+			local tier = Crafting.sanitizeTier(player:GetAttribute("BenchTier"))
+			for _, recipe in Crafting.RECIPES do
+				if
+					not recipe.upgrade
+					and recipe.count > 0
+					and not Crafting.locked(recipe, ResearchClient.done(), tier)
+				then
+					table.insert(list, { itemId = recipe.id, count = recipe.count })
+				end
+			end
+		end
+		for index, offer in list do
+			paintCell(cells[index] or createCell(), offer, not putting and picked ~= nil and picked.id == offer.itemId)
 		end
 		for index = #list + 1, #cells do
 			paintCell(cells[index], nil, false)
@@ -687,7 +753,8 @@ local function render()
 	ui.status.Text = status or ""
 	ui.status.TextColor3 = if working then look.working else look.idle
 	local progress = target:GetAttribute("Progress")
-	ui.progress.Visible = isMachine and (def.recipes ~= nil or def.produce ~= nil)
+	-- An Auto Crafter's recipe is on its server def only, so `crafts` stands in for `recipes`.
+	ui.progress.Visible = isMachine and (def.recipes ~= nil or def.produce ~= nil or def.crafts == true)
 	ui.fill.Size = UDim2.fromScale(if typeof(progress) == "number" then math.clamp(progress, 0, 1) else 0, 1)
 	local shownRows = BlockText.rows(target, def, false)
 	setRows(shownRows)
@@ -697,23 +764,37 @@ local function render()
 	setButton(ui.Collect, isMachine, BlockText.hasOutput(target))
 	setButton(ui.TakeBack, isMachine, BlockText.hasContents(target))
 	ui.TakeBack.Text = if def.stores then "Take all" else look.takeBack
-	setButton(ui.Switch, def.route == "Split" or def.stores ~= nil, true)
+	-- An Auto Crafter loads nothing until a recipe is picked, so its grid stays on the recipes.
+	local mustPick = def.crafts == true and pickedRecipe() == nil
+	if mustPick then
+		putting = false
+	end
+	setButton(ui.Switch, def.route == "Split" or def.stores ~= nil or def.crafts == true, not mustPick)
 	ui.Switch.Text = if def.stores
 		then (if putting then "Take out" else "Put in")
+		elseif def.crafts then (if putting then "Pick recipe" else "Load items")
 		elseif powered then "Send straight on"
 		else "Send to the side"
 	setButton(ui.ClearFilter, def.route == "Filter", next(BlockText.filter(target)) ~= nil)
 	ui.actions.Visible = isMachine or def.route ~= nil
 
-	local showsGrid = def.route == "Filter" or def.stores ~= nil or (isMachine and takesAnythingByHand(itemId))
+	local showsGrid = def.route == "Filter"
+		or def.stores ~= nil
+		or def.crafts == true
+		or (isMachine and takesAnythingByHand(itemId))
 	ui.load.Visible = showsGrid
 	ui.heading.Text = if def.route == "Filter"
 		then "[ Filter ]"
 		elseif def.stores then (if putting then "[ Put in ]" else "[ Chest ]")
+		elseif def.crafts then (if putting then "[ Load ]" else "[ Recipe ]")
 		else look.heading
 	ui.empty.Text = if def.route == "Filter" or (def.stores and putting)
 		then "Your backpack is empty."
 		elseif def.stores then "Nothing collected yet."
+		elseif def.crafts and putting then (if pickedRecipe()
+			then "Nothing in your backpack this recipe takes."
+			else "Pick a recipe first.")
+		elseif def.crafts then "Upgrade your bench to unlock recipes."
 		else look.empty
 	if showsGrid then
 		renderGrid(def, itemId)
@@ -786,6 +867,8 @@ function MachinePanel.open(target: Model, itemId: string)
 		end
 	end)
 	openTrove:Connect(InventoryClient.changed, render)
+	openTrove:Connect(ResearchClient.changed, render)
+	openTrove:Connect(player:GetAttributeChangedSignal("BenchTier"), render)
 	openTrove:Connect(ui.backpack:GetPropertyChangedSignal("Visible"), function()
 		if ui.backpack.Visible then
 			MachinePanel.close()
@@ -855,8 +938,8 @@ function MachinePanel.init(hud: ScreenGui)
 			onActivate = function()
 				if not button.Active then
 					return
-				elseif name == "Switch" and isChest() then
-					-- A chest's Switch only flips its grid; nothing goes to the server.
+				elseif name == "Switch" and (isChest() or isCrafter()) then
+					-- A chest's or crafter's Switch only flips its grid; nothing goes to the server.
 					putting = not putting
 					render()
 				else

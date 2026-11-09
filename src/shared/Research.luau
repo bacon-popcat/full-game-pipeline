@@ -126,7 +126,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "Carpentry",
 		name = "Carpentry",
-		description = "Unlocks the Storage Chest recipe at the Crafting Bench.",
+		description = "Unlocks the Auto Collector recipe at the Crafting Bench.",
 		category = "Crafting",
 		level = 4,
 		coins = 400,

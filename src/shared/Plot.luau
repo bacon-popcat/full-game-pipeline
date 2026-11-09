@@ -48,6 +48,8 @@ export type Contents = {
 	-- Its picks' ticked mutations, as "Carrot:Golden" or "Flour:Plain".
 	filterMutations: { string }?,
 	powered: boolean,
+	-- An Auto Crafter's picked Crafting recipe id.
+	recipe: string?,
 }
 export type SavedBlock = { itemId: string, cell: Cell, rotation: number, against: Cell?, contents: Contents? }
 -- A garden's ground where it differs from untouched (Shared/World/Ground): plot-relative cells

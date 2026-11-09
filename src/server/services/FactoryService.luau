@@ -38,6 +38,7 @@ local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
+local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Lane = require(ReplicatedStorage.Shared.Factory.Lane)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
@@ -110,6 +111,8 @@ export type Block = {
 	env: Machine.Env?,
 	-- Shipping bins: coins paid out since it was placed.
 	earned: number,
+	-- Auto Crafters: the Crafting recipe it repeats, or nil until its owner picks one.
+	recipe: string?,
 }
 
 -- Seconds between machine status refreshes.
@@ -780,6 +783,47 @@ local function plantCellFor(block: Block, itemId: string): Vector3?
 	return nil
 end
 
+-- Seconds an Auto Crafter takes per craft, before the machine-speed research.
+local CRAFT_TIME = 4
+
+-- Whether `player` could craft `recipe` at their own bench: not an upgrade, and not locked by
+-- research or bench tier (Crafting.locked). Inputs are the crafter's to gather.
+local function canAutoCraft(player: Player?, recipe: Crafting.Recipe): boolean
+	if not player or recipe.upgrade or recipe.count <= 0 then
+		return false
+	end
+	local done = {}
+	if recipe.research and Bonuses.has(player, recipe.research) then
+		done[recipe.research] = true
+	end
+	return not Crafting.locked(recipe, done, Crafting.sanitizeTier(player:GetAttribute("BenchTier")))
+end
+
+-- One machine recipe per Crafting recipe, made once and shared by every Auto Crafter: Machine
+-- caches its mutation variants by recipe table, so a fresh table per pick would grow that
+-- cache for good.
+local craftRecipes: { [string]: { Factory.Recipe } } = {}
+
+local function craftRecipeFor(recipe: Crafting.Recipe): { Factory.Recipe }
+	local list = craftRecipes[recipe.id]
+	if not list then
+		list = { { inputs = recipe.inputs, outputs = { [recipe.output] = recipe.count }, time = CRAFT_TIME } }
+		craftRecipes[recipe.id] = list
+	end
+	return list
+end
+
+-- Sets the recipe an Auto Crafter repeats (nil clears it). A job already running finishes.
+local function setCraft(block: Block, recipeId: string?)
+	local machine = block.machine
+	local recipe = if recipeId then Crafting.get(recipeId) else nil
+	if not machine or not block.def.crafts then
+		return
+	end
+	block.recipe = if recipe then recipe.id else nil
+	machine.def.recipes = if recipe then craftRecipeFor(recipe) else {}
+end
+
 local function ownerOf(block: Block): Player?
 	local owner = block.model:GetAttribute("Owner")
 	return if typeof(owner) == "number" then Players:GetPlayerByUserId(owner) else nil
@@ -887,7 +931,17 @@ local function stepMachines(dt: number)
 		local owner = ownerOf(block)
 		env.machineSpeed = Bonuses.get(owner, "machineSpeed")
 		env.harvesterSpeed = Bonuses.get(owner, "harvesterSpeed")
-		Machine.step(machine, dt, env)
+		-- An Auto Crafter only runs a recipe its owner has unlocked right now; a saved pick that
+		-- isn't (research or bench tier not reached in this garden) waits until it is.
+		local picked = if block.def.crafts and block.recipe then Crafting.get(block.recipe) else nil
+		if block.def.crafts and not block.recipe then
+			Machine.step(machine, dt, env)
+			machine.status = "Pick a recipe"
+		elseif picked and not canAutoCraft(owner, picked) then
+			machine.status = "Recipe locked"
+		else
+			Machine.step(machine, dt, env)
+		end
 		local itemId = Machine.peekOutput(machine)
 		local belt = block.outputLane
 		if belt then
@@ -973,6 +1027,9 @@ local function refreshStatus(block: Block)
 		end
 		if block.def.stores then
 			setAttribute(model, "Slots", Machine.slotsUsed(machine))
+		end
+		if block.def.crafts then
+			setAttribute(model, "Recipe", block.recipe or "")
 		end
 	elseif block.def.route == "Split" then
 		setAttribute(model, "Powered", isPowered(block))
@@ -1067,7 +1124,15 @@ local function register(model: Instance)
 		pulseUntil = 0,
 		env = nil,
 		earned = 0,
+		recipe = nil,
 	}
+	local crafter = block.machine
+	if def.crafts and crafter then
+		-- Its own def, so the recipe it is set to is the only one it runs and takes inputs for.
+		local own = table.clone(def)
+		own.recipes = {}
+		crafter.def = own
+	end
 	model:SetAttribute("BlockId", block.id)
 	eachCell(origin, footprint, function(cell)
 		cellIndex[cellKey(cell)] = block
@@ -1187,6 +1252,7 @@ function FactoryService.snapshot(model: Model): Plot.Contents?
 		filterRight = right,
 		filterMutations = encodeMutations(block),
 		powered = block.powered,
+		recipe = block.recipe,
 	}
 	for _, lane in block.lanes do
 		local counts: Plot.Counts = {}
@@ -1212,6 +1278,12 @@ function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
 		return false
 	end
 	block.powered = saved.powered
+	-- A saved pick stays even while it is locked (stepMachines idles it); a recipe since cut, or
+	-- a bench upgrade, is dropped (DataService also drops them before this).
+	local recipe = if saved.recipe then Crafting.get(saved.recipe) else nil
+	if recipe and not recipe.upgrade then
+		setCraft(block, recipe.id)
+	end
 	for _, itemId in saved.filter do
 		block.filter[itemId] = "Left"
 	end
@@ -1246,6 +1318,31 @@ function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
 	end
 	refreshStatus(block)
 	return true
+end
+
+-- Everything `drain` would hand back, left where it is: BuildService checks it all fits before
+-- a pickup takes anything.
+function FactoryService.contents(model: Model): { [string]: number }
+	local block = blocks[model]
+	local counts: { [string]: number } = {}
+	if not block then
+		return counts
+	end
+	for _, lane in block.lanes do
+		for _, item in lane.items do
+			counts[item.itemId] = (counts[item.itemId] or 0) + Lane.count(item)
+		end
+	end
+	local machine = block.machine
+	if machine then
+		for itemId, count in Machine.inputCounts(machine) do
+			counts[itemId] = (counts[itemId] or 0) + count
+		end
+		for _, itemId in machine.outputs do
+			counts[itemId] = (counts[itemId] or 0) + 1
+		end
+	end
+	return counts
 end
 
 -- Everything a placed block holds -- items on its lanes, a machine's inputs and output --
@@ -1418,7 +1515,13 @@ end
 local function control(player: Player, block: Block, action: string, itemId: string?)
 	local machine = block.machine
 	local isSplit, isFilter = block.def.route == "Split", block.def.route == "Filter"
-	if action == "Load" and machine and itemId and Factory.takesByHand(block.itemId, itemId) then
+	local loads = machine ~= nil
+		and itemId ~= nil
+		and (
+			Factory.takesByHand(block.itemId, itemId)
+			or (block.def.crafts == true and Machine.room(machine, itemId) > 0)
+		)
+	if action == "Load" and machine and itemId and loads then
 		-- From anywhere in the inventory, not just the hand.
 		local taken = InventoryService.take(player, itemId, Machine.room(machine, itemId))
 		Machine.insert(machine, itemId, taken)
@@ -1432,6 +1535,15 @@ local function control(player: Player, block: Block, action: string, itemId: str
 		-- One item out of a chest: as many as the inventory holds.
 		local count = Machine.takeInput(machine, itemId, math.huge)
 		Machine.putBack(machine, itemId, InventoryService.give(player, itemId, count))
+	elseif action == "Recipe" and machine and itemId and block.def.crafts then
+		-- Picking a new recipe hands back what was loaded for the old one, as much as fits.
+		local recipe = Crafting.get(itemId)
+		if recipe and recipe.id ~= block.recipe and canAutoCraft(player, recipe) then
+			for inputId, count in Machine.takeInputs(machine) do
+				Machine.putBack(machine, inputId, InventoryService.give(player, inputId, count))
+			end
+			setCraft(block, recipe.id)
+		end
 	elseif action == "Switch" and isSplit then
 		block.powered = not block.powered
 	elseif action == "Filter" and itemId and isFilter then
@@ -1452,6 +1564,7 @@ local PANEL_ACTIONS = {
 	Filter = true,
 	ClearFilter = true,
 	Mutation = true,
+	Recipe = true,
 }
 
 local function onInteract(player: Player, target: unknown, action: unknown, itemId: unknown)

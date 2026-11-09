@@ -196,6 +196,8 @@ local RENAMED: { [string]: string } = {
 	IndustrialOven = "Oven",
 	CratePackerTier2 = "CratePacker",
 	IndustrialSmelter = "Smelter",
+	-- The first Auto Collector had its own id; the old Storage Chest took the name.
+	AutoCollector = "StorageChest",
 }
 
 local function renameCounts(counts: any)
@@ -387,6 +389,15 @@ local function migrate(data: any): boolean
 			for _, counts in if typeof(contents.lanes) == "table" then contents.lanes else {} do
 				renameCounts(counts)
 			end
+			-- A Sorter's picks and an Auto Crafter's recipe name items too.
+			for _, list in { contents.filter, contents.filterRight } do
+				for index, itemId in if typeof(list) == "table" then list else {} do
+					list[index] = RENAMED[itemId] or itemId
+				end
+			end
+			if typeof(contents.recipe) == "string" then
+				contents.recipe = RENAMED[contents.recipe] or contents.recipe
+			end
 		end
 	end
 	return owesHoe
@@ -436,18 +447,6 @@ local function sanitize(player: Player, data: any)
 	if owesHoe and Inventory.add(data.inventory, "Hoe", 1) > 0 then
 		warn(`DataService: no room for {player.UserId}'s Hoe; the Gear Shop sells one`)
 	end
-	-- Machines are crafted only, so a garden with no Crafting Bench, placed or carried, gets one
-	-- (saves from when the Machine Shop sold them may have none).
-	local hasBench = false
-	for _, stack in data.inventory do
-		hasBench = hasBench or (stack and stack.itemId == Crafting.BENCH)
-	end
-	for _, block in data.plot.blocks do
-		hasBench = hasBench or (typeof(block) == "table" and block.itemId == Crafting.BENCH)
-	end
-	if not hasBench and Inventory.add(data.inventory, Crafting.BENCH, 1) > 0 then
-		warn(`DataService: no room for {player.UserId}'s Crafting Bench`)
-	end
 	local blocks = {}
 	for _, block in data.plot.blocks do
 		local item = if typeof(block) == "table" then knownItems[block.itemId] else nil
@@ -459,7 +458,16 @@ local function sanitize(player: Player, data: any)
 			and integer(block.rotation)
 			and block.rotation <= 3
 		then
-			if block.contents and not contentsValid(block.contents) then
+			local contents = block.contents
+			-- An Auto Crafter's recipe since cut (or one it could never run, a bench upgrade) goes on
+			-- its own; what it holds stays.
+			local recipe = if typeof(contents) == "table" then contents.recipe else nil
+			local known = if typeof(recipe) == "string" then Crafting.get(recipe) else nil
+			if recipe ~= nil and (not known or known.upgrade ~= nil) then
+				warn(`DataService: dropped {player.UserId}'s {item.id}'s unknown recipe`)
+				contents.recipe = nil
+			end
+			if contents and not contentsValid(contents) then
 				warn(`DataService: dropped the contents of {player.UserId}'s {item.id}`)
 				block.contents = nil
 			end
@@ -469,6 +477,25 @@ local function sanitize(player: Player, data: any)
 		end
 	end
 	data.plot.blocks = blocks
+	-- Machines are crafted only, so a garden with no Crafting Bench anywhere -- carried, placed,
+	-- or held in a chest, machine or belt -- gets one (saves from when the Machine Shop sold them
+	-- may have none). Checked after the blocks above, so contents dropped as invalid don't count.
+	local hasBench = false
+	for _, stack in data.inventory do
+		hasBench = hasBench or (stack and stack.itemId == Crafting.BENCH)
+	end
+	for _, block in blocks do
+		hasBench = hasBench or block.itemId == Crafting.BENCH
+		local contents = block.contents
+		if contents then
+			for _, counts in { contents.inputs, contents.outputs, table.unpack(contents.lanes) } do
+				hasBench = hasBench or (counts[Crafting.BENCH] or 0) > 0
+			end
+		end
+	end
+	if not hasBench and Inventory.add(data.inventory, Crafting.BENCH, 1) > 0 then
+		warn(`DataService: no room for {player.UserId}'s Crafting Bench`)
+	end
 end
 
 local function snapshot(player: Player, session: Session)

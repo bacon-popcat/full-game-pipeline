@@ -91,6 +91,10 @@ export type Def = {
 	-- Collector (with `stores`): pulls the owner's loose drops lying within this many cells of
 	-- its footprint, on its own plot, into its slots (FactoryService `catch`).
 	collects: number?,
+	-- Auto Crafter: repeats one Crafting Bench recipe its owner picks in the panel, from what a
+	-- belt or a hand loads, onto its output belt (FactoryService `setCraft`). It has no
+	-- `recipes` of its own; each placed one gets a def built from the picked recipe.
+	crafts: boolean?,
 	-- Planter: the seeds it plants, tried in order, seconds per planting, and the centres of
 	-- the cells it plants into, nearest first. A crop goes in at the planter's own level only
 	-- (FactoryService).
@@ -250,15 +254,27 @@ local function sprinkler(radius: number, speed: number, wet: number): Def
 	return { kind = "Machine", sprinkles = { radius = radius, speed = speed, wet = wet } }
 end
 
--- The processing recipes Products lists for one machine.
--- The recipes Products lists for one machine, each taking `pace` times as long.
+-- The recipes Products lists for one machine, each taking `pace` times as long. A machine runs
+-- the first recipe it holds the inputs for (Machine), so recipes with more kinds of input go
+-- first: the Assembler's Steel Frame (Iron Bar and Stone) before its Gear (Iron Bar alone),
+-- which would otherwise always use the bars up. Ties keep Products' order.
 local function productRecipes(machine: string, pace: number?): { Recipe }
-	local recipes = {}
+	local recipes, kinds, order = {}, {}, {}
 	for _, product in Products do
 		if product.machine == machine then
-			table.insert(recipes, recipe(product.inputs, { [product.id] = 1 }, product.time * (pace or 1)))
+			local each = recipe(product.inputs, { [product.id] = 1 }, product.time * (pace or 1))
+			local count = 0
+			for _ in product.inputs do
+				count += 1
+			end
+			table.insert(recipes, each)
+			kinds[each] = count
+			order[each] = #recipes
 		end
 	end
+	table.sort(recipes, function(a, b)
+		return if kinds[a] ~= kinds[b] then kinds[a] > kinds[b] else order[a] < order[b]
+	end)
 	return recipes
 end
 
@@ -309,8 +325,11 @@ local BLOCKS: { [string]: Def } = {
 	Harvester = harvester(5, 3, 3),
 	HarvesterTier2 = harvester(7, 5, 1.5),
 	ShippingBin = { kind = "Machine", input = "-Z", sells = true },
-	StorageChest = { kind = "Machine", input = "-Z", stores = 12 },
-	AutoCollector = { kind = "Machine", input = "-Z", stores = 18, collects = 4 },
+	-- The Auto Collector (its id is the old Storage Chest's, so saves keep it): belt-fed storage
+	-- that also pulls in loose drops near it. The plain Chest is filled by hand only.
+	StorageChest = { kind = "Machine", input = "-Z", stores = 18, collects = 4 },
+	Chest = { kind = "Machine", stores = 12 },
+	AutoCrafter = { kind = "Machine", input = "-Z", output = "+Z", crafts = true },
 	SeedPlanter = planter(3, 5, 2),
 	SeedPlanterTier2 = planter(5, 7, 1),
 	Sprinkler = sprinkler(3, 1.25, 0.1),

@@ -194,7 +194,13 @@ local function onPickUp(player: Player, model: unknown)
 	then
 		return
 	end
+	-- The block and everything in it must fit together, so a pickup never loses what it held.
+	local everything = FactoryService.contents(model)
+	everything[itemId] = (everything[itemId] or 0) + 1
 	if not InventoryService.canGive(player, itemId, 1) then
+		return
+	elseif not InventoryService.canGiveAll(player, everything) then
+		Remotes.Notify:FireClient(player, "No room for everything inside it. Empty it first.", "Error")
 		return
 	end
 	local contents = FactoryService.drain(model)

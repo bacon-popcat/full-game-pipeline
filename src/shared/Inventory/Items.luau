@@ -185,17 +185,18 @@ local ITEMS: { Item } = {
 	),
 	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", nil, "Mill"),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
+	machine("Chest", "Chest", "Holds 12 slots of anything you put in. Open it to put items in or take them out."),
 	machine(
 		"StorageChest",
-		"Storage Chest",
-		"Keeps whatever a conveyor brings it or you put in, 12 slots of it. Open it to take items out."
+		"Auto Collector",
+		"Collects whatever a conveyor brings it and loose items lying within 4 cells of it: 18 slots."
 	),
 	machine(
-		"AutoCollector",
-		"Auto Collector",
-		"Pulls in loose items lying within 4 cells of it, and whatever a conveyor brings it: 18 slots.",
+		"AutoCrafter",
+		"Auto Crafter",
+		"Pick a Crafting Bench recipe and it crafts it over and over from what a belt brings it.",
 		nil,
-		"StorageChest"
+		"Workbench"
 	),
 
 	resource("Coal", "Coal", "Fuel for the Smelter and the Rock Drill."),

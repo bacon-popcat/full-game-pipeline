@@ -22,6 +22,8 @@ type State = {
 	selected: number,
 	held: Tool?,
 	heldItemId: string?,
+	-- Re-equips the hand on respawn; disconnected on release, so switching gardens leaves none behind.
+	spawning: RBXScriptConnection?,
 }
 
 local InventoryService = {}
@@ -211,6 +213,10 @@ local function onSelect(player: Player, index: unknown)
 end
 
 function InventoryService.load(player: Player, slots: Inventory.Slots)
+	local previous = states[player]
+	if previous and previous.spawning then
+		previous.spawning:Disconnect()
+	end
 	local state: State = { slots = slots, selected = 1, held = nil, heldItemId = nil }
 	states[player] = state
 
@@ -221,7 +227,7 @@ function InventoryService.load(player: Player, slots: Inventory.Slots)
 		end
 		refreshHeld(player, state)
 	end
-	player.CharacterAdded:Connect(onCharacter)
+	state.spawning = player.CharacterAdded:Connect(onCharacter)
 	if player.Character then
 		task.spawn(onCharacter, player.Character)
 	end
@@ -232,6 +238,9 @@ function InventoryService.release(player: Player)
 	local state = states[player]
 	if state and state.held then
 		state.held:Destroy()
+	end
+	if state and state.spawning then
+		state.spawning:Disconnect()
 	end
 	states[player] = nil
 end

@@ -26,9 +26,9 @@ Crafting window is an Islands-style catalogue (categories, search, cards, a deta
 Rock Drill digs quarry materials on your own plot from coal (factory.md). Machines are now
 crafted only, at a Crafting Bench with four tiers upgraded with materials (factory.md § Crafting
 Bench); blocks have logical display names (the Workbench is the Assembler); and the Machine
-Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md). Chests take items
-by hand too, and the Auto Collector (a chest at the Workshop tier) pulls in loose drops near it
-(factory.md).
+Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md). A hand-filled Chest,
+the Auto Collector (the old Storage Chest, belt-fed, pulling in loose drops near it) and the
+Auto Crafter (repeats a picked bench recipe) are in factory.md.
 
 ## Domain docs
 

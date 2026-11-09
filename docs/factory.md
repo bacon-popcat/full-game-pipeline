@@ -57,8 +57,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Ore, 2 Copper Ore and 3 Stone a minute. A rolled recipe never runs in a mutation, and an
   interrupted roll mints nothing. The hover panel lists what it digs.
 - **The roster** is the Automation phase's (docs/overhaul.md § Machines): Seed Planter,
-  Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin, Storage Chest and Auto
-  Collector, plus
+  Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin, Chest, Auto Collector and
+  Auto Crafter, plus
   the Smelter, Assembler (id `Workbench`) and Rock Drill for crafting, and the Mk II Seed Planter,
   Sprinkler, Grain Mill and Harvester (bigger patch, faster). Every one is crafted at the
   Crafting Bench (§ Crafting Bench); a Mk II is built on the machine it replaces. Mk II defs come
@@ -70,26 +70,37 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   **Fruit Press**, `Oven` the **Baking Oven**, turns and ramps are "Conveyor Turn (Left)" or
   "Conveyor Ramp (Up)", the `Tier2` belts are "Fast ..." and the `Tier2` machines "... Mk II".
 - **Own art.** The conveyors (belts, turns, ramps, sensor), the Seed Planter, Sprinkler,
-  Harvester, Shipping Bin and Storage Chest (one cell wide, two deep) and the processors (one
+  Harvester, Shipping Bin and Auto Collector (one cell wide, two deep) and the processors (one
   wide, three deep) and the routers have templates of their own, and their tier 2s draw them
   too. No placeable block uses Islands art any more.
 - **Borrowed art.** An item with no template of its own can name one in its `art`
-  (Shared/Inventory/Items); the Auto Collector names `StorageChest` as a fallback, though it has
-  a template of its own, and products and parts still borrow Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
+  (Shared/Inventory/Items); the Auto Crafter names `Workbench` as a fallback, though it has a
+  template of its own, and products and parts still borrow Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
   placement, the ghost, icons and the factory all agree. Placed models are named for the
   item, not the template.
-- **Storage Chest** (stores) accepts belt items into twelve stack slots. Its owner can also put
-  any item in by hand (`Factory.takesByHand` is true for every item; the panel's "Load" with
-  `Machine.room`). Its panel takes individual item types or all contents out, and its third
-  button flips the grid between what it holds ("Take out") and the backpack ("Put in"); that
-  flip is client-only.
-- **Auto Collector** (stores 18, `collects` 4) is a chest that also pulls in its owner's loose
-  drops. A drop that has lain 0.6 s within 4 cells across (and 2 up or down) of its footprint,
-  on the same plot, goes into the nearest collector with room, as much as fits, flying into it
-  like a pickup (FactoryService `collectInto`, run from `catch` before belts beside a drop
-  reach for it). Unlike belts it takes drops a belt threw off its end, since it keeps them.
-  It also takes belt items on its -Z face and works through the same panel as the chest.
-  Its template (place file) is the chest's with a copper intake hopper and a green lamp on top.
+- **Chest** (`Chest`, stores 12) has no belt: its owner puts any item in by hand
+  (`Factory.takesByHand` is true for every item in a chest; the panel's "Load" with
+  `Machine.room`) and takes items out. Its panel's third button flips the grid between what it
+  holds ("Take out") and the backpack ("Put in"); that flip is client-only. Its template (place
+  file) is the Auto Collector's chest body scaled into one cell.
+- **Auto Collector** (id `StorageChest`, kept from the old Storage Chest so saves keep it;
+  stores 18, `collects` 4) takes belt items on its -Z face, works through the same panel as the
+  Chest, and pulls in its owner's loose drops. A drop that has lain 0.6 s within 4 cells across
+  (and 2 up or down) of its footprint, on the same plot, goes into the nearest collector with
+  room, as much as fits, flying into it like a pickup (FactoryService `collectInto`, run from
+  `catch` before belts beside a drop reach for it). Unlike belts it takes drops a belt threw
+  off its end, since it keeps them. Its template is the old chest's with a copper intake hopper
+  and a green lamp. A save holding the short-lived `AutoCollector` id loads as `StorageChest`.
+- **Auto Crafter** (`crafts`, input -Z, output +Z) repeats one Crafting Bench recipe its owner
+  picks in its panel: the grid lists every recipe the owner could craft at their bench now
+  (not upgrades; research and bench tier as `Crafting.locked`), a press picks one (ringed), and
+  its Switch flips to the backpack items that recipe takes, to load by hand. Each placed one
+  gets its own def whose only recipe is the pick, taking 4 s a craft (machine-speed research
+  applies), so belts, capacity and mutations work as for any processor. Picking another recipe
+  hands back what was loaded. The pick replicates as `Recipe`, saves as `contents.recipe` and
+  stays when it is locked, but a locked pick (research or bench tier not reached in that garden)
+  never runs: the crafter idles as "Recipe locked" until it is unlocked. Status reads "Pick a recipe" until one is set. Its template is
+  the Assembler's with a copper cog and lamp on top.
 - **Shipping Bin** (sells) takes any item with a value from a belt and sells one a second,
   paying its owner the item's value and Sell Stand XP (1 per 10 coins, remainders carried per
   player). Its owner sees one "Shipping Bin +N coins" toast every 2 s at most. It publishes
@@ -125,6 +136,9 @@ value and borrowed art. Items makes the product items from it and Blocks the rec
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
 Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
+A machine runs the first recipe it holds the inputs for, and Blocks lists recipes with more
+kinds of input first, so loading Stone with Iron Bars makes Steel Frames and Iron Bars alone
+make Gears.
 Machine-speed research divides batch times for processors, Workbench and Smelter.
 Mutated inputs are never grouped with plain ones or each other. Each variant has its own
 input room; a batch takes every input in one set of mutations (plain first, then rising
@@ -197,7 +211,8 @@ on the server, including item ids from the panel.
 | Target | Controls |
 |---|---|
 | Machine | Load from inventory, Collect output, Take back unused inputs |
-| Storage Chest, Auto Collector | Take one item type, Take all, Put in (flip the grid to the backpack and click an item) |
+| Chest, Auto Collector | Take one item type, Take all, Put in (flip the grid to the backpack and click an item) |
+| Auto Crafter | Pick a recipe, Load items (flip the grid), Collect, Take back |
 | Split | Switch side / straight |
 | Filter | Click an inventory item to send it left, again for right, again straight on (its slot shows L or R); the status half shows each side's items as slots under its row, and clicking one moves it on; an item with mutations has an arrow under it that opens its coloured mutation checklist; Clear filter (also unticks every mutation) |
 
@@ -206,8 +221,9 @@ owner's ground; Hoe tills the owner's grass and dirt into Farmland. An empty
 hand takes belt items or switches routers. Ripe crops are harvested at their prompt, and only
 the Hammer digs a crop up (farming.md). Machines are worked through
 their panel. Picking up a machine refunds active recipe ingredients with its contents; partial
-processing progress is discarded. Inventory overflow on block pickup retains the existing
-behavior: it is lost, so empty a full machine before picking it up.
+processing progress is discarded. A pickup happens only when the block and everything in it
+fit in the inventory together (`FactoryService.contents`); otherwise nothing moves and the
+player is told to empty it first.
 Mining/chopping research boosts the acting player's named node drop before the inventory-room check.
 
 ## The forest
@@ -240,9 +256,9 @@ top tier the button reads MAX TIER.
 
 | Tier | Name | Upgrade (level, materials) | Adds |
 |---|---|---|---|
-| 1 | Crafting Bench | start | Wood Planks, Timber Frame, Crafting Bench, Smelter, Shipping Bin, Storage Chest (Carpentry), belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
-| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Auto Collector (1 Storage Chest, 2 Gear, 2 Copper Wire) |
-| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Rock Drill, fast belts, turns and ramps |
+| 1 | Crafting Bench | start | Wood Planks, Timber Frame, Crafting Bench, Smelter, Shipping Bin, Chest, belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
+| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Auto Collector (Carpentry: 1 Chest, 2 Conveyor, 2 Gear, 2 Copper Wire) |
+| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Rock Drill, Auto Crafter (1 Assembler, 1 Crafting Bench, 2 Circuit, 4 Gear), fast belts, turns and ramps |
 | 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans) |
 
 Recipes follow what a machine is made of: wood and iron for belts and frames, stone for the
