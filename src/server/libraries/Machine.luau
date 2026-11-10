@@ -72,6 +72,8 @@ export type Env = {
 	sell: ((itemId: string) -> ())?,
 	-- Recipe machines: a batch just finished and made this item (called once per kind of output).
 	made: ((itemId: string) -> ())?,
+	-- Recipe machines: whether the owner has finished the research a recipe names.
+	unlocked: ((research: string) -> boolean)?,
 }
 
 local Machine = {}
@@ -348,8 +350,14 @@ end
 local function stepRecipes(state: State, dt: number, env: Env)
 	local job = state.job
 	local blocked = false
+	local locked = false
 	if not job then
 		for _, recipe in state.def.recipes or NO_RECIPES do
+			-- A recipe behind research its owner has not finished waits, inputs and all.
+			if recipe.research and not (env.unlocked and env.unlocked(recipe.research)) then
+				locked = locked or hasInputs(state, recipe)
+				continue
+			end
 			for _, mutation in VARIANTS do
 				local batch = inVariant(recipe, mutation)
 				local ready = batch ~= nil and hasInputs(state, batch)
@@ -371,7 +379,10 @@ local function stepRecipes(state: State, dt: number, env: Env)
 	end
 	if not job then
 		-- "Output full" whenever a batch is ready but its products have nowhere to go yet.
-		state.status = if blocked or #state.outputs >= OUTPUT_CAP then "Output full" else "Idle"
+		state.status = if blocked or #state.outputs >= OUTPUT_CAP
+			then "Output full"
+			elseif locked then "Needs research"
+			else "Idle"
 		return
 	end
 	if not burn(state, dt) then

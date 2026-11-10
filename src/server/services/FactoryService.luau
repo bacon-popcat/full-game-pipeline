@@ -917,6 +917,10 @@ local function envFor(block: Block): Machine.Env
 			paySale(block, itemId)
 		end
 	end
+	env.unlocked = function(research)
+		local player = ownerOf(block)
+		return player ~= nil and Bonuses.has(player, research)
+	end
 	env.made = function(itemId)
 		local player = ownerOf(block)
 		if player then

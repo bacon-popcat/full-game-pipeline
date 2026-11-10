@@ -68,7 +68,9 @@ local function seed(id: string, name: string, description: string): Item
 	return { id = id, name = name, kind = "Block", stack = STACK, description = description }
 end
 
-local function machine(id: string, name: string, description: string, art: string?): Item
+-- `art` names the Assets.Blocks template a machine borrows until it has its own; `color` then
+-- washes it, so two machines on one template can be told apart (ItemArt.wash).
+local function machine(id: string, name: string, description: string, art: string?, color: Color3?): Item
 	return {
 		id = id,
 		name = name,
@@ -76,6 +78,7 @@ local function machine(id: string, name: string, description: string, art: strin
 		stack = STACK,
 		description = description,
 		art = art,
+		color = color,
 	}
 end
 
@@ -153,7 +156,11 @@ local ITEMS: { Item } = {
 	),
 	machine("Mill", "Grain Mill", "Grinds 2 wheat into flour."),
 	machine("Juicer", "Fruit Press", "Presses 3 strawberries, blueberries, grapes, apples or tomatoes into juice."),
-	machine("Oven", "Baking Oven", "Bakes flour and 2 strawberries, blueberries or apples into a pie."),
+	machine(
+		"Oven",
+		"Baking Oven",
+		"Bakes flour and 2 strawberries, blueberries or apples into a pie; more with the Recipe Books."
+	),
 	machine("CratePacker", "Crate Packer", "Packs 10 of any crop into its crate, worth more than the crops alone."),
 	machine(
 		"SeedPlanterTier2",
@@ -174,6 +181,29 @@ local ITEMS: { Item } = {
 		"Harvester"
 	),
 	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", "Mill"),
+	machine("JuicerTier2", "Fruit Press Mk II", "Presses fruit into juice twice as fast.", "Juicer"),
+	machine("OvenTier2", "Baking Oven Mk II", "Bakes everything the Baking Oven does, twice as fast.", "Oven"),
+	machine(
+		"Roaster",
+		"Roaster",
+		"Roasts 2 potatoes into crisps, 2 corn into popcorn, or a pumpkin.",
+		"Oven",
+		Color3.fromRGB(196, 132, 84)
+	),
+	machine(
+		"Kettle",
+		"Preserving Kettle",
+		"Simmers 4 tomatoes into sauce, or a juice and 2 of its fruit into jam.",
+		"Juicer",
+		Color3.fromRGB(214, 150, 96)
+	),
+	machine(
+		"Chiller",
+		"Chiller",
+		"Freezes a watermelon and strawberry juice, or 2 starfruit and blueberry juice, into sorbet.",
+		"CratePacker",
+		Color3.fromRGB(150, 206, 232)
+	),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine("Chest", "Chest", "Holds 12 slots of anything you put in. Open it to put items in or take them out."),
 	machine(

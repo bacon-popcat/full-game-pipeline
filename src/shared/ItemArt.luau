@@ -126,12 +126,30 @@ function ItemArt.tint(model: Model, color: Color3)
 	end
 end
 
+-- Washes a copy of a borrowed template toward the item's `color`, part by part, so a machine
+-- standing in on another's art keeps its shading but reads as its own. Nothing happens to an
+-- item with a template or no colour of its own.
+local WASH = 0.45
+function ItemArt.wash(model: Model, itemId: string)
+	local item = Inventory.find(itemId)
+	local own = asset("Blocks", itemId)
+	if not item or not item.art or not item.color or (own and own:IsA("Model")) then
+		return
+	end
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part.Name ~= "Hitbox" then
+			part.Color = part.Color:Lerp(item.color, WASH)
+		end
+	end
+end
+
 function ItemArt.copyBlock(itemId: string): Model?
 	local template = ItemArt.blockTemplate(itemId)
 	if not template then
 		return nil
 	end
 	local copy = template:Clone()
+	ItemArt.wash(copy, itemId)
 	for _, crop in World.CROPS do
 		if crop.seed == itemId and template.Name ~= itemId then
 			ItemArt.tint(copy, crop.color)

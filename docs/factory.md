@@ -60,7 +60,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   Sprinkler, Harvester, Mill, Juicer, Oven, Crate Packer, Shipping Bin, Chest, Auto Collector and
   Auto Crafter, plus
   the Smelter, Assembler (id `Workbench`) and Rock Drill for crafting, and the Mk II Seed Planter,
-  Sprinkler, Grain Mill and Harvester (bigger patch, faster). Every one is crafted in the
+  Sprinkler, Grain Mill, Harvester, Fruit Press and Baking Oven (bigger patch, or twice as
+  fast), and the mid-game Roaster, Preserving Kettle and Chiller (§ Processors). Every one is crafted in the
   Crafting window (§ Crafting); a Mk II is built on the machine it replaces. Mk II defs come
   from the same constructors as tier 1 in Blocks, so a tier differs only in its numbers.
 - **Names.** Players see logical names; ids stay as they were so saves and `Assets.Blocks`
@@ -137,7 +138,22 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 `Shared/Factory/Products` owns every processed product: its inputs, machine, batch time,
 value and borrowed art. Items makes the product items from it and Blocks the recipes, so a
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
-Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Workbench: the
+Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Roaster: 2 Potato
+-> Crisps, 2 Corn -> Popcorn, a Pumpkin -> Roast Pumpkin. Preserving Kettle: 4 Tomato -> Tomato
+Sauce, a Juice + 2 of its fruit -> its Jam (Strawberry, Blueberry, Apple, Grape). Chiller: a
+Watermelon + Strawberry Juice, or 2 Starfruit + Blueberry Juice, -> its Sorbet. With Recipe
+Book I the Oven also bakes Flour + Tomato Sauce -> Pizza and Flour + Roast Pumpkin -> Pumpkin
+Pie; with Recipe Book II, Flour + a Jam -> its Jam Tart.
+
+Those mid-game products are `chained` in Products: their value is not written down but worked
+out as the plain worth of the crops inside, traced back through the products they are made of,
+times 1.5, 3 or 4.5 for one, two or three machines deep, to two significant figures
+(economy.md § Balance has the table). A product may name a `research` project; its recipe
+carries it, and a machine skips a recipe whose research its owner has not finished
+(`Machine.Env.unlocked`, from `Bonuses.has`). It still takes the inputs, and reads "Needs
+research" while a whole batch waits on it. The Roaster, Kettle and Chiller have no art yet:
+they borrow the Oven's, Fruit Press's and Crate Packer's templates (Items `art`), washed toward
+their own colour (`ItemArt.wash`) in icons, the placement ghost and the placed block. Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
 A machine runs the first recipe it holds the inputs for, and Blocks lists recipes with more
 kinds of input first, so loading Stone with Iron Bars makes Steel Frames and Iron Bars alone
@@ -280,8 +296,8 @@ recipe's output.
 |---|---|---|---|
 | 1 | Hand Crafting | start | Wood Planks, Timber Frame, Smelter, Shipping Bin, Chest, belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
 | 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Rock Drill, Auto Collector (Carpentry: 1 Chest, 2 Conveyor, 2 Gear, 2 Copper Wire) |
-| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Auto Crafter (1 Assembler, 2 Timber Frame, 2 Circuit, 4 Gear), fast belts, turns and ramps |
-| 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans) |
+| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Auto Crafter (1 Assembler, 2 Timber Frame, 2 Circuit, 4 Gear), fast belts, turns and ramps, Roaster (Roaster Plans: 20 Bricks, 2 Steel Frame, 4 Gear), Preserving Kettle (Kettle Plans: 12 Copper Bar, 2 Steel Frame, 4 Glass) |
+| 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans), Chiller (Chiller Plans: 4 Steel Frame, 6 Circuit, 8 Copper Wire, 8 Glass), Fruit Press Mk II and Baking Oven Mk II (Heavy Processor Plans) |
 
 Recipes follow what a machine is made of: wood and iron for belts and frames, stone for the
 Smelter and the Grain Mill's millstones, glass for the Fruit Press and the Belt Sensor, bricks

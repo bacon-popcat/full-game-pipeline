@@ -8,7 +8,12 @@ project that unlocks them; research stores no recipe links. The Research window 
 Each category is one upgrade tree: a single root project and every other project needing one in
 its own category (Farming from Rich Soil I, Automation from Faster Belts I, Economy from Quick
 Learner I, Tools from Sharp Axe I, Crafting from Crate Making). Only Master Gardener reaches
-across trees, for its Farming needs. `Shared/Research` asserts the shape at load. Finished saves
+across trees, for its Farming needs. The Crafting tree also carries the mid-game line, each
+needing the one before: Roaster Plans (level 13), Kettle Plans (18), Recipe Book I (22), Recipe
+Book II (26), Chiller Plans (30) and Heavy Processor Plans (35). The Recipe Books unlock no
+crafting recipe: `Shared/Factory/Products` names them on the bakes they open, and a Baking Oven
+checks its owner's finished research (factory.md § Processors). Their tiles show a Pumpkin Pie
+(`ResearchScreen` ICONS), having no recipe output to show. `Shared/Research` asserts the shape at load. Finished saves
 stay valid however the links change, because needs are checked only when a project starts.
 
 ## Flow

@@ -76,6 +76,8 @@ local ICONS: { [string]: string } = {
 	Axe = "Axe",
 	Pick = "Pickaxe",
 	Master = "Starfruit+Golden",
+	-- The Recipe Books unlock bakes, not crafting recipes, so they have no recipe to show.
+	RecipeBook = "PumpkinPie",
 }
 -- The fans round the hub, clockwise from the top, each in its own colour: its tag, its tiles'
 -- fill, a finished tile's ring, its lit lines, the unlock glow and the sap.

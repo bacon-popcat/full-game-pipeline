@@ -69,14 +69,14 @@ Crafting.TIERS = {
 		name = "Machine Works",
 		level = 6,
 		inputs = { TimberFrame = 8, IronBar = 20, CopperBar = 12, Gear = 10 },
-		description = "Adds the Harvester, Oven, Crate Packer, Auto Crafter and fast conveyors.",
+		description = "Adds the Harvester, Oven, Crate Packer, Auto Crafter and fast conveyors, and later the Roaster and Preserving Kettle.",
 		icon = "Harvester",
 	},
 	{
 		name = "Fabricator",
 		level = 9,
 		inputs = { SteelFrame = 8, Circuit = 6, Gear = 12, CopperWire = 10 },
-		description = "Builds the Mk II machines out of the ones you have.",
+		description = "Builds the Mk II machines out of the ones you have, and later the Chiller.",
 		icon = "SteelFrame",
 	},
 } :: { Tier }
@@ -119,6 +119,9 @@ local RECIPES: { Recipe } = {
 	define("Oven", 1, { Bricks = 20, IronBar = 6, CopperBar = 2 }, 3),
 	define("CratePacker", 1, { TimberFrame = 4, Gear = 4, IronBar = 4 }, 3, "CrateMaking"),
 	define("AutoCrafter", 1, { Workbench = 1, TimberFrame = 2, Circuit = 2, Gear = 4 }, 3),
+	-- The mid-game processors (docs/retention.md § Mid-game machines), each behind its plans.
+	define("Roaster", 1, { Bricks = 20, SteelFrame = 2, Gear = 4 }, 3, "RoasterPlans"),
+	define("Kettle", 1, { CopperBar = 12, SteelFrame = 2, Glass = 4 }, 3, "KettlePlans"),
 	define("ConveyorBeltTier2", 4, { ConveyorBelt = 4, Gear = 2 }, 3),
 	define("ConveyorBeltLeftTier2", 4, { ConveyorBeltLeft = 4, Gear = 2 }, 3),
 	define("ConveyorBeltRightTier2", 4, { ConveyorBeltRight = 4, Gear = 2 }, 3),
@@ -130,6 +133,9 @@ local RECIPES: { Recipe } = {
 	define("SprinklerTier2", 1, { Sprinkler = 1, Circuit = 4, CopperWire = 6 }, 4, "SprinklerPlans"),
 	define("MillTier2", 1, { Mill = 1, SteelFrame = 2, Gear = 8 }, 4),
 	define("HarvesterTier2", 1, { Harvester = 1, SteelFrame = 3, Circuit = 6 }, 4, "HarvesterPlans"),
+	define("Chiller", 1, { SteelFrame = 4, Circuit = 6, CopperWire = 8, Glass = 8 }, 4, "ChillerPlans"),
+	define("JuicerTier2", 1, { Juicer = 1, SteelFrame = 2, Circuit = 4 }, 4, "ProcessorPlans"),
+	define("OvenTier2", 1, { Oven = 1, SteelFrame = 3, Circuit = 4 }, 4, "ProcessorPlans"),
 }
 
 -- One upgrade recipe per tier past the first, listed first so the window shows the next one on top.

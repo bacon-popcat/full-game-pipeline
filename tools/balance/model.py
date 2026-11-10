@@ -53,6 +53,10 @@ Levels 13-50 are extrapolated, not simulated. After level 12 the run plays one m
 hour; the XP/min earned in that hour (every tier-one machine owned, no new expansion, no
 tier-two machines, no rare crops) is held flat, so a level's time is the lifetime XP it
 needs divided by that rate. Real players keep adding soil, Mk II machines and rare crops.
+
+The mid-game products (Products.luau `chained`) are read and audited but not simulated:
+late_game prints their values, what a Harvester Mk II patch of each crop earns raw and through
+its best product, and how long that takes to pay for every coin sink.
 """
 
 from __future__ import annotations
@@ -142,6 +146,47 @@ def read_crafting(world):
                 trees=[int(wood) for wood in re.findall(r'= tree\("[^"]+", (\d+)\)', world)])
 
 
+def read_chains(products, crops, recipes):
+    """The mid-game products (Products.luau `chained`): each is worth the plain crops inside it
+    times CHAIN[depth], to two significant figures. Kept apart from `recipes`, which the
+    simulated factory runs; the simulation builds none of these machines."""
+    chain = [float(value) for value in re.search(r'local CHAIN = \{([^}]+)\}', products)[1].split(",")]
+    chains = {}
+
+    def crops_in(inputs):
+        inside = Counter()
+        for item, count in inputs.items():
+            made = chains.get(item) or recipes.get(item)
+            for crop, each in (crops_in(made["inputs"]) if made else {item: 1}).items():
+                inside[crop] += each * count
+        return inside
+
+    def add(key, machine, inputs, depth, seconds):
+        inside = crops_in(inputs)
+        worth = sum(crops[crop]["value"] * count for crop, count in inside.items())
+        value = worth * chain[depth - 1]
+        step = 10 ** (math.floor(math.log10(value)) - 1)
+        chains[key] = dict(machine=machine, inputs=inputs, depth=depth, time=seconds, crops=dict(inside),
+                           worth=worth, value=math.floor(value / step + 0.5) * step)
+
+    pattern = r'chained\(\s*"(\w+)",\s*"[^"]+",\s*"[^"]+",\s*"(\w+)",\s*\{([^}]+)\},\s*(\d),\s*(\d+),'
+    explicit = re.findall(pattern, products)
+    fruits = [fruit.strip(' "') for fruit in re.search(r'local JAM_FRUITS = \{([^}]+)', products)[1].split(",")]
+    jam_fruit = int(number(products, r'JAM_FRUIT_COUNT = (\d+)'))
+    # In the file's order, so each product's inputs are already known: the jams come after the
+    # Kettle's sauce, the tarts after the Recipe Book I bakes.
+    for key, machine, ingredients, depth, seconds in explicit:
+        if key == "Pizza":
+            for fruit in fruits:
+                add(fruit + "Jam", "Kettle", {fruit + "Juice": 1, fruit: jam_fruit}, 2, number(products, r'JAM_TIME = (\d+)'))
+        if key == "WatermelonSorbet":
+            for fruit in fruits:
+                add(fruit + "JamTart", "Oven", {"Flour": 1, fruit + "Jam": 1}, 3, number(products, r'TART_TIME = (\d+)'))
+        add(key, machine, counts(ingredients), int(depth), int(seconds))
+    assert len(chains) == len(explicit) + 2 * len(fruits) and len(explicit) == 8, len(chains)
+    return chains
+
+
 def read_content():
     world = source("src/shared/World/init.luau")
     crops = {}
@@ -180,11 +225,12 @@ def read_content():
     for key, ingredients, seconds in re.findall(r'part\(\s*"(\w+)",\s*"[^"]+",\s*"[^"]+",\s*\{([^}]+)\},\s*(\d+)', products):
         recipes[key] = dict(machine="Workbench", inputs=counts(ingredients), time=int(seconds), value=0)
     assert len([r for r in recipes.values() if r["machine"] == "Workbench"]) == 4
+    chains = read_chains(products, crops, recipes)
     economy = source("src/shared/Economy/init.luau")
     data = source("src/server/services/DataService.luau")
     mutations = source("src/shared/World/Mutations.luau")
     rewards = [int(v) for v in re.findall(r'reward = (\d+)', source("src/shared/Onboarding.luau"))]
-    config = dict(crops=crops, rarities=rarities, offers=offers, recipes=recipes,
+    config = dict(crops=crops, rarities=rarities, offers=offers, recipes=recipes, chains=chains,
         coefficient=number(economy, r'math.round\(([\d.]+) \* level'),
         exponent=number(economy, r'level \^ ([\d.]+)'),
         # Optional linear term; the pre-rework curve (before.json) has none.
@@ -867,6 +913,10 @@ def audit(config):
             assert recipe["value"] > cost, (key, cost, recipe["value"])
             for multiplier in config["multipliers"].values():
                 assert recipe["value"] * multiplier > cost * multiplier
+    for key, product in config.get("chains", {}).items():
+        cost = sum(values.get(item, config.get("chains", {}).get(item, {}).get("value", 0)) * count
+                   for item, count in product["inputs"].items())
+        assert product["value"] > cost, (key, cost, product["value"])
     for key, crop in config["crops"].items():
         # A hand harvest spends a single crop's seed, so one plain harvest must repay it whatever
         # its rarity. A multi crop keeps its plant; only the cheap ones must repay at the first fruit.
@@ -885,6 +935,75 @@ def cell_bands(config):
         rates.setdefault(crop["rarity"], []).append(crop["value"] * crop["yield_count"] * 60 / cycle)
     order = sorted(rates, key=lambda rarity: config["rarities"][rarity]["xp"])
     return [(rarity, min(rates[rarity]), max(rates[rarity])) for rarity in order]
+
+
+PATCH = 35
+
+
+def late_game(config):
+    """Prints what the mid-game chains pay, and how a late patch compares with every coin sink.
+    Not a simulation: one Harvester Mk II patch of a crop, its other inputs grown elsewhere,
+    as many machines as it takes, no mutations, weather or research."""
+    crops, chains = config["crops"], config["chains"]
+    print("\nMid-game products: value over the plain worth of the crops inside (1 machine x1.5, 2 x3, 3 x4.5).")
+    print("| Product | Machine | Machines deep | Crops inside | Their worth | Value |")
+    print("|---|---|---:|---|---:|---:|")
+    for key, product in chains.items():
+        inside = ", ".join(f"{count} {crop}" for crop, count in product["crops"].items())
+        print(f"| {key} | {product['machine']} | {product['depth']} | {inside} | {product['worth']:,} | {product['value']:,} |")
+
+    everything = dict(config["recipes"])
+    everything.update(chains)
+
+    def crops_in(key):
+        product = everything[key]
+        if "crops" in product:
+            return product["crops"]
+        inside = Counter()
+        for item, count in product["inputs"].items():
+            for crop, each in (crops_in(item) if item in everything else {item: 1}).items():
+                inside[crop] += each * count
+        return inside
+
+    print(f"\nOne Harvester Mk II patch ({PATCH} cells) of a crop, plain coins a minute: sold raw, and as the")
+    print("best product it is the main crop of (other inputs grown elsewhere, machines as needed).")
+    print("| Crop | Rarity | Raw | Best product | Through it | Machines for it |")
+    print("|---|---|---:|---|---:|---|")
+    top = 0
+    for name, crop in crops.items():
+        per_minute = crop["yield_count"] * 60 / (crop["regrow"] or crop["grow"]) * PATCH
+        raw = per_minute * crop["value"]
+        best = (raw, "-", "")
+        for key, product in everything.items():
+            if not product.get("value"):
+                continue
+            inside = crops_in(key)
+            worth = {each: count * crops[each]["value"] for each, count in inside.items() if each in crops}
+            if name not in worth or max(worth, key=worth.get) != name:
+                continue
+            made = per_minute / inside[name]
+            if made * product["value"] > best[0]:
+                best = (made * product["value"], key, f"{made * product['time'] / 60:.1f} {product['machine']}")
+        top = max(top, best[0])
+        print(f"| {name} | {crop['rarity']} | {raw:,.0f} | {best[1]} | {best[0]:,.0f} | {best[2]} |")
+
+    research = sum(int(coins) for coins in re.findall(r'\bcoins = (\d+)', source("src/shared/Research.luau")))
+    plot = source("src/shared/Plot.luau")
+    prices = [int(price) for price in re.search(r'local PRICES = \{([^}]+)\}', plot)[1].split(",")]
+    across, deep = (int(v) for v in re.search(r'SECTIONS_X, SECTIONS_Z = (\d+), (\d+)', plot).groups())
+    start = {key: int(value) for key, value in re.findall(r'(\w\d) = (\d+)', re.search(r'local START = \{([^}]+)\}', plot)[1])}
+    sections = 0
+    for x in range(across):
+        for z in range(deep):
+            ring = max(start["x0"] - x, x - start["x1"], start["z0"] - z, z - start["z1"], 0)
+            sections += prices[ring - 1] if ring else 0
+    sinks = research + sections
+    print(f"\nEvery coin sink: research {research:,} + garden sections {sections:,} = {sinks:,} coins.")
+    for name in ("Blueberry", "Apple", "Grape", "Starfruit"):
+        crop = crops[name]
+        raw = crop["yield_count"] * 60 / (crop["regrow"] or crop["grow"]) * PATCH * crop["value"]
+        print(f"One raw {name} patch pays for all of it in {sinks / raw / 60:.1f} hours.")
+    print(f"The best patch above ({top:,.0f} a minute) pays for all of it in {sinks / top / 60:.1f} hours.")
 
 
 def band_overlaps(config):
@@ -1001,6 +1120,7 @@ def main():
     print("Rarities out-earned by the one below, before / after:", band_overlaps(before), "/", band_overlaps(current))
     assert not band_overlaps(current), "Each rarity's crops must earn at least the rarity below's best per cell"
     print("All valued recipes beat their immediate inputs, for every mutation.")
+    late_game(current)
 
 
 if __name__ == "__main__":

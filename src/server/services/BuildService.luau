@@ -13,6 +13,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Build = require(ReplicatedStorage.Shared.Build)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local ItemArt = require(ReplicatedStorage.Shared.ItemArt)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Plot = require(ReplicatedStorage.Shared.Plot)
@@ -83,8 +84,9 @@ function BuildService.place(
 		return nil
 	end
 	local model = template:Clone()
-	-- Named for the item, not the template it may borrow (Items `art`).
+	-- Named for the item, not the template it may borrow (Items `art`), and washed in its colour.
 	model.Name = itemId
+	ItemArt.wash(model, itemId)
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			part.Anchored = true

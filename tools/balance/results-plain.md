@@ -55,7 +55,53 @@ SeedPlanterTier2: {'SteelFrame': 3, 'Gear': 6}, 4.7 min supplied, 24 iron, 8 coa
 SprinklerTier2: {'Circuit': 4, 'CopperWire': 6}, 5.0 min supplied, 8 iron, 14 copper, 8 coal
 MillTier2: {'SteelFrame': 2, 'Gear': 8}, 4.7 min supplied, 24 iron, 8 coal, 2 stone
 HarvesterTier2: {'SteelFrame': 3, 'Circuit': 6}, 7.9 min supplied, 24 iron, 12 copper, 12 coal, 3 stone
+JuicerTier2: {'SteelFrame': 2, 'Circuit': 4}, 5.3 min supplied, 16 iron, 8 copper, 8 coal, 2 stone
+OvenTier2: {'SteelFrame': 3, 'Circuit': 4}, 6.0 min supplied, 20 iron, 8 copper, 10 coal, 3 stone
 First-harvest seed losses before / after: ['Strawberry', 'Corn', 'Pumpkin', 'Watermelon'] / []
 Coins a minute from one cell on a Harvester, plain, by rarity (lowest-highest): Common 18-19, Uncommon 55-60, Rare 90-144, Epic 180-200, Legendary 400-520, Mythic 1440-1440
 Rarities out-earned by the one below, before / after: ['Uncommon over Rare', 'Rare over Epic'] / []
 All valued recipes beat their immediate inputs, for every mutation.
+
+Mid-game products: value over the plain worth of the crops inside (1 machine x1.5, 2 x3, 3 x4.5).
+| Product | Machine | Machines deep | Crops inside | Their worth | Value |
+|---|---|---:|---|---:|---:|
+| Crisps | Roaster | 1 | 2 Potato | 220 | 330 |
+| Popcorn | Roaster | 1 | 2 Corn | 720 | 1,100 |
+| RoastPumpkin | Roaster | 1 | 1 Pumpkin | 1,600 | 2,400 |
+| TomatoSauce | Kettle | 1 | 4 Tomato | 180 | 270 |
+| StrawberryJam | Kettle | 2 | 5 Strawberry | 75 | 230 |
+| BlueberryJam | Kettle | 2 | 5 Blueberry | 150 | 450 |
+| AppleJam | Kettle | 2 | 5 Apple | 450 | 1,400 |
+| GrapeJam | Kettle | 2 | 5 Grape | 1,300 | 3,900 |
+| Pizza | Oven | 2 | 2 Wheat, 4 Tomato | 204 | 610 |
+| PumpkinPie | Oven | 2 | 2 Wheat, 1 Pumpkin | 1,624 | 4,900 |
+| StrawberryJamTart | Oven | 3 | 2 Wheat, 5 Strawberry | 99 | 450 |
+| BlueberryJamTart | Oven | 3 | 2 Wheat, 5 Blueberry | 174 | 780 |
+| AppleJamTart | Oven | 3 | 2 Wheat, 5 Apple | 474 | 2,100 |
+| GrapeJamTart | Oven | 3 | 2 Wheat, 5 Grape | 1,324 | 6,000 |
+| WatermelonSorbet | Chiller | 2 | 1 Watermelon, 3 Strawberry | 4,045 | 12,000 |
+| StarfruitSorbet | Chiller | 2 | 2 Starfruit, 3 Blueberry | 3,690 | 11,000 |
+
+One Harvester Mk II patch (35 cells) of a crop, plain coins a minute: sold raw, and as the
+best product it is the main crop of (other inputs grown elsewhere, machines as needed).
+| Crop | Rarity | Raw | Best product | Through it | Machines for it |
+|---|---|---:|---|---:|---|
+| Carrot | Common | 630 | CarrotCrate | 756 | 0.2 CratePacker |
+| Wheat | Common | 672 | Flour | 1,120 | 1.9 Mill |
+| Strawberry | Uncommon | 2,100 | StrawberryPie | 17,500 | 9.3 Oven |
+| Potato | Uncommon | 1,925 | Crisps | 2,888 | 0.9 Roaster |
+| Tomato | Rare | 3,150 | Pizza | 10,675 | 2.3 Oven |
+| Corn | Rare | 3,150 | Popcorn | 4,812 | 0.4 Roaster |
+| Blueberry | Rare | 5,040 | BlueberryPie | 33,600 | 11.2 Oven |
+| Pumpkin | Epic | 7,000 | PumpkinPie | 21,438 | 0.6 Oven |
+| Apple | Epic | 6,300 | AppleJamTart | 29,400 | 1.9 Oven |
+| Watermelon | Legendary | 14,000 | WatermelonSorbet | 42,000 | 0.6 Chiller |
+| Grape | Legendary | 18,200 | GrapeJamTart | 84,000 | 1.9 Oven |
+| Starfruit | Mythic | 50,400 | StarfruitSorbet | 154,000 | 2.3 Chiller |
+
+Every coin sink: research 5,268,400 + garden sections 1,027,500 = 6,295,900 coins.
+One raw Blueberry patch pays for all of it in 20.8 hours.
+One raw Apple patch pays for all of it in 16.7 hours.
+One raw Grape patch pays for all of it in 5.8 hours.
+One raw Starfruit patch pays for all of it in 2.1 hours.
+The best patch above (154,000 a minute) pays for all of it in 0.7 hours.

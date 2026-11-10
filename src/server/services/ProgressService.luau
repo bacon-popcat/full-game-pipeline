@@ -21,6 +21,7 @@ local Products = require(ReplicatedStorage.Shared.Factory.Products)
 local Progress = require(ReplicatedStorage.Shared.Progress)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local World = require(ReplicatedStorage.Shared.World)
+local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local EconomyService = require(script.Parent.EconomyService)
 local GardenService = require(script.Parent.GardenService)
@@ -329,7 +330,8 @@ local function candidates(player: Player): ({ string }, { string })
 			produce[crop.produce] = true
 		end
 	end
-	-- A product is available once the garden has had its machine and can make every input.
+	-- A product is available once the garden has had its machine, finished the research its
+	-- recipe needs, and can make every input.
 	local grew = true
 	while grew do
 		grew = false
@@ -339,7 +341,7 @@ local function candidates(player: Player): ({ string }, { string })
 				and not available[product.id]
 				and (indexed[product.machine] or indexed[product.machine .. "Tier2"])
 			then
-				local makeable = true
+				local makeable = product.research == nil or Bonuses.has(player, product.research)
 				for itemId in product.inputs do
 					makeable = makeable and available[itemId] == true
 				end

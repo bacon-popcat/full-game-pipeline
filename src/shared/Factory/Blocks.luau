@@ -46,6 +46,8 @@ export type Recipe = {
 	-- Instead of `outputs`, a batch makes one item picked from these by weight (the Rock Drill).
 	-- A rolled recipe only runs plain.
 	rolls: { Roll }?,
+	-- The research project its owner must have finished for the machine to run it (Products).
+	research: string?,
 }
 
 export type Source = {
@@ -263,6 +265,7 @@ local function productRecipes(machine: string, pace: number?): { Recipe }
 	for _, product in Products do
 		if product.machine == machine then
 			local each = recipe(product.inputs, { [product.id] = 1 }, product.time * (pace or 1))
+			each.research = product.research
 			local count = 0
 			for _ in product.inputs do
 				count += 1
@@ -320,7 +323,12 @@ local BLOCKS: { [string]: Def } = {
 	Mill = processor(productRecipes("Mill")),
 	MillTier2 = processor(productRecipes("Mill", 0.5)),
 	Juicer = processor(productRecipes("Juicer")),
+	JuicerTier2 = processor(productRecipes("Juicer", 0.5)),
 	Oven = processor(productRecipes("Oven")),
+	OvenTier2 = processor(productRecipes("Oven", 0.5)),
+	Roaster = processor(productRecipes("Roaster")),
+	Kettle = processor(productRecipes("Kettle")),
+	Chiller = processor(productRecipes("Chiller")),
 	CratePacker = processor(productRecipes("CratePacker")),
 	Harvester = harvester(5, 3, 3),
 	HarvesterTier2 = harvester(7, 5, 1.5),

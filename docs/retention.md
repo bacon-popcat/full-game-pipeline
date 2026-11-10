@@ -282,7 +282,7 @@ phases come first; the largest content phase waits until the daily layer can hol
    tabs, the Orders Board prop (a plain board until it has art). Docs: progress.md.
 4. [x] **R4 Daily gift and welcome back.** The gift cycle, the card, bin-rate buckets and
    offline coins. Docs: plots.md (profile fields), economy.md.
-5. [ ] **R5 Mid-game machines.** The late-game balance policy first, then the six research
+5. [x] **R5 Mid-game machines.** The late-game balance policy first, then the six research
    projects, three machines and thirteen products on placeholder art. Docs: research.md,
    factory.md, economy.md.
 6. [ ] **R6 Social.** Notices, leaderboards, likes, gifts. Needs API access for
@@ -400,3 +400,39 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   as a new saved field. docs/welcome.md describes what is built, its playtest and what is left
   to verify.
 
+### R5 Mid-game machines (2026-11-09)
+
+- **Sixteen products, not thirteen.** The plan's table listed sixteen; its text miscounted.
+- **Values are computed, not written down.** A `chained` product is worth the crops inside it
+  times 1.5, 3 or 4.5 by machines deep, to two significant figures, so it follows any crop
+  retune. That moved five of the plan's hand-rounded numbers a little: Popcorn 1,100 (was
+  1,080), Strawberry Jam 230 (225), Apple Jam 1,400 (1,350), Pizza 610 (600), Apple Jam Tart
+  2,100 (2,150).
+- **The Recipe Books gate bakes, not crafting recipes.** A product names its research, the
+  machine's recipe carries it, and an Oven skips it until its owner has finished the project,
+  reading "Needs research" while a batch waits. Orders ask for such a product only once its
+  research is done.
+- **Fruit Press Mk II and Baking Oven Mk II** are the Heavy Processor Plans' unlock: the same
+  recipes in half the time, built on the machine they replace.
+- **Placeholder art is a wash, not a repaint.** The Roaster, Kettle and Chiller borrow the Oven,
+  Fruit Press and Crate Packer templates and are washed 45% toward their own colour, part by
+  part, so they keep their shading and can be told apart. R7 gives them models.
+- **The research plans' level gates carry the phase**: 13, 18, 22, 26, 30 and 35, one line in
+  the Crafting fan. The level-up notice and the Objective panel's "next unlock" name them
+  without further work (Shared/Unlocks).
+- **The risk the plan raised is settled, and a bigger one named.** The audit added to the
+  balance model (economy.md § Mid-game products and the late game) shows the new chains pay
+  within the range the pies already set. It also shows the late game ran out of sinks before
+  these products existed: all 6.3 million coins of research and sections are one raw Starfruit
+  patch's income for two hours. The values stay on the rule. A late coin sink that keeps going
+  is the open item, and it is not part of this plan's phases.
+- **Not built**: machine-panel text listing a machine's locked recipes, and animations of the
+  borrowed templates beyond what their sources already do.
+- **Playtested** on a fresh garden in an empty save slot (deleted after): a Roaster, Kettle,
+  Chiller, Baking Oven Mk II and Fruit Press Mk II each ran a real batch (Crisps, Strawberry
+  Jam, Watermelon Sorbet, a Strawberry Pie, a Golden Tomato Juice from Golden Tomatoes); a
+  Baking Oven holding Flour and Tomato Sauce read "Needs research" and baked a Pizza once
+  Recipe Book I was finished; crafting refused the Chiller and the Fruit Press Mk II without
+  their plans and made a Roaster with Roaster Plans; the Research window drew the new line off
+  Crate Making. Not driven: the items riding belts between these machines, an order for one of
+  the new products, and the Recipe Book tiles' icon (added after the session).

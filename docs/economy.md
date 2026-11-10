@@ -63,7 +63,10 @@ coins and XP without yielding. Rejected sales resync inventory and show a refusa
 `Inventory/Items` generates crop values from `World.CROPS`; mutation values already include
 the multiplier (stacked mutations add their bonuses, farming.md § Mutations). Selling sums `item.value * count` and never multiplies twice. Processed product
 values live in `Shared/Factory/Products`: Flour 40 (from 2 Wheat, worth 24), juices 4.5x one fruit
-(from three, so one machine adds half again), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
+(from three, so one machine adds half again), pies 250 / 400 / 600, and crates 12x the crop (from ten).
+The mid-game products (crisps, popcorn, sauces, jams, tarts, sorbets; factory.md § Processors)
+have no written value: each is worth the crops inside it times 1.5, 3 or 4.5 by how many
+machines deep it is (§ Balance, Mid-game products). Every product is worth
 more than its plain inputs, which rewards building the line. A batch of mutated inputs makes a
 mutated product worth the same multiplier (ten Golden Carrots make a Golden Carrot Crate at
 x20), so processing keeps a mutation's premium; a batch never mixes variants. Seeds are not
@@ -440,6 +443,50 @@ The Fabricator upgrade itself (8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire
 16 iron, 4 copper, 7 coal, 2 stone) makes about 3 Iron and 2 Copper Ore a minute on its own
 coal, so a few drills cover a Mk II bundle in 10-15 unattended minutes.
 
+### Mid-game products and the late game
+
+The model reads the `chained` products and prints them with a late-game audit (`late_game`);
+it simulates none of their machines. Values at the present crop prices:
+
+| Product | Machine | Machines deep | Crops inside | Their worth | Value |
+|---|---|---:|---|---:|---:|
+| Crisps | Roaster | 1 | 2 Potato | 220 | 330 |
+| Popcorn | Roaster | 1 | 2 Corn | 720 | 1,100 |
+| Roast Pumpkin | Roaster | 1 | 1 Pumpkin | 1,600 | 2,400 |
+| Tomato Sauce | Kettle | 1 | 4 Tomato | 180 | 270 |
+| Strawberry / Blueberry / Apple / Grape Jam | Kettle | 2 | 5 of the fruit | 75 / 150 / 450 / 1,300 | 230 / 450 / 1,400 / 3,900 |
+| Pizza | Oven | 2 | 2 Wheat, 4 Tomato | 204 | 610 |
+| Pumpkin Pie | Oven | 2 | 2 Wheat, 1 Pumpkin | 1,624 | 4,900 |
+| Strawberry / Blueberry / Apple / Grape Jam Tart | Oven | 3 | 2 Wheat, 5 of the fruit | 99 / 174 / 474 / 1,324 | 450 / 780 / 2,100 / 6,000 |
+| Watermelon Sorbet | Chiller | 2 | 1 Watermelon, 3 Strawberry | 4,045 | 12,000 |
+| Starfruit Sorbet | Chiller | 2 | 2 Starfruit, 3 Blueberry | 3,690 | 11,000 |
+
+The audit takes one Harvester Mk II patch (35 cells) of a crop, plain, and compares selling it
+raw with the best product it is the main crop of, with the other inputs grown elsewhere and as
+many machines as it takes. No mutations, weather or research.
+
+| Crop | Raw coins/min | Best product | Through it | Machines for it |
+|---|---:|---|---:|---|
+| Potato | 1,925 | Crisps | 2,888 | 0.9 Roaster |
+| Corn | 3,150 | Popcorn | 4,812 | 0.4 Roaster |
+| Tomato | 3,150 | Pizza | 10,675 | 2.3 Oven |
+| Strawberry | 2,100 | Strawberry Pie | 17,500 | 9.3 Oven |
+| Blueberry | 5,040 | Blueberry Pie | 33,600 | 11.2 Oven |
+| Pumpkin | 7,000 | Pumpkin Pie | 21,438 | 0.6 Oven |
+| Apple | 6,300 | Apple Jam Tart | 29,400 | 1.9 Oven |
+| Watermelon | 14,000 | Watermelon Sorbet | 42,000 | 0.6 Chiller |
+| Grape | 18,200 | Grape Jam Tart | 84,000 | 1.9 Oven |
+| Starfruit | 50,400 | Starfruit Sorbet | 154,000 | 2.3 Chiller |
+
+The new chains sit in the range the pies already set: a Blueberry Pie patch earns more than a
+Pumpkin Pie or Apple Jam Tart patch, on far more Ovens and wheat. What the audit shows about
+the late game is older than these products. Every coin sink in the game (research 5,268,400
+and garden sections 1,027,500) comes to 6,295,900 coins. One raw Starfruit patch pays for all
+of it in 2.1 hours, one raw Grape patch in 5.8, and even a Strawberry Pie patch in 6. The
+brake is seeds (a Mythic seed is 2% of restocks), not prices. So the late game runs out of
+things to buy, with or without the mid-game products, and needs a coin sink that keeps going;
+retention.md records that as open.
+
 ### History
 
 All valued products beat their immediate inputs, plain and in every mutation; the script
@@ -454,6 +501,7 @@ Epic 180-200, Legendary 400-520, Mythic 1,440).
 | World.CROPS, Potato / Tomato / Corn / Pumpkin value | 70 / 35 / 160 / 1,100 -> 110 / 45 / 360 / 1,600 | Corn and Pumpkin sold for less than their seed, which a hand harvest spends; Uncommon out-earned Rare and Rare out-earned Epic per cell (retention.md) |
 | World.CROPS, Watermelon seed and value | 6,000 and 3,500 -> 3,000 and 4,000 | A hand harvest lost 2,500 coins |
 | Products, juice | 3.5x one fruit -> 4.5x | From three fruit it added 17%, never worth a machine; one machine now adds half |
+| Products, mid-game | none -> sixteen `chained` products on three machines and two Recipe Books | Levels 13-35 unlocked only percentages, and Potato, Corn, Tomato, Pumpkin, Watermelon and Starfruit had only a crate or juice (retention.md § Mid-game machines) |
 | Economy.required | `100 * n^1.5` -> `20 * n^2.75` -> `12 * n^2.15` | The first made level 2 too slow; the second put level 12 at 259 minutes and level 50 at about 600 hours. The current curve is a plain power law: 12 XP for level 2, about 52,000 for level 49 to 50. Lifetime XP is kept, so levels only move up when recalculated |
 | Mk II parts | sized to 24-36 bars each | A first pass needed 80-120 hand-mined bars per machine from the shared quarry, a grind wall the calm target rules out |
 | Machines | coins at a Machine Shop -> crafted at the Crafting Bench -> crafted in the Crafting window from the side button | factory.md § Crafting. The coin prices and unlock levels in overhaul.md § Machines are the old shop's; crafting tiers at levels 3, 6 and 9 gate machines now |
