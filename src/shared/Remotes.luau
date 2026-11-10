@@ -59,8 +59,9 @@ return {
 	-- stood), from: Vector3? (where its chopper stood) }) a moment to show and sound (FxService ->
 	-- FxController). Cosmetic only: nothing the client does with it changes the game.
 	Fx = get("Fx"),
-	-- server -> client: (objective: { step: number, total: number, text: string, done: boolean })
-	-- the player's current onboarding objective (OnboardingService); sent on load and each step.
+	-- server -> client: (objective: { step: number, total: number, text: string, done: boolean,
+	-- detail: string }) the player's current goal (OnboardingService) and its progress in words
+	-- ("12 / 50 sold", or ""); sent on load, on each step and as the progress moves.
 	Objective = get("Objective"),
 	-- server -> client: (snapshot: { coins: number, xp: number, level: number }); XP is
 	-- lifetime XP (Shared/Economy derives progress). Sent on profile load and balance changes.

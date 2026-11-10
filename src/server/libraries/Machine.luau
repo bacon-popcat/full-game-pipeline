@@ -70,6 +70,8 @@ export type Env = {
 	plant: ((itemId: string) -> boolean)?,
 	-- Sellers: pays the owner for one sold item.
 	sell: ((itemId: string) -> ())?,
+	-- Recipe machines: a batch just finished and made this item (called once per kind of output).
+	made: ((itemId: string) -> ())?,
 }
 
 local Machine = {}
@@ -343,7 +345,7 @@ local function hasRoom(state: State, recipe: Factory.Recipe): boolean
 	return #state.outputs + outputCount(recipe) <= OUTPUT_CAP
 end
 
-local function stepRecipes(state: State, dt: number)
+local function stepRecipes(state: State, dt: number, env: Env)
 	local job = state.job
 	local blocked = false
 	if not job then
@@ -380,11 +382,18 @@ local function stepRecipes(state: State, dt: number)
 	local recipe = job.recipe
 	if job.elapsed >= job.time and recipe then
 		if recipe.rolls then
-			table.insert(state.outputs, roll(recipe.rolls))
+			local rolled = roll(recipe.rolls)
+			table.insert(state.outputs, rolled)
+			if env.made then
+				env.made(rolled)
+			end
 		end
 		for itemId, count in recipe.outputs do
 			for _ = 1, count do
 				table.insert(state.outputs, itemId)
+			end
+			if env.made then
+				env.made(itemId)
 			end
 		end
 		state.job = nil
@@ -523,7 +532,7 @@ function Machine.step(state: State, dt: number, env: Env)
 		stepProducer(state, dt * (1 + (env.harvesterSpeed or 0)), env)
 	elseif def.recipes then
 		-- Work and coal both use recipe-time seconds, keeping fuel per bar unchanged.
-		stepRecipes(state, dt * (1 + (env.machineSpeed or 0)))
+		stepRecipes(state, dt * (1 + (env.machineSpeed or 0)), env)
 	end
 end
 

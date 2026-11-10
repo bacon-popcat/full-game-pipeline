@@ -20,4 +20,14 @@ function Economy.progress(xp: number): (number, number, number)
 	return level, remaining, Economy.required(level)
 end
 
+-- The XP still to earn before lifetime `xp` reaches level `target`; 0 once it has.
+function Economy.toReach(xp: number, target: number): number
+	local level, into = Economy.progress(xp)
+	local needed = -into
+	for each = level, target - 1 do
+		needed += Economy.required(each)
+	end
+	return math.max(0, needed)
+end
+
 return Economy

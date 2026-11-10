@@ -37,6 +37,7 @@ Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 - [docs/animations.md](docs/animations.md) — client-only placed-block motion, art keys and quality culling.
 - [docs/progress.md](docs/progress.md) — lifetime stats, achievements, repeatable quests, rewards and per-garden saving.
 - [docs/overhaul.md](docs/overhaul.md) — the target design: plots, coins, crops and mutations, shops, the machine roster, crafting, saving, phases and the decisions taken in each. Where it disagrees with the docs below, it is the target and they describe what is built so far.
+- [docs/retention.md](docs/retention.md) — the plan for what comes next, in phases R1-R7: the goal chain (R1, built: 24 goals to the first Mk II machine, then the next level unlock; economy.md § Onboarding), crop and reward retuning, orders, a daily layer with offline coins, mid-game machines and recipes, light social play.
 - [docs/plots.md](docs/plots.md) — plot layout, sections and ownership, economy APIs, profile loading/saving and offline growth, plus the Studio playtest checklist.
 - [docs/farming.md](docs/farming.md) — crops: seeds, soil, growth stages, mutations, weather, hand harvesting, sprinklers and the watering can.
 - [docs/research.md](docs/research.md) — projects, saved timers, remotes, bonuses and their gameplay hooks.

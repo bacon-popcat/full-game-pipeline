@@ -917,6 +917,12 @@ local function envFor(block: Block): Machine.Env
 			paySale(block, itemId)
 		end
 	end
+	env.made = function(itemId)
+		local player = ownerOf(block)
+		if player then
+			GardenEvents.Processed:Fire(player, itemId, block.itemId)
+		end
+	end
 	block.env = env
 	return env
 end

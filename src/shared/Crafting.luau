@@ -62,14 +62,14 @@ Crafting.TIERS = {
 		name = "Workshop",
 		level = 3,
 		inputs = { WoodPlanks = 40, Stone = 30, IronBar = 8 },
-		description = "Adds the Assembler, Seed Planter, Sprinkler, mills, presses, belt routers and the Auto Collector.",
+		description = "Adds the Assembler, Seed Planter, Sprinkler, Rock Drill, mills, presses, belt routers and the Auto Collector.",
 		icon = "Workbench",
 	},
 	{
 		name = "Machine Works",
 		level = 6,
 		inputs = { TimberFrame = 8, IronBar = 20, CopperBar = 12, Gear = 10 },
-		description = "Adds the Harvester, Oven, Crate Packer, Rock Drill, Auto Crafter and fast conveyors.",
+		description = "Adds the Harvester, Oven, Crate Packer, Auto Crafter and fast conveyors.",
 		icon = "Harvester",
 	},
 	{
@@ -111,13 +111,14 @@ local RECIPES: { Recipe } = {
 	define("StorageChest", 1, { Chest = 1, ConveyorBelt = 2, Gear = 2, CopperWire = 2 }, 2, "Carpentry"),
 	define("FilterConveyor", 1, { ConveyorBelt = 2, Gear = 1, CopperWire = 2 }, 2),
 	define("ConveyorSensor", 2, { ConveyorBelt = 2, CopperWire = 2, Glass = 1 }, 2),
+	-- Here, not at Machine Works: its ore goes toward that upgrade, the biggest iron bill.
+	define("RockDrill", 1, { SteelFrame = 2, Gear = 4, CopperWire = 4 }, 2),
 
 	-- Tier 3: Machine Works. Circuits and steel frames come from the Assembler.
 	define("Harvester", 1, { TimberFrame = 4, Gear = 4, Circuit = 2 }, 3),
 	define("Oven", 1, { Bricks = 20, IronBar = 6, CopperBar = 2 }, 3),
 	define("CratePacker", 1, { TimberFrame = 4, Gear = 4, IronBar = 4 }, 3, "CrateMaking"),
 	define("AutoCrafter", 1, { Workbench = 1, TimberFrame = 2, Circuit = 2, Gear = 4 }, 3),
-	define("RockDrill", 1, { SteelFrame = 2, Gear = 4, CopperWire = 4 }, 3),
 	define("ConveyorBeltTier2", 4, { ConveyorBelt = 4, Gear = 2 }, 3),
 	define("ConveyorBeltLeftTier2", 4, { ConveyorBeltLeft = 4, Gear = 2 }, 3),
 	define("ConveyorBeltRightTier2", 4, { ConveyorBeltRight = 4, Gear = 2 }, 3),

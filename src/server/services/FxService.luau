@@ -9,10 +9,11 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
 local Crafting = require(ReplicatedStorage.Shared.Crafting)
-local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
-local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
+local Research = require(ReplicatedStorage.Shared.Research)
+local Unlocks = require(ReplicatedStorage.Shared.Unlocks)
 local World = require(ReplicatedStorage.Shared.World)
+local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 
 local FxService = {}
@@ -22,24 +23,35 @@ local function cellTop(cell: Vector3): Vector3
 	return Build.box(cell, Vector3.one).Position - Vector3.yAxis * (Build.GRID / 2 - 0.4)
 end
 
--- "Level 3! You can now upgrade crafting to Workshop.", "Level 4! New in the shops: ..." or
--- just "Level 5!".
-local function levelMessage(level: number): string
-	for tier, each in Crafting.TIERS do
-		if tier > 1 and each.level == level then
-			return `Level {level}! You can now upgrade crafting to {each.name}.`
-		end
+-- What the level opened for this player (Shared/Unlocks): "Level 6! You can now upgrade crafting
+-- to Machine Works. New research too.", "Level 13! New research: Haggling II.", "Level 4! New in
+-- the shops: ..." or just "Level 21!". A crafting tier keeps its notice short.
+local function levelMessage(player: Player, level: number): string
+	local done: { [string]: boolean } = {}
+	for _, project in Research.PROJECTS do
+		done[project.id] = Bonuses.has(player, project.id)
 	end
-	local names = {}
-	for _, shop in Shops.SHOPS do
-		for _, offer in shop.offers do
-			if offer.level == level then
-				table.insert(names, Inventory.getItem(offer.itemId).name)
+	local opened = Unlocks.at(level, done)
+	local parts = { `Level {level}!` }
+	if opened then
+		local research = #opened.research > 0 or opened.hidden > 0
+		if opened.tier then
+			table.insert(parts, `You can now upgrade crafting to {opened.tier}.`)
+			if research then
+				table.insert(parts, "New research too.")
 			end
+			return table.concat(parts, " ")
+		end
+		if #opened.offers > 0 then
+			table.insert(parts, `New in the shops: {table.concat(opened.offers, ", ")}.`)
+		end
+		if #opened.research > 0 then
+			table.insert(parts, `New research: {table.concat(opened.research, ", ")}.`)
+		elseif opened.hidden > 0 then
+			table.insert(parts, "New research to discover.")
 		end
 	end
-	table.sort(names)
-	return if #names > 0 then `Level {level}! New in the shops: {table.concat(names, ", ")}.` else `Level {level}!`
+	return table.concat(parts, " ")
 end
 
 function FxService.init()
@@ -87,7 +99,7 @@ function FxService.init()
 	end)
 	GardenEvents.LevelUp:Connect(function(player: Player, level: number)
 		Remotes.Fx:FireClient(player, { kind = "LevelUp", amount = level })
-		Remotes.Notify:FireClient(player, levelMessage(level), "Reward")
+		Remotes.Notify:FireClient(player, levelMessage(player, level), "Reward")
 	end)
 end
 

@@ -48,8 +48,8 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   coal); the Smelter smelts iron or copper ore. Farm machines and other processors run
   without fuel. Machine-speed research scales work and coal burn together, preserving fuel per
   bar.
-- **Rock Drill** (crafted at Machine Works from 2 Steel Frame, 4 Gear and 4 Copper Wire) is the
-  automated source of quarry materials. Its one recipe has no inputs and `rolls` instead of
+- **Rock Drill** (crafted at Workshop from 2 Steel Frame, 4 Gear and 4 Copper Wire, so its ore
+  can go toward the Machine Works upgrade) is the automated source of quarry materials. Its one recipe has no inputs and `rolls` instead of
   outputs: every 6 s of work it adds one item picked by weight (Stone 30, Iron Ore 30, Copper
   Ore 20, Coal 20) to its output, which leaves by its +Z belt like any processor's. It takes
   only coal, by hand or on its -Z belt, so a Filter sending its Coal back round keeps it
@@ -143,6 +143,9 @@ A machine runs the first recipe it holds the inputs for, and Blocks lists recipe
 kinds of input first, so loading Stone with Iron Bars makes Steel Frames and Iron Bars alone
 make Gears.
 Machine-speed research divides batch times for processors, Workbench and Smelter.
+A finished batch announces `GardenEvents.Processed` for each kind of item it made (the Smelter,
+Assembler, Rock Drill and Auto Crafter too), which the goal chain listens to (economy.md §
+Onboarding).
 Mutated inputs are never grouped with plain ones or each other. Each variant has its own
 input room; a batch takes every input in one set of mutations (plain first, then rising
 value, `Mutations.KEYS`) and makes its product in that set, `<Product>+<Mutations>` worth the
@@ -276,8 +279,8 @@ recipe's output.
 | Tier | Name | Upgrade (level, materials) | Adds |
 |---|---|---|---|
 | 1 | Hand Crafting | start | Wood Planks, Timber Frame, Smelter, Shipping Bin, Chest, belts and turns, ramps (Conveyor Ramps), Gear by hand (Hand-Cut Gears) |
-| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Auto Collector (Carpentry: 1 Chest, 2 Conveyor, 2 Gear, 2 Copper Wire) |
-| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Rock Drill, Auto Crafter (1 Assembler, 2 Timber Frame, 2 Circuit, 4 Gear), fast belts, turns and ramps |
+| 2 | Workshop | 3: 40 Wood Planks, 30 Stone, 8 Iron Bar | Assembler, Seed Planter, Sprinkler, Grain Mill, Fruit Press, Belt Switch, Belt Merger, Random Splitter, Sorter, Belt Sensor, Rock Drill, Auto Collector (Carpentry: 1 Chest, 2 Conveyor, 2 Gear, 2 Copper Wire) |
+| 3 | Machine Works | 6: 8 Timber Frame, 20 Iron Bar, 12 Copper Bar, 10 Gear | Harvester, Baking Oven, Crate Packer (Crate Making), Auto Crafter (1 Assembler, 2 Timber Frame, 2 Circuit, 4 Gear), fast belts, turns and ramps |
 | 4 | Fabricator | 9: 8 Steel Frame, 6 Circuit, 12 Gear, 10 Copper Wire | Seed Planter Mk II (Planter Mk II Plans), Sprinkler Mk II (Sprinkler Mk II Plans), Grain Mill Mk II, Harvester Mk II (Harvester Mk II Plans) |
 
 Recipes follow what a machine is made of: wood and iron for belts and frames, stone for the

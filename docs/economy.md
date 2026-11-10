@@ -380,7 +380,8 @@ machines: coins only pay for seeds, the Axe, Glass, Bricks and research.
 every 45 seconds each are 8 ore a minute. With fixed timers that was 8 a minute for the whole
 server, and the ore set the pace from four players up (the table: every rock's respawn
 stretched by the other players' mining, `--quarry-share`). The Rock Drill could not help, since
-it comes after the Machine Works, the step the wall stood in front of.
+it came after the Machine Works then, the step the wall stood in front of (it is a Workshop
+recipe now, retention.md).
 
 | Players mining | Workshop | Machine Works | Harvester | Oven | Level 12 |
 |---:|---:|---:|---:|---:|---:|
@@ -467,38 +468,91 @@ first five steps teach farming by hand: buy seeds, till, plant, harvest, sell.
 | 6 | Reach level 2 | LevelUp >= 2, or current level already >= 2 | 30 |
 | 7 | Open Crafting and craft a Shipping Bin from 10 Wood Planks | Crafted ShippingBin (or bought one), or restored owned Bin | 20 |
 | 8 | Place your Shipping Bin on your plot | Placed ShippingBin, or restored placed Bin | 50 |
+| 9 | Mine Stone at the quarry, then craft a Smelter | Had Smelter | 100 |
+| 10 | Place the Smelter and smelt an Iron Bar | Had IronBar | 100 |
+| 11 | Reach level 3, then upgrade crafting to Workshop | Crafting tier >= 2 | 250 |
+| 12 | Craft an Assembler and place it | Placed Workbench | 250 |
+| 13 | Make a Gear in the Assembler | Had Gear | 150 |
+| 14 | Craft a Seed Planter | Had SeedPlanter | 300 |
+| 15 | Start a research project and complete it | Any research finished | 200 |
+| 16 | Craft a Sprinkler | Had Sprinkler | 250 |
+| 17 | Craft a Rock Drill | Had RockDrill | 250 |
+| 18 | Reach level 6, then upgrade crafting to Machine Works | Crafting tier >= 3 | 1,000 |
+| 19 | Craft a Harvester and place it | Placed Harvester | 1,000 |
+| 20 | Sell 50 items through a Shipping Bin | 50 bin sales | 500 |
+| 21 | Craft a Grain Mill and mill Flour | Had Flour | 750 |
+| 22 | Craft a Baking Oven and bake a pie | Had any pie | 1,500 |
+| 23 | Reach level 9, then upgrade crafting to Fabricator | Crafting tier >= 4 | 2,500 |
+| 24 | Build your first Mk II machine | Had any Mk II machine | 4,000 |
 
-Step 2 was inserted later; DataService moves a save's step past it once (layout 5).
+Step 2 was inserted later; DataService moves a save's step past it once (layout 5). Steps 9-24
+(retention.md § Goal chain, which gives the reason for each reward) were appended, which needs
+no migration: a save that had finished holds step 9, now the first new goal.
+
+Steps 9-24 are goals (`Shared/Onboarding` `Goal`) checked against the garden, not named
+conditions. **Had** an item means it was crafted in the Crafting window, made by a machine on
+the plot (`GardenEvents.Processed`, a mutated product counting as its product), or placed; on
+load the Index, the inventory and the plot's blocks stand in. **Placed** means it stands on the
+plot or was just placed. The crafting tier is read whenever a goal is checked. Bin sales count
+each Shipping Bin sale live and, on load, start from the bins' saved `sold` counts. A goal with
+progress sends it as the snapshot's `detail` ("12 / 50 sold", every fifth sale; "Level 2 / 3"
+while a tier goal waits on the level), and the panel shows it in place of the step count.
 
 Each completion advances the saved next step before paying once and sending
 `Done! +N coins`; completion sends `Your garden is yours to grow. Happy gardening!`.
-Total rewards are 170 coins. There is no extra finishing grant. Earlier live actions are
+Total rewards are 170 coins for steps 1-8 and 13,100 for steps 9-24. There is no extra
+finishing grant.
+
+Once every goal is done the panel stays, titled "Next unlock": the next level that opens
+something and the XP left to it ("Level 10: Efficient Study I and new research", "550 XP to
+go"), worked out on the client from `Shared/Unlocks`, the wallet and finished research, and
+hidden only when no level opens anything more. `Shared/Unlocks` reads crafting tiers, Gear Shop
+offers and research levels; it names a research project only when the Research window would
+show it and counts the rest as "new research". The level-up notice uses the same module:
+"Level 6! You can now upgrade crafting to Machine Works. New research too." or
+"Level 13! New research: Haggling II.".
+
+Earlier live actions are
 remembered for the session; restored crops, discoveries, level and inventory/placed Bin
 provide evidence on rejoin. A starter seed is not evidence of buying, and a Shipping Bin
 sale is not evidence of selling at the stand. Those two events must be observed live.
 Only the next step persists, with the profile integration in [plots.md](plots.md#profile-contents).
 
-The server sends `Objective {step, total, text, done}` on load and every step change.
+The server sends `Objective {step, total, text, done, detail}` on load, on every step change
+and as a goal's progress moves.
 Its read-only `OnboardingStep` player attribute lets a late HUD recover without a client
 request. `UIController/Objective` receives `init(hud)`, binds with `Hud.find`, warns once
 for missing/mistyped nodes, and leaves gameplay usable if the authored screen is absent.
 
 ```text
 StarterGui.HUD.Objective [Frame]       top-left below side buttons; initially hidden
-  Title [TextLabel]                    Next step
-  Text [TextLabel]                     current objective
-  Progress [TextLabel]                 Step 2 of 7
+  Title [TextLabel]                    Next step (the authored text), or Next unlock
+  Text [TextLabel]                     current objective, or "Level 10: ..."
+  Progress [TextLabel]                 Step 2 of 24, a goal's progress, or "550 XP to go"
   Check [ImageLabel or Frame]          initially hidden
 ```
 
 A completion shows the check and softly fades the old text for 0.3 seconds, then displays
-the latest objective. Later updates cancel old tweens; finishing hides the panel. Reduced
+the latest objective. Later updates cancel old tweens; a progress update for the same step
+changes the label in place. Releasing the garden (the save menu) hides the panel and forgets
+the step, so the next save starts from its own. Reduced
 motion applies the new state immediately, including if enabled mid-transition. Baseline
 transparencies come from the authored objects, and HUD destruction disconnects listeners
 and invalidates delayed transitions. Place-file layout and assets remain Studio work.
 
-Verify in Studio: fresh profile through all seven steps; plant/harvest/buy/place ahead of
-the prompt; already-level-two and already-owned/placed Bin; machine sales not counting as
-stand sales; duplicate events not repaying; rejoin at each step and after completion;
-corrupt/missing step sanitization; late/missing HUD; rapid multi-step advancement; reduced
-motion and respawn. Static checks do not verify these interactions.
+Played through in Studio (2026-11-09) on a fresh garden in an empty save slot, deleted after:
+steps 1-8 from announced actions; then real Crafting requests for the Smelter, both the
+Workshop and Machine Works upgrades, Seed Planter, Sprinkler, Rock Drill (at Workshop),
+Fabricator and Grain Mill Mk II; real batches in a Smelter, Assembler, Grain Mill (Golden
+Wheat, counted as Flour) and Baking Oven; a real research project started and completed; 50
+real Shipping Bin sales with the label counting up in fives, and a quit to the save menu and
+reload at 15 sold, which resumed at 18 and finished. Each step paid once. The tail then read
+"Next unlock", "Level 10: Efficient Study I and new research", "550 XP to go". The level-up
+notices read as above. A finished older save (step 9) moved to step 12 on load from its Smelter,
+Iron Bars and crafting tier. Placing the Assembler and the Harvester was announced by the test,
+not done with the build tool.
+
+Still to verify in Studio: plant/harvest/buy/place ahead of the prompt; machine sales not
+counting as stand sales; corrupt/missing step sanitization; late/missing HUD; reduced motion and
+respawn; the panel on a phone-sized screen with the longest goal texts. Static checks do not
+verify these interactions.

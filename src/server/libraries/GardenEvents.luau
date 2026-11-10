@@ -39,6 +39,9 @@ local GardenEvents = {
 	Mined = Signal.new(),
 	-- (player, recipeId: string, times: number) a recipe crafted in the Crafting window (Shared/Crafting)
 	Crafted = Signal.new(),
+	-- (player, itemId: string, machineId: string) a machine on the player's plot finished a batch
+	-- that made `itemId` (a bar, a part, a product, in its mutation), once per kind of output
+	Processed = Signal.new(),
 	-- (player, researchId: string) a research project finished (Shared/Research)
 	ResearchDone = Signal.new(),
 }
