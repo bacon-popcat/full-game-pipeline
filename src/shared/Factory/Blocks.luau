@@ -91,7 +91,7 @@ export type Def = {
 	-- Collector (with `stores`): pulls the owner's loose drops lying within this many cells of
 	-- its footprint, on its own plot, into its slots (FactoryService `catch`).
 	collects: number?,
-	-- Auto Crafter: repeats one Crafting Bench recipe its owner picks in the panel, from what a
+	-- Auto Crafter: repeats one crafting recipe its owner picks in the panel, from what a
 	-- belt or a hand loads, onto its output belt (FactoryService `setCraft`). It has no
 	-- `recipes` of its own; each placed one gets a def built from the picked recipe.
 	crafts: boolean?,

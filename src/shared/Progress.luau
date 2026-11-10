@@ -68,7 +68,7 @@ tiers("Mutation", "Garden Wonders", "mutatedHarvested", { 5, 50, 1000 }, "Harves
 tiers("Plant", "Seeds of Tomorrow", "seedsPlanted", { 25, 250, 5000 }, "Plant", "seeds")
 tiers("Chop", "Lumberjack", "treesChopped", { 10, 100, 1000 }, "Chop", "trees")
 tiers("Mine", "Stone by Stone", "rocksMined", { 25, 250, 2500 }, "Mine", "rocks or ground cells")
-tiers("Craft", "Helping Hands", "itemsCrafted", { 20, 200, 2000 }, "Craft", "items at a Crafting Bench")
+tiers("Craft", "Helping Hands", "itemsCrafted", { 20, 200, 2000 }, "Craft", "items")
 tiers("Sales", "Market Regular", "salesCoins", { 1000, 25000, 500000 }, "Earn", "coins from sales")
 tiers("Research", "Curious Gardener", "researchDone", { 1, 5, 20 }, "Finish", "research projects")
 tiers("Build", "A Place to Grow", "blocksPlaced", { 20, 200, 2000 }, "Place", "blocks")
@@ -109,7 +109,7 @@ Progress.QUESTS = {
 	quest("Water15", "Water crops 15 times", "cropsWatered", 15, 1, 25, 3),
 	quest("Chop10", "Chop 10 trees", "treesChopped", 10, 1, 30, 3),
 	quest("Mine25", "Mine 25 rocks or ground cells", "rocksMined", 25, 1, 30, 3),
-	quest("Craft20", "Craft 20 items at a Crafting Bench", "itemsCrafted", 20, 1, 30, 3),
+	quest("Craft20", "Craft 20 items", "itemsCrafted", 20, 1, 30, 3),
 	quest("Sell500", "Earn 500 coins from sales", "salesCoins", 500, 1, 25, 3),
 	quest("Place20", "Place 20 blocks", "blocksPlaced", 20, 1, 30, 3),
 	quest("Buy20", "Buy 20 items", "itemsBought", 20, 1, 20, 3),
@@ -117,7 +117,7 @@ Progress.QUESTS = {
 	quest("Research1", "Finish 1 research project", "researchDone", 1, 3, 30, 3),
 	quest("Harvest100", "Harvest 100 crops", "cropsHarvested", 100, 5, 80, 8),
 	quest("Sell5000", "Earn 5,000 coins from sales", "salesCoins", 5000, 5, 75, 8),
-	quest("Craft100", "Craft 100 items at a Crafting Bench", "itemsCrafted", 100, 5, 60, 8),
+	quest("Craft100", "Craft 100 items", "itemsCrafted", 100, 5, 60, 8),
 } :: { Quest }
 
 local stats: { [string]: Stat } = {}

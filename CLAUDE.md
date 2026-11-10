@@ -24,11 +24,13 @@ button and claimable badge (progress.md); notices are
 coloured by kind and stack above the hotbar; the backpack button sits after hotbar slot 9; and the
 Crafting window is an Islands-style catalogue (categories, search, cards, a details panel). The
 Rock Drill digs quarry materials on your own plot from coal (factory.md). Machines are now
-crafted only, at a Crafting Bench with four tiers upgraded with materials (factory.md § Crafting
-Bench); blocks have logical display names (the Workbench is the Assembler); and the Machine
-Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md). A hand-filled Chest,
+crafted only, in the Crafting window opened from its side button (or C) anywhere, with four
+tiers upgraded with materials in that window; the Crafting Bench block is gone (factory.md §
+Crafting); blocks have logical display names (the Workbench is the Assembler); and the Machine
+Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md), opened from a Menu
+row. Stacks have no limit (inventory.md), and a Shipping Bin's sales float up from it as "+coins". A hand-filled Chest,
 the Auto Collector (the old Storage Chest, belt-fed, pulling in loose drops near it) and the
-Auto Crafter (repeats a picked bench recipe) are in factory.md.
+Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 
 ## Domain docs
 
@@ -38,7 +40,7 @@ Auto Crafter (repeats a picked bench recipe) are in factory.md.
 - [docs/plots.md](docs/plots.md) — plot layout, sections and ownership, economy APIs, profile loading/saving and offline growth, plus the Studio playtest checklist.
 - [docs/farming.md](docs/farming.md) — crops: seeds, soil, growth stages, mutations, weather, hand harvesting, sprinklers and the watering can.
 - [docs/research.md](docs/research.md) — projects, saved timers, remotes, bonuses and their gameplay hooks.
-- [docs/factory.md](docs/factory.md) — conveyors, routers, machines (Seed Planter, Harvester, processors, Shipping Bin), loose drops, the shared quarry and forest, the Crafting Bench and owner-only interactions.
+- [docs/factory.md](docs/factory.md) — conveyors, routers, machines (Seed Planter, Harvester, processors, Shipping Bin), loose drops, the shared quarry and forest, crafting and owner-only interactions.
 - [docs/economy.md](docs/economy.md) — seed stock, shops, selling, XP, section prices, hub stalls, the authored garden HUD contract, balance and onboarding.
 - [docs/lighting.md](docs/lighting.md) — the lighting look and day/night cycle, the Low/Medium/High quality presets, the saved setting and which pieces live only in the place file.
 - [docs/inventory.md](docs/inventory.md) — inventory, hotbar/backpack UI and block placement: the server/client flow and which pieces live only in the place file.
@@ -55,7 +57,7 @@ Auto Crafter (repeats a picked bench recipe) are in factory.md.
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builders that author the Menu, progress windows, Crafting window (and its upgrade panel), Shop and Robux windows, notice look and prompt card in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, Crafting window (and its upgrade panel), Shop and Robux windows, notice look, prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI
@@ -78,4 +80,4 @@ templates) and the `IslandsMachines/` art pipeline live outside git.
 
 Sync into Studio with Rojo and playtest there (the `studio-playtest` skill). Formatting
 (stylua), linting (selene) and type checks do not replace a playtest. After changing crop,
-product, shop or XP numbers, rerun `python tools/balance/model.py` and update economy.md.
+product, shop, crafting recipe, quarry or XP numbers, rerun `python tools/balance/model.py` and update economy.md.

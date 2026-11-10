@@ -2,7 +2,6 @@
 -- works (Controls.INTERACT, or a tap on the card PromptController draws):
 --
 --   * a placed machine or router (Factory.hasControls) opens MachinePanel;
---   * a placed Crafting Bench opens CraftingScreen;
 --   * a ripe crop in the player's garden is harvested (Interact "Harvest"; digging a crop up
 --     is the Hammer's job, in BuildController).
 --
@@ -22,7 +21,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Build = require(ReplicatedStorage.Shared.Build)
-local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -60,7 +58,7 @@ local function blockSpec(model: Model): Spec?
 	if
 		model:GetAttribute("Owner") ~= player.UserId
 		or typeof(itemId) ~= "string"
-		or not (itemId == Crafting.BENCH or Factory.hasControls(itemId))
+		or not Factory.hasControls(itemId)
 		or typeof(origin) ~= "Vector3"
 		or typeof(rotation) ~= "number"
 	then
@@ -71,19 +69,14 @@ local function blockSpec(model: Model): Spec?
 		return nil
 	end
 	local centre, size = Build.box(origin, footprint)
-	local bench = itemId == Crafting.BENCH
 	return {
 		key = itemId,
-		action = if bench then "Craft" else "Open",
+		action = "Open",
 		object = BlockText.itemName(itemId),
 		centre = centre.Position,
 		size = size,
 		open = function()
-			if bench then
-				CraftingScreen.open(model)
-			else
-				MachinePanel.open(model, itemId)
-			end
+			MachinePanel.open(model, itemId)
 		end,
 	}
 end

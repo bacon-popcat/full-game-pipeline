@@ -23,6 +23,8 @@ export type Node = {
 	drops: { [string]: number }?,
 	-- Seconds until a broken node the world spawned comes back. Grown ones don't.
 	respawn: number?,
+	-- A quarry rock: it comes back sooner the more players are mining (World.respawnAfter).
+	crowd: boolean?,
 	-- A Hammer digs it up for these: a crop's seed back, or when ripe its harvest.
 	harvest: { [string]: number }?,
 	-- A crop stage: which crop (a CROPS key), and its stage, 1 to #STAGES (the last is ripe).
@@ -71,6 +73,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { Stone = 2 },
 		respawn = 30,
+		crowd = true,
 		boost = { stat = "mineYield", item = "Stone" },
 	},
 	CoalRock = {
@@ -79,6 +82,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { Coal = 2, Stone = 1 },
 		respawn = 30,
+		crowd = true,
 		boost = { stat = "mineYield", item = "Coal" },
 	},
 	IronRock = {
@@ -87,6 +91,7 @@ local NODES: { [string]: Node } = {
 		tool = "Pickaxe",
 		drops = { IronOre = 2, Stone = 1 },
 		respawn = 45,
+		crowd = true,
 		boost = { stat = "mineYield", item = "IronOre" },
 	},
 }
@@ -97,6 +102,7 @@ NODES.CopperRock = {
 	tool = "Pickaxe",
 	drops = { CopperOre = 2, Stone = 1 },
 	respawn = 45,
+	crowd = true,
 	boost = { stat = "mineYield", item = "CopperOre" },
 }
 
@@ -218,6 +224,8 @@ local World = {}
 World.NODES = NODES
 World.CROPS = CROPS
 World.STAGES = STAGES
+-- Seconds a player counts as mining the quarry after breaking one of its rocks.
+World.MINER_WINDOW = 120
 World.PLANTS = PLANTS
 -- Placed blocks a Hoe turns into Farmland, like the ground nodes marked `tills`.
 World.TILLABLE_BLOCKS = { Grass = true, Dirt = true }
@@ -226,6 +234,16 @@ function World.getNode(nodeType: string): Node
 	local node = NODES[nodeType]
 	assert(node, `World.getNode: unknown node type "{nodeType}"`)
 	return node
+end
+
+-- Seconds until a broken node comes back, with `miners` players mining the quarry (those who
+-- broke a `crowd` rock in the last MINER_WINDOW seconds). A crowd rock's time is shared out
+-- between them, so each miner's rocks come back as fast as they would for one player alone.
+function World.respawnAfter(node: Node, miners: number): number?
+	if node.respawn and node.crowd then
+		return node.respawn / math.max(1, miners)
+	end
+	return node.respawn
 end
 
 -- The cells a seed keeps clear when planted at its origin: its crop's column, one cell wide.

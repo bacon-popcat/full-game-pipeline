@@ -15,7 +15,8 @@ export type Item = {
 	id: string,
 	name: string,
 	kind: Kind,
-	-- Most of this item one slot can hold.
+	-- Most of this item one slot can hold: math.huge (no limit) for everything but tools, which
+	-- are one to a slot.
 	stack: number,
 	description: string?,
 	value: number?,
@@ -35,10 +36,8 @@ export type Item = {
 	breaksWith: string?,
 }
 
-local BLOCK_STACK = 99
-local CONVEYOR_STACK = 99
-local MACHINE_STACK = 10
-local RESOURCE_STACK = 99
+-- Stacks have no limit: a slot holds any number of one item.
+local STACK = math.huge
 
 local function tool(id: string, name: string, description: string, picksUp: boolean?, tills: boolean?): Item
 	return {
@@ -57,7 +56,7 @@ local function block(id: string, name: string, description: string, breaksWith: 
 		id = id,
 		name = name,
 		kind = "Block",
-		stack = BLOCK_STACK,
+		stack = STACK,
 		description = description,
 		breaksWith = breaksWith,
 	}
@@ -66,22 +65,22 @@ end
 -- Seeds are blocks only so the hand places them with a ghost; a placed seed becomes a crop at once
 -- (WorldService), so it never sits on the grid to be broken.
 local function seed(id: string, name: string, description: string): Item
-	return { id = id, name = name, kind = "Block", stack = BLOCK_STACK, description = description }
+	return { id = id, name = name, kind = "Block", stack = STACK, description = description }
 end
 
-local function machine(id: string, name: string, description: string, stack: number?, art: string?): Item
+local function machine(id: string, name: string, description: string, art: string?): Item
 	return {
 		id = id,
 		name = name,
 		kind = "Machine",
-		stack = stack or MACHINE_STACK,
+		stack = STACK,
 		description = description,
 		art = art,
 	}
 end
 
 local function resource(id: string, name: string, description: string, art: string?): Item
-	return { id = id, name = name, kind = "Resource", stack = RESOURCE_STACK, description = description, art = art }
+	return { id = id, name = name, kind = "Resource", stack = STACK, description = description, art = art }
 end
 
 local ITEMS: { Item } = {
@@ -102,21 +101,20 @@ local ITEMS: { Item } = {
 	block("Bricks", "Bricks", "Fired clay, stacked tight.", "Pickaxe"),
 	block("Glass", "Glass", "See-through and surprisingly sturdy.", "Pickaxe"),
 
-	machine("ConveyorBelt", "Conveyor Belt", "Carries items forward.", CONVEYOR_STACK),
-	machine("ConveyorBeltLeft", "Conveyor Turn (Left)", "Turns items to the left.", CONVEYOR_STACK),
-	machine("ConveyorBeltRight", "Conveyor Turn (Right)", "Turns items to the right.", CONVEYOR_STACK),
-	machine("ConveyorBeltTier2", "Fast Conveyor Belt", "Carries items forward at twice the speed.", CONVEYOR_STACK),
-	machine("ConveyorBeltLeftTier2", "Fast Conveyor Turn (Left)", "A fast left turn.", CONVEYOR_STACK),
-	machine("ConveyorBeltRightTier2", "Fast Conveyor Turn (Right)", "A fast right turn.", CONVEYOR_STACK),
-	machine("ConveyorRamp", "Conveyor Ramp (Up)", "Lifts items up one block.", CONVEYOR_STACK),
-	machine("ConveyorRampDown", "Conveyor Ramp (Down)", "Lowers items one block.", CONVEYOR_STACK),
-	machine("ConveyorRampTier2", "Fast Conveyor Ramp (Up)", "Lifts items up one block, fast.", CONVEYOR_STACK),
-	machine("ConveyorRampDownTier2", "Fast Conveyor Ramp (Down)", "Lowers items one block, fast.", CONVEYOR_STACK),
+	machine("ConveyorBelt", "Conveyor Belt", "Carries items forward."),
+	machine("ConveyorBeltLeft", "Conveyor Turn (Left)", "Turns items to the left."),
+	machine("ConveyorBeltRight", "Conveyor Turn (Right)", "Turns items to the right."),
+	machine("ConveyorBeltTier2", "Fast Conveyor Belt", "Carries items forward at twice the speed."),
+	machine("ConveyorBeltLeftTier2", "Fast Conveyor Turn (Left)", "A fast left turn."),
+	machine("ConveyorBeltRightTier2", "Fast Conveyor Turn (Right)", "A fast right turn."),
+	machine("ConveyorRamp", "Conveyor Ramp (Up)", "Lifts items up one block."),
+	machine("ConveyorRampDown", "Conveyor Ramp (Down)", "Lowers items one block."),
+	machine("ConveyorRampTier2", "Fast Conveyor Ramp (Up)", "Lifts items up one block, fast."),
+	machine("ConveyorRampDownTier2", "Fast Conveyor Ramp (Down)", "Lowers items one block, fast."),
 	machine(
 		"ConveyorSensor",
 		"Belt Sensor",
-		"Flashes when an item passes and powers the Belt Switches touching it for a moment.",
-		CONVEYOR_STACK
+		"Flashes when an item passes and powers the Belt Switches touching it for a moment."
 	),
 	machine(
 		"FilterConveyor",
@@ -143,11 +141,6 @@ local ITEMS: { Item } = {
 		"Assembles the iron and copper bars a belt brings it into gears, copper wire, circuits and steel frames."
 	),
 	machine(
-		"CraftingBench",
-		"Crafting Bench",
-		"Open it to craft planks, frames and every machine. Upgrade it with materials to build more complex ones."
-	),
-	machine(
 		"SeedPlanter",
 		"Seed Planter",
 		"Plants the seeds in its hopper into empty soil, 3 wide and 5 deep, in front of it."
@@ -166,24 +159,21 @@ local ITEMS: { Item } = {
 		"SeedPlanterTier2",
 		"Seed Planter Mk II",
 		"Plants a seed a second into empty soil, 5 wide and 7 deep, in front of it.",
-		nil,
 		"SeedPlanter"
 	),
 	machine(
 		"SprinklerTier2",
 		"Sprinkler Mk II",
 		"Crops within 5 cells grow half again as fast, and come out Wet more often.",
-		nil,
 		"Sprinkler"
 	),
 	machine(
 		"HarvesterTier2",
 		"Harvester Mk II",
 		"Harvests ripe crops within 6 cells, twice as fast, and replants the ones that need it.",
-		nil,
 		"Harvester"
 	),
-	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", nil, "Mill"),
+	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", "Mill"),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine("Chest", "Chest", "Holds 12 slots of anything you put in. Open it to put items in or take them out."),
 	machine(
@@ -194,8 +184,7 @@ local ITEMS: { Item } = {
 	machine(
 		"AutoCrafter",
 		"Auto Crafter",
-		"Pick a Crafting Bench recipe and it crafts it over and over from what a belt brings it.",
-		nil,
+		"Pick a crafting recipe and it crafts it over and over from what a belt brings it.",
 		"Workbench"
 	),
 
@@ -204,7 +193,7 @@ local ITEMS: { Item } = {
 	resource("CopperOre", "Copper Ore", "Smelt it into a copper bar."),
 	resource("IronBar", "Iron Bar", "Smelted iron, for crafting frames, gears and machines."),
 	resource("CopperBar", "Copper Bar", "Smelted copper, for wire, sprinklers and machines."),
-	resource("Wood", "Wood", "Chopped from the forest's trees. Saw it into planks at a Crafting Bench.", "Log"),
+	resource("Wood", "Wood", "Chopped from the forest's trees. Craft it into planks.", "Log"),
 	resource("TimberFrame", "Timber Frame", "Planks braced with iron, for crafting machines.", "Pallet"),
 }
 

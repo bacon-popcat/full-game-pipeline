@@ -607,3 +607,15 @@ Built by Claude: Codex was still at its usage limit.
 - **The Robux tab** replaces the Machines tab and the Machine Shop stall: coin packs as developer
   products, granted from `ProcessReceipt` with receipt ids kept in the save. Product ids are
   0 (not on sale) until they are made on the Creator Dashboard.
+
+### Crafting button and sidebar decisions (2026-11-09)
+
+- **Crafting is a button, not a block.** The side Crafting button (and the C key) opens the
+  Crafting window anywhere; the Crafting Bench block, its starter-kit copy and its recipe are
+  gone, and saves drop their benches quietly. Tiers are upgraded in the window as before; tier 1
+  is now called Hand Crafting. The Auto Crafter takes 2 Timber Frame instead of a bench.
+- **The Robux Shop moved into the Menu popup**, a row before Settings; Crafting took its place in
+  the side column.
+- **Stacks have no limit.** Every item but a tool stacks without end, in the inventory and in a
+  chest's slots (inventory.md).
+- **Shipping Bin sales float up from the bin** as a gold "+coins" label (factory.md, Shipping Bin).

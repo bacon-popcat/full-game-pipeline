@@ -134,9 +134,9 @@ into that level and its cost. Level is derived, not independently saved. GardenS
 awards harvest/sale XP and handles stock and selling; the HUD binds EconomyClient.
 See [economy.md](economy.md).
 
-DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, Hoe, Crafting Bench, ten
+DataService owns the fresh profile's 50 coins, zero XP, Hammer, Pickaxe, Hoe, ten
 Carrot Seeds and five Wheat Seeds. The old full test kit is gone. Seeds are bought at the hub
-and machines crafted at the Crafting Bench; playtests can still grant items through the server's
+and machines crafted in the Crafting window; playtests can still grant items through the server's
 InventoryService.give API. Selected hotbar slot resets to one on load.
 
 ## Profile contents
@@ -169,8 +169,9 @@ cell off the garden's land, out of range, or tilled where it can't be (stone) is
 renamed or cut since it was saved, a missing template) is skipped with a warning, so a content
 change never locks a player out. An Auto Crafter's recipe since cut is dropped on its own,
 keeping what the crafter holds. Only bad balances, a broken save shape or a full server fail
-loading, and those keep the original profile. A garden with no Crafting Bench anywhere --
-carried, placed, or held in a chest, machine or belt -- gets one in its inventory on load.
+loading, and those keep the original profile. Items cut on purpose (DataService `RETIRED`: the
+Crafting Bench) go quietly wherever the save keeps them -- carried, placed, or held in a chest,
+machine or belt -- without a warning, and without costing the rest of a machine's contents.
 
 The section layout keeps `GardenFoundation_v1`. A save without `plotLayout = 2` was laid out
 from the corner of the old square garden, which is now the start block's corner, so

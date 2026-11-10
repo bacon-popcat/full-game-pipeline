@@ -24,7 +24,7 @@ local STEPS: { Step } = {
 	{ text = "Open Sell and sell your harvest for coins", reward = 20, condition = "StandSold" },
 	{ text = "Reach level 2", reward = 30, condition = "LevelTwo" },
 	{
-		text = "Place your Crafting Bench and craft a Shipping Bin from 10 Wood Planks",
+		text = "Open Crafting and craft a Shipping Bin from 10 Wood Planks",
 		reward = 20,
 		condition = "BinBought",
 	},

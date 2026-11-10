@@ -1,13 +1,15 @@
 --!strict
--- Crafting: the Crafting Bench's tiers and recipes, as data, in the order its window lists them.
--- Crafting is the only way to get a machine, conveyor or router: no shop sells them. A craft
--- trades a recipe's inputs from the player's inventory for its output at once (CraftingService);
--- the window predicts with the same rules (`blocker`) and the server checks them again.
+-- Crafting: the crafting tiers and recipes, as data, in the order the Crafting window (opened from
+-- the side Crafting button, anywhere) lists them. Crafting is the only way to get a machine,
+-- conveyor or router: no shop sells them. A craft trades a recipe's inputs from the player's
+-- inventory for its output at once (CraftingService); the window predicts with the same rules
+-- (`blocker`) and the server checks them again.
 --
 -- Gates, all checked by `blocker`:
---   * `tier`: the player's bench tier (saved per garden, CraftingService). Every bench a player
---     owns works at their tier; upgrading is a recipe of its own (`upgrade`) that spends its inputs
---     and raises the tier by one, from the level the tier names.
+--   * `tier`: the player's crafting tier (saved per garden, CraftingService). Upgrading is a recipe
+--     of its own (`upgrade`), made in the window, that spends its inputs and raises the tier by
+--     one, from the level the tier names. Ids and the saved field still say "bench", from when
+--     crafting needed a placed Crafting Bench.
 --   * `research`: a Shared/Research project that must be done first. This table, not Research,
 --     says which project unlocks which recipe.
 
@@ -18,23 +20,25 @@ local Research = require(ReplicatedStorage.Shared.Research)
 
 export type Recipe = {
 	id: string,
-	-- What one craft makes, and how many. An upgrade shows its output (the bench) but makes none.
+	-- What one craft makes, and how many. An upgrade shows its output (the tier's `icon`) but makes none.
 	output: string,
 	count: number,
 	inputs: { [string]: number },
-	-- The bench tier it needs.
+	-- The crafting tier it needs.
 	tier: number,
 	-- The research project that unlocks it; nil when the tier alone does.
 	research: string?,
-	-- Upgrades only: the tier it raises the bench to, and the name the window shows for it.
+	-- Upgrades only: the tier it raises crafting to, and the name the window shows for it.
 	upgrade: number?,
 	name: string?,
 }
 
 export type Tier = {
-	-- What a bench of this tier is called.
+	-- What this tier is called.
 	name: string,
-	-- The level the upgrade to it needs (tier 1 is where every bench starts).
+	-- The item that stands for the tier, as its upgrade recipe's output.
+	icon: string,
+	-- The level the upgrade to it needs (tier 1 is where every garden starts).
 	level: number,
 	-- What the upgrade to it costs.
 	inputs: { [string]: number },
@@ -43,35 +47,37 @@ export type Tier = {
 
 local Crafting = {}
 
--- The placeable block whose window crafts.
-Crafting.BENCH = "CraftingBench"
 -- Most times one request may craft a recipe.
 Crafting.MAX_TIMES = 10
 
 Crafting.TIERS = {
 	{
-		name = "Crafting Bench",
+		name = "Hand Crafting",
 		level = 1,
 		inputs = {},
 		description = "Saws planks and builds the first machines: belts, the Smelter, bins and chests.",
+		icon = "WoodPlanks",
 	},
 	{
 		name = "Workshop",
 		level = 3,
 		inputs = { WoodPlanks = 40, Stone = 30, IronBar = 8 },
 		description = "Adds the Assembler, Seed Planter, Sprinkler, mills, presses, belt routers and the Auto Collector.",
+		icon = "Workbench",
 	},
 	{
 		name = "Machine Works",
 		level = 6,
 		inputs = { TimberFrame = 8, IronBar = 20, CopperBar = 12, Gear = 10 },
 		description = "Adds the Harvester, Oven, Crate Packer, Rock Drill, Auto Crafter and fast conveyors.",
+		icon = "Harvester",
 	},
 	{
 		name = "Fabricator",
 		level = 9,
 		inputs = { SteelFrame = 8, Circuit = 6, Gear = 12, CopperWire = 10 },
 		description = "Builds the Mk II machines out of the ones you have.",
+		icon = "SteelFrame",
 	},
 } :: { Tier }
 
@@ -80,10 +86,9 @@ local function define(id: string, count: number, inputs: { [string]: number }, t
 end
 
 local RECIPES: { Recipe } = {
-	-- Tier 1: Crafting Bench. Wood from the forest, stone and ore from the quarry.
+	-- Tier 1: Hand Crafting. Wood from the forest, stone and ore from the quarry.
 	define("WoodPlanks", 4, { Wood = 1 }, 1),
 	define("TimberFrame", 1, { WoodPlanks = 4, IronBar = 1 }, 1),
-	define("CraftingBench", 1, { WoodPlanks = 8, Stone = 4 }, 1),
 	define("Smelter", 1, { Stone = 16, WoodPlanks = 4 }, 1),
 	define("ShippingBin", 1, { WoodPlanks = 10 }, 1),
 	define("Chest", 1, { WoodPlanks = 8 }, 1),
@@ -111,7 +116,7 @@ local RECIPES: { Recipe } = {
 	define("Harvester", 1, { TimberFrame = 4, Gear = 4, Circuit = 2 }, 3),
 	define("Oven", 1, { Bricks = 20, IronBar = 6, CopperBar = 2 }, 3),
 	define("CratePacker", 1, { TimberFrame = 4, Gear = 4, IronBar = 4 }, 3, "CrateMaking"),
-	define("AutoCrafter", 1, { Workbench = 1, CraftingBench = 1, Circuit = 2, Gear = 4 }, 3),
+	define("AutoCrafter", 1, { Workbench = 1, TimberFrame = 2, Circuit = 2, Gear = 4 }, 3),
 	define("RockDrill", 1, { SteelFrame = 2, Gear = 4, CopperWire = 4 }, 3),
 	define("ConveyorBeltTier2", 4, { ConveyorBelt = 4, Gear = 2 }, 3),
 	define("ConveyorBeltLeftTier2", 4, { ConveyorBeltLeft = 4, Gear = 2 }, 3),
@@ -132,7 +137,7 @@ for tier = 2, #Crafting.TIERS do
 	local each = Crafting.TIERS[tier]
 	table.insert(upgrades, {
 		id = `BenchTier{tier}`,
-		output = Crafting.BENCH,
+		output = each.icon,
 		count = 0,
 		inputs = each.inputs,
 		tier = tier - 1,
@@ -147,7 +152,7 @@ local byId: { [string]: Recipe } = {}
 for _, each in Crafting.RECIPES do
 	assert(not byId[each.id], `Crafting: recipe "{each.id}" is listed twice`)
 	assert(Inventory.find(each.output), `Crafting: "{each.id}" makes unknown item "{each.output}"`)
-	assert(Crafting.TIERS[each.tier], `Crafting: "{each.id}" needs unknown bench tier {each.tier}`)
+	assert(Crafting.TIERS[each.tier], `Crafting: "{each.id}" needs unknown crafting tier {each.tier}`)
 	for itemId in each.inputs do
 		assert(Inventory.find(itemId), `Crafting: "{each.id}" needs unknown item "{itemId}"`)
 	end
@@ -186,13 +191,13 @@ function Crafting.unlockedBy(researchId: string): { Recipe }
 	return found
 end
 
--- Whether research or the bench's tier still keeps it from being crafted at all (not the inputs).
+-- Whether research or the crafting tier still keeps it from being crafted at all (not the inputs).
 function Crafting.locked(recipe: Recipe, done: { [string]: boolean }, tier: number): boolean
 	return (recipe.research ~= nil and not done[recipe.research]) or tier < recipe.tier
 end
 
 -- Why `times` crafts of `recipe` can't happen now, or nil when they can: it's locked by research,
--- the bench's `tier` or the player's `level`, or the inventory (`count(itemId)`) is short of an
+-- the crafting `tier` or the player's `level`, or the inventory (`count(itemId)`) is short of an
 -- input. Room for the output is the server's to judge, since the inputs it frees count.
 function Crafting.blocker(
 	recipe: Recipe,
@@ -205,7 +210,7 @@ function Crafting.blocker(
 	if recipe.upgrade then
 		local target = Crafting.TIERS[recipe.upgrade]
 		if tier >= recipe.upgrade then
-			return `Your bench is already a {Crafting.TIERS[tier].name}`
+			return `Crafting is already at {Crafting.TIERS[tier].name}`
 		elseif tier < recipe.tier then
 			return `Upgrade to {Crafting.TIERS[recipe.tier].name} first`
 		elseif level < target.level then
@@ -214,7 +219,7 @@ function Crafting.blocker(
 			return "Upgrade one tier at a time"
 		end
 	elseif tier < recipe.tier then
-		return `Upgrade your bench to {Crafting.TIERS[recipe.tier].name} first`
+		return `Upgrade crafting to {Crafting.TIERS[recipe.tier].name} first`
 	end
 	if recipe.research and not done[recipe.research] then
 		local project = Research.get(recipe.research)

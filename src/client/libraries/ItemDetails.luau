@@ -48,9 +48,10 @@ function ItemDetails.rows(item: Inventory.Item, count: number?): { Row }
 	local function add(key: string, value: string, color: Color3?)
 		table.insert(rows, { key = key, value = value, color = color })
 	end
+	local limited = item.stack ~= math.huge
 	if count then
-		add("Amount", `{count} / {item.stack}`)
-	else
+		add("Amount", if limited then `{count} / {item.stack}` else Hud.number(count))
+	elseif limited then
 		add("Stacks to", tostring(item.stack))
 	end
 	if item.value then

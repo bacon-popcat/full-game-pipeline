@@ -1,8 +1,8 @@
--- CraftingService: the Crafting Bench and its tier. A player within reach of one of their own placed
--- benches sends Remotes.Craft(recipeId, times); the rules are Shared/Crafting's, checked again here
--- against the live inventory, the player's research (server/libraries/Bonuses), level and bench
--- tier. The tier is saved per garden (DataService loads and snapshots it) and replicates as the
--- player's BenchTier attribute; an upgrade recipe spends its inputs and raises it. The trade is first
+-- CraftingService: crafting and its tier. The Crafting window (opened from the side Crafting button,
+-- anywhere) sends Remotes.Craft(recipeId, times); the rules are Shared/Crafting's, checked again
+-- here against the live inventory, the player's research (server/libraries/Bonuses), level and
+-- crafting tier. The tier is saved per garden (DataService loads and snapshots it) and replicates
+-- as the player's BenchTier attribute; an upgrade recipe spends its inputs and raises it. The trade is first
 -- tried on a copy of the inventory, inputs out and then the output in, so the room the inputs
 -- free counts and it happens whole or not at all; then it is applied without yielding.
 
@@ -10,7 +10,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
-local Build = require(ReplicatedStorage.Shared.Build)
 local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -26,39 +25,6 @@ local CraftingService = {}
 
 local lastCraft: { [Player]: number } = {}
 local tiers: { [Player]: number } = {}
-
-local function rootOf(player: Player): BasePart?
-	local character = player.Character
-	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
-	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
-	if not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then
-		return nil
-	end
-	return root
-end
-
--- Whether one of the player's own placed benches is within reach of where they stand.
-local function atBench(player: Player, from: Vector3): boolean
-	local placed = workspace:FindFirstChild("Placed")
-	if not placed then
-		return false
-	end
-	for _, model in placed:GetChildren() do
-		local origin, rotation = model:GetAttribute("Origin"), model:GetAttribute("Rotation")
-		if
-			model:GetAttribute("ItemId") == Crafting.BENCH
-			and model:GetAttribute("Owner") == player.UserId
-			and typeof(origin) == "Vector3"
-			and typeof(rotation) == "number"
-		then
-			local footprint = Build.footprint(Crafting.BENCH, rotation)
-			if footprint and Build.inReach(from, origin, footprint) then
-				return true
-			end
-		end
-	end
-	return false
-end
 
 local function counter(slots: Inventory.Slots): (string) -> number
 	return function(itemId: string): number
@@ -107,15 +73,10 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	end
 	lastCraft[player] = now
 	local recipe = Crafting.get(recipeId)
-	local root = rootOf(player)
 	local slots = InventoryService.snapshot(player)
 	local tier = tiers[player]
 	local economy = EconomyService.get(player)
-	if not recipe or not root or not slots or not tier or not economy then
-		return
-	end
-	if not atBench(player, root.Position) then
-		Remotes.Notify:FireClient(player, "Stand by your Crafting Bench to craft.", "Error")
+	if not recipe or not slots or not tier or not economy then
 		return
 	end
 	local done = {}
@@ -138,7 +99,7 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	if recipe.upgrade then
 		tiers[player] = recipe.upgrade
 		player:SetAttribute("BenchTier", recipe.upgrade)
-		Remotes.Notify:FireClient(player, `Your bench is now a {Crafting.TIERS[recipe.upgrade].name}!`, "Reward")
+		Remotes.Notify:FireClient(player, `Crafting upgraded to {Crafting.TIERS[recipe.upgrade].name}!`, "Reward")
 		GardenEvents.Crafted:Fire(player, recipe.id, times)
 		return
 	end

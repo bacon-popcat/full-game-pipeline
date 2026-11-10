@@ -19,7 +19,7 @@ local ROLES: { [string]: Role } = {
 	-- an axe biting into a forest tree, and the tree coming down
 	Chop = { id = "rbxassetid://136761976782388", volume = 0.45, spatial = true },
 	TreeFall = { id = "rbxassetid://118623246906163", volume = 0.4, spatial = true },
-	-- something crafted at a Crafting Bench
+	-- something crafted in the Crafting window
 	Craft = { id = "rbxassetid://104446383390823", volume = 0.4, spatial = false },
 	-- a research project finished
 	ResearchDone = { id = "rbxassetid://82850696869958", volume = 0.45, spatial = false },

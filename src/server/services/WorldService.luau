@@ -92,6 +92,8 @@ local living: { [Model]: Node } = {}
 local stumps: { [string]: Model } = {}
 local lastAction: { [Player]: number } = {}
 local lastWatered: { [Player]: number } = {}
+-- When each player last broke a quarry rock (a `crowd` node), for World.respawnAfter.
+local lastMined: { [Player]: number } = {}
 local warned: { [string]: boolean } = {}
 local overlapParams = Build.newOverlapParams()
 local random = Random.new()
@@ -396,6 +398,17 @@ local function scheduleRespawn(nodeType: string, cell: Vector3, after: number)
 	end)
 end
 
+-- Players who broke a quarry rock in the last World.MINER_WINDOW seconds.
+local function miners(): number
+	local now, count = os.clock(), 0
+	for _, at in lastMined do
+		if now - at <= World.MINER_WINDOW then
+			count += 1
+		end
+	end
+	return count
+end
+
 -- `keepModel` leaves the model standing, for the node that morph made it into.
 local function removeNode(node: Node, keepModel: boolean?)
 	if nodesByModel[node.model] ~= node then
@@ -417,8 +430,9 @@ local function removeNode(node: Node, keepModel: boolean?)
 	if not keepModel then
 		node.model:Destroy()
 	end
-	if respawns and def.respawn then
-		scheduleRespawn(node.nodeType, node.cell, def.respawn)
+	local after = if respawns then World.respawnAfter(def, miners()) else nil
+	if after then
+		scheduleRespawn(node.nodeType, node.cell, after)
 	end
 end
 
@@ -744,6 +758,10 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 		end
 		local look = node.model:GetAttribute("Look")
 		local pivot = node.model:GetPivot()
+		if def.crowd then
+			-- Before the rock goes, so its own respawn counts this miner.
+			lastMined[player] = os.clock()
+		end
 		removeNode(node)
 		giveAll(player, drops)
 		if def.tool == "Axe" then
@@ -916,6 +934,7 @@ function WorldService.init()
 	Players.PlayerRemoving:Connect(function(player)
 		lastAction[player] = nil
 		lastWatered[player] = nil
+		lastMined[player] = nil
 	end)
 end
 

@@ -1,22 +1,22 @@
--- CraftingScreen: the authored Crafting window (HUD.Crafting) of the player's own Crafting
--- Bench, opened from the bench's prompt (BlockPrompts: the interact key, Controls.INTERACT, or a
--- tap on its card) while in reach, and closed by the interact key again or on walking away. Laid out like a workshop catalogue:
+-- CraftingScreen: the authored Crafting window (HUD.Crafting), toggled from anywhere by the side
+-- Crafting button (SideButtons.Crafting) or the crafting key (Controls.TOGGLE_CRAFTING). Laid out
+-- like a workshop catalogue:
 --
 --   * Body.Categories: one Assets.UI.Crafting.Category button per category that has recipes
 --     (Craftable, All, then by the output's item kind).
 --   * Body.Main: a Search box and a Grid of Assets.UI.Crafting.Card, one per Shared/Crafting
 --     recipe; a card shows its output, how many one craft makes, `Ready` when the inventory can
---     make it now and `Lock` while research or the bench's tier hasn't unlocked it. Hovering one
+--     make it now and `Lock` while research or the crafting tier hasn't unlocked it. Hovering one
 --     shows HUD.Crafting.Tooltip (name, description, and each input as have / need).
---   * Header.Title names the bench's tier ("Workshop"). Header.Upgrade opens UpgradePanel, which
+--   * Header.Title names the crafting tier ("Workshop"). Header.Upgrade opens UpgradePanel, which
 --     lays out what the next tier (Crafting.TIERS) needs, the level and each input as have / need,
---     and its Confirm button spends them. Bench upgrades are recipes (Crafting.RECIPES, `upgrade`)
+--     and its Confirm button spends them. Tier upgrades are recipes (Crafting.RECIPES, `upgrade`)
 --     but have no card in the grid: the server takes the same Craft request for them.
 --   * Body.Details: the picked recipe's output turning in Preview, its Ingredients (one
 --     Assets.UI.Crafting.Ingredient each, have / need in green or red), a Status line saying what
 --     is missing, the Amount stepper (1 to Crafting.MAX_TIMES crafts) and Craft.
 --
--- Crafting.blocker says what's missing from this player's inventory, research, level and bench
+-- Crafting.blocker says what's missing from this player's inventory, research, level and crafting
 -- tier (the BenchTier attribute CraftingService sets); the server checks it all again and answers
 -- with Notify.
 local ContextActionService = game:GetService("ContextActionService")
@@ -24,7 +24,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Build = require(ReplicatedStorage.Shared.Build)
 local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -41,7 +40,7 @@ local ResearchClient = require(Libraries.ResearchClient)
 local Turntable = require(Libraries.Turntable)
 local UI = require(Libraries.UI)
 
-local INTERACT_ACTION = "CraftingInteract"
+local TOGGLE_ACTION = "CraftingToggle"
 -- Seconds a press waits for the server's answer before the buttons wake again anyway.
 local PENDING_FOR = 1.5
 -- Pixels between the pointer and the hover card.
@@ -62,8 +61,7 @@ type Card = {
 local CraftingScreen = {}
 
 local player = Players.LocalPlayer
--- Set once the window is bound: open it on a bench, and whether it is open.
-local openAt: ((Model) -> ())? = nil
+-- Set once the window is bound: whether it is open.
 local isOpen: (() -> boolean)? = nil
 
 local function countOf(itemId: string): number
@@ -77,37 +75,17 @@ local function countOf(itemId: string): number
 	return count
 end
 
-local function rootPosition(): Vector3?
-	local character = player.Character
-	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
-	return if root and root:IsA("BasePart") then root.Position else nil
-end
-
--- Whether a bench is the player's own and close enough to work at, as CraftingService judges it.
-local function inReach(bench: Model): boolean
-	local from = rootPosition()
-	local origin, rotation = bench:GetAttribute("Origin"), bench:GetAttribute("Rotation")
-	if not from or typeof(origin) ~= "Vector3" or typeof(rotation) ~= "number" then
-		return false
-	end
-	local footprint = Build.footprint(Crafting.BENCH, rotation)
-	return footprint ~= nil
-		and bench:GetAttribute("Owner") == player.UserId
-		and bench:IsDescendantOf(workspace)
-		and Build.inReach(from, origin, footprint)
-end
-
-local function benchTier(): number
+local function craftingTier(): number
 	return Crafting.sanitizeTier(player:GetAttribute("BenchTier"))
 end
 
 local function locked(recipe: Crafting.Recipe): boolean
-	return Crafting.locked(recipe, ResearchClient.done(), benchTier())
+	return Crafting.locked(recipe, ResearchClient.done(), craftingTier())
 end
 
 -- Why it can't be crafted `times` times now, or nil.
 local function blockerOf(recipe: Crafting.Recipe, times: number): string?
-	return Crafting.blocker(recipe, times, ResearchClient.done(), countOf, benchTier(), EconomyClient.get().level)
+	return Crafting.blocker(recipe, times, ResearchClient.done(), countOf, craftingTier(), EconomyClient.get().level)
 end
 
 -- How many times the inventory could craft it now, ignoring room for the output.
@@ -244,7 +222,6 @@ function CraftingScreen.init(hud: ScreenGui)
 	local hovered: Crafting.Recipe? = nil
 	local times = 1
 	local pendingSince: number? = nil
-	local bench: Model? = nil
 	local ingredientRows: { Frame } = {}
 	local upgradeRows: { Frame } = {}
 	local upgradeOpen = false
@@ -320,7 +297,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		local item = Inventory.getItem(recipe.output)
 		local name = Crafting.nameOf(recipe)
 		nodes.itemName.Text = if recipe.count * times > 1 then `{name} x{recipe.count * times}` else name
-		nodes.kind.Text = if recipe.upgrade then "Bench upgrade" else item.kind
+		nodes.kind.Text = if recipe.upgrade then "Crafting upgrade" else item.kind
 		turntable.show(recipe.output)
 		local ids = inputsOf(recipe)
 		rowsFor(ingredientRows, ingredientTemplate, nodes.ingredients, #ids)
@@ -353,13 +330,13 @@ function CraftingScreen.init(hud: ScreenGui)
 		local description = if target
 			then `{target.description} Needs level {target.level}.`
 			else item.description or ""
-		local tier = benchTier()
+		local tier = craftingTier()
 		local project = if recipe.research and not ResearchClient.done()[recipe.research]
 			then Research.get(recipe.research)
 			else nil
 		local needs = {}
 		if tier < recipe.tier then
-			table.insert(needs, `Upgrade your bench to {Crafting.TIERS[recipe.tier].name}`)
+			table.insert(needs, `Upgrade crafting to {Crafting.TIERS[recipe.tier].name}`)
 		end
 		if project then
 			table.insert(needs, `research {project.name}`)
@@ -406,9 +383,9 @@ function CraftingScreen.init(hud: ScreenGui)
 		end
 	end
 
-	-- The recipe that raises the bench one tier, or nil at the top tier.
+	-- The recipe that raises crafting one tier, or nil at the top tier.
 	local function nextUpgrade(): Crafting.Recipe?
-		return Crafting.get(`BenchTier{benchTier() + 1}`)
+		return Crafting.get(`BenchTier{craftingTier() + 1}`)
 	end
 
 	local function paintUpgrade()
@@ -491,14 +468,12 @@ function CraftingScreen.init(hud: ScreenGui)
 		render()
 	end
 
-	-- Cards in the order the bench lists them: what you can make now, then what's unlocked, then
+	-- Cards in the order the window lists them: what you can make now, then what's unlocked, then
 	-- what research still has to unlock, each in Shared/Crafting's order.
 	local function sortCards()
 		for index, card in cards do
 			local recipe = card.recipe
-			local rank = if locked(recipe) then 2000
-				elseif makeable(recipe) > 0 then 0
-				else 1000
+			local rank = if locked(recipe) then 2000 elseif makeable(recipe) > 0 then 0 else 1000
 			card.button.LayoutOrder = rank + index
 		end
 	end
@@ -701,41 +676,41 @@ function CraftingScreen.init(hud: ScreenGui)
 
 	local function close()
 		window.close()
-		bench = nil
 		hovered = nil
 		upgradeOpen = false
 		nodes.panel.Visible = false
 		nodes.search:ReleaseFocus()
 		nodes.search.Text = ""
 	end
-	-- The interact key closes the window again; BlockPrompts opens it from the bench's prompt.
-	local function onInteract(_: string, state: Enum.UserInputState): Enum.ContextActionResult
-		if state ~= Enum.UserInputState.Begin or not window.isOpen() then
-			return Enum.ContextActionResult.Pass
-		end
-		close()
-		return Enum.ContextActionResult.Sink
-	end
-	ContextActionService:BindAction(INTERACT_ACTION, onInteract, false, table.unpack(Controls.INTERACT))
-	trove:Add(function()
-		ContextActionService:UnbindAction(INTERACT_ACTION)
-	end)
-	openAt = function(target: Model)
-		if not inReach(target) then
-			return
-		end
+	local function toggle()
 		if window.isOpen() then
 			close()
+		else
+			window.open()
 		end
-		bench = target
-		window.open()
 	end
+	local opener = Hud.find(hud, "SideButtons.Crafting", "TextButton")
+	if opener then
+		trove:Add(UI.bindButton(opener, { hoverScale = 1.08, onActivate = toggle }))
+	end
+	-- The crafting key toggles it, but not while typing (the search box, chat).
+	local function onToggle(_: string, state: Enum.UserInputState): Enum.ContextActionResult
+		if state ~= Enum.UserInputState.Begin or UserInputService:GetFocusedTextBox() then
+			return Enum.ContextActionResult.Pass
+		end
+		toggle()
+		return Enum.ContextActionResult.Sink
+	end
+	ContextActionService:BindAction(TOGGLE_ACTION, onToggle, false, table.unpack(Controls.TOGGLE_CRAFTING))
+	trove:Add(function()
+		ContextActionService:UnbindAction(TOGGLE_ACTION)
+	end)
 	isOpen = window.isOpen
 
 	local title = Hud.find(hud, "Crafting.Header.Title", "TextLabel")
 	local function paintTitle()
 		if title and title:IsA("TextLabel") then
-			title.Text = Crafting.TIERS[benchTier()].name
+			title.Text = Crafting.TIERS[craftingTier()].name
 		end
 	end
 	paintTitle()
@@ -776,9 +751,6 @@ function CraftingScreen.init(hud: ScreenGui)
 			pendingSince = nil
 			render()
 		end
-		if window.isOpen() and (not bench or not inReach(bench)) then
-			close()
-		end
 	end)
 	trove:Connect(hud.Destroying, function()
 		trove:Destroy()
@@ -786,13 +758,6 @@ function CraftingScreen.init(hud: ScreenGui)
 	end)
 	sortCards()
 	render()
-end
-
--- Opens the window on `bench`, the player's own Crafting Bench in reach (BlockPrompts).
-function CraftingScreen.open(bench: Model)
-	if openAt then
-		openAt(bench)
-	end
 end
 
 function CraftingScreen.isOpen(): boolean

@@ -7,7 +7,7 @@
 -- Chest and Auto Collector) shows what it holds in the grid instead, one cell a slot,
 -- and a press takes that item out; its Switch button flips the grid to the backpack, where a
 -- press puts that item in, as many as fit, and back. The server checks every request; the
--- panel never changes anything itself. An Auto Crafter's grid lists the bench recipes its owner
+-- panel never changes anything itself. An Auto Crafter's grid lists the crafting recipes its owner
 -- has unlocked (a press picks one, ringed while picked); its Switch flips the grid to the
 -- backpack items that recipe takes, where a press loads them.
 --
@@ -794,7 +794,7 @@ local function render()
 		elseif def.crafts and putting then (if pickedRecipe()
 			then "Nothing in your backpack this recipe takes."
 			else "Pick a recipe first.")
-		elseif def.crafts then "Upgrade your bench to unlock recipes."
+		elseif def.crafts then "Upgrade crafting to unlock recipes."
 		else look.empty
 	if showsGrid then
 		renderGrid(def, itemId)

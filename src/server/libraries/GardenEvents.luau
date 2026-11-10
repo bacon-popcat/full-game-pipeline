@@ -37,7 +37,7 @@ local GardenEvents = {
 	Chopped = Signal.new(),
 	-- (player, nodeType: string, cell: Vector3) a non-Axe world node or garden ground cell mined
 	Mined = Signal.new(),
-	-- (player, recipeId: string, times: number) a recipe crafted at a Crafting Bench (Shared/Crafting)
+	-- (player, recipeId: string, times: number) a recipe crafted in the Crafting window (Shared/Crafting)
 	Crafted = Signal.new(),
 	-- (player, researchId: string) a research project finished (Shared/Research)
 	ResearchDone = Signal.new(),

@@ -113,11 +113,12 @@ local function capacity(def: Factory.Def, itemId: string): number
 	return most
 end
 
--- A chest's slots in use: each item fills slots of its stack size.
+-- A chest's slots in use: each item fills slots of its stack size (one slot when it has no limit).
 function Machine.slotsUsed(state: State): number
 	local used = 0
 	for itemId, count in state.inputs do
-		used += math.ceil(count / Inventory.getItem(itemId).stack)
+		local stack = Inventory.getItem(itemId).stack
+		used += if count <= 0 then 0 elseif stack == math.huge then 1 else math.ceil(count / stack)
 	end
 	return used
 end
@@ -126,11 +127,16 @@ end
 function Machine.room(state: State, itemId: string): number
 	local def = state.def
 	if def.stores then
-		-- What fits in the free slots, plus what tops up this item's last part-filled slot.
 		local stack = Inventory.getItem(itemId).stack
 		local held = state.inputs[itemId] or 0
+		local free = def.stores - Machine.slotsUsed(state)
+		if stack == math.huge then
+			-- Kept apart: 0 free slots times an unlimited stack is NaN, not 0.
+			return if held > 0 or free > 0 then math.huge else 0
+		end
+		-- What fits in the free slots, plus what tops up this item's last part-filled slot.
 		local topUp = if held % stack > 0 then stack - held % stack else 0
-		return (def.stores - Machine.slotsUsed(state)) * stack + topUp
+		return free * stack + topUp
 	end
 	if def.sells then
 		return if Inventory.getItem(itemId).value then SELL_CAP - total(state.inputs) else 0

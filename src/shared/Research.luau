@@ -102,7 +102,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "CrateMaking",
 		name = "Crate Making",
-		description = "Unlocks the Crate Packer recipe at a Machine Works bench.",
+		description = "Unlocks the Crate Packer recipe at Machine Works.",
 		category = "Crafting",
 		level = 3,
 		coins = 250,
@@ -126,7 +126,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "Carpentry",
 		name = "Carpentry",
-		description = "Unlocks the Auto Collector recipe at the Crafting Bench.",
+		description = "Unlocks the Auto Collector recipe.",
 		category = "Crafting",
 		level = 4,
 		coins = 400,
@@ -174,7 +174,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "WoodenBelts",
 		name = "Conveyor Ramps",
-		description = "Unlocks the Conveyor Ramp recipes at the Crafting Bench.",
+		description = "Unlocks the Conveyor Ramp recipes.",
 		category = "Crafting",
 		level = 6,
 		coins = 1200,
@@ -222,7 +222,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "HandTools",
 		name = "Hand-Cut Gears",
-		description = "Unlocks cutting Gears by hand at the Crafting Bench.",
+		description = "Unlocks cutting Gears by hand.",
 		category = "Crafting",
 		level = 8,
 		coins = 2500,
@@ -246,7 +246,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "SprinklerPlans",
 		name = "Sprinkler Mk II Plans",
-		description = "Unlocks the Sprinkler Mk II recipe at a Fabricator bench.",
+		description = "Unlocks the Sprinkler Mk II recipe at Fabricator.",
 		category = "Crafting",
 		level = 9,
 		coins = 4000,
@@ -306,7 +306,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "PlanterPlans",
 		name = "Planter Mk II Plans",
-		description = "Unlocks the Seed Planter Mk II recipe at a Fabricator bench.",
+		description = "Unlocks the Seed Planter Mk II recipe at Fabricator.",
 		category = "Crafting",
 		level = 12,
 		coins = 8000,
@@ -378,7 +378,7 @@ local PROJECTS: { Project } = {
 	{
 		id = "HarvesterPlans",
 		name = "Harvester Mk II Plans",
-		description = "Unlocks the Harvester Mk II recipe at a Fabricator bench.",
+		description = "Unlocks the Harvester Mk II recipe at Fabricator.",
 		category = "Crafting",
 		level = 17,
 		coins = 18000,

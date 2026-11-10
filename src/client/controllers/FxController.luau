@@ -3,7 +3,8 @@
 -- glint, a thin ring of the crop's colour across the soil, solid bits and soil clods kicked up,
 -- sparkles, and for a mutated one a wider ring, sparkles and a light in its colour; with leaves springing out
 -- and the produce bouncing up and floating into whoever picked it); coins sparkling round you when you sell (a Shipping
--- Bin's sales only sparkle, with no sound, so a busy factory stays quiet); a chopped tree tipping
+-- Bin's sales sparkle and float a gold "+coins" up from the bin, with no sound, so a busy factory
+-- stays quiet; sales from one bin moments apart add up in one label); a chopped tree tipping
 -- over and settling away; wood shavings when you craft; a warm ring when you level up; and when
 -- you complete research, the ResearchComplete effect (Shared/VFX) round you: a gold ring, motes
 -- spiralling up and a column of light. Reduced motion keeps the sounds and colours but drops the
@@ -21,6 +22,7 @@ local Mutations = require(ReplicatedStorage.Shared.World.Mutations)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local VFXPlayer = require(ReplicatedStorage.Shared.VFX.VFXPlayer)
 local World = require(ReplicatedStorage.Shared.World)
+local Hud = require(Players.LocalPlayer.PlayerScripts.Libraries.Hud)
 local Sound = require(Players.LocalPlayer.PlayerScripts.Libraries.Sound)
 
 local FxController = {}
@@ -39,6 +41,13 @@ local POP, HANG, FLY = 0.32, 0.12, 0.38
 local FLY_WITHIN = Build.REACH + 4
 -- Seconds a chopped tree takes to tip over, and to settle away once down.
 local FALL, SETTLE = 1.1, 0.7
+local SALE_FONT = Font.fromName("Sarpanch", Enum.FontWeight.Bold)
+local SALE_STROKE = Color3.fromRGB(58, 40, 8)
+-- Studs above a Shipping Bin's centre a sale's label starts, and how far it rises as it fades.
+local SALE_LIFT, SALE_RISE = 2.6, 3.2
+-- Seconds a sale's label lives, and how long after it appears another sale from the same bin
+-- still adds to it instead of starting its own.
+local SALE_LIFE, SALE_GATHER = 1.4, 0.35
 
 local function near(position: Vector3): boolean
 	local camera = workspace.CurrentCamera
@@ -85,6 +94,90 @@ local function burst(position: Vector3, color: Color3, count: number, speed: num
 	emitter.Parent = holder
 	emitter:Emit(if GuiService.ReducedMotionEnabled then math.ceil(count / 2) else count)
 	Debris:AddItem(holder, 1.5)
+end
+
+type SaleLabel = { amount: number, born: number, text: TextLabel }
+-- The label each Shipping Bin (by its position) is still gathering sales into.
+local saleLabels: { [Vector3]: SaleLabel } = {}
+
+-- A gold "+coins" with a coin beside it, floating up from a Shipping Bin and fading.
+local function saleLabel(position: Vector3, amount: number)
+	local live = saleLabels[position]
+	if live and os.clock() - live.born <= SALE_GATHER then
+		live.amount += amount
+		live.text.Text = `+{Hud.number(live.amount)}`
+		return
+	end
+	local holder = Instance.new("Attachment")
+	holder.WorldPosition = position + Vector3.yAxis * SALE_LIFT
+	local gui = Instance.new("BillboardGui")
+	gui.Name = "SaleAmount"
+	gui.Size = UDim2.fromOffset(180, 40)
+	gui.LightInfluence = 0
+	gui.MaxDistance = SHOW_WITHIN
+	gui.Adornee = holder
+	gui.Parent = holder
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.fromScale(1, 1)
+	row.Parent = gui
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 6)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = row
+	local scale = Instance.new("UIScale")
+	scale.Parent = row
+	local coin = Instance.new("Frame")
+	coin.Size = UDim2.fromOffset(22, 22)
+	coin.BackgroundColor3 = COIN
+	coin.Parent = row
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0.5, 0)
+	round.Parent = coin
+	local rim = Instance.new("UIStroke")
+	rim.Color = SALE_STROKE
+	rim.Thickness = 2
+	rim.Parent = coin
+	local text = Instance.new("TextLabel")
+	text.LayoutOrder = 1
+	text.BackgroundTransparency = 1
+	text.AutomaticSize = Enum.AutomaticSize.X
+	text.Size = UDim2.fromOffset(0, 34)
+	text.FontFace = SALE_FONT
+	text.TextSize = 30
+	text.TextColor3 = COIN
+	text.Text = `+{Hud.number(amount)}`
+	text.Parent = row
+	local outline = Instance.new("UIStroke")
+	outline.Color = SALE_STROKE
+	outline.Thickness = 2
+	outline.Parent = text
+	holder.Parent = workspace.Terrain
+	local label = { amount = amount, born = os.clock(), text = text }
+	saleLabels[position] = label
+	local still = GuiService.ReducedMotionEnabled
+	animate(SALE_LIFE, function(alpha)
+		if not still then
+			-- a quick pop up to size, then an easing rise
+			local popIn = math.min(1, alpha / 0.12)
+			local settle = math.clamp((alpha - 0.12) / 0.1, 0, 1)
+			scale.Scale = 0.6 + 0.5 * math.sin(popIn * math.pi / 2) - 0.1 * settle
+			gui.StudsOffsetWorldSpace = Vector3.yAxis * SALE_RISE * (1 - (1 - alpha) ^ 3)
+		end
+		local fade = math.max(0, alpha - 0.55) / 0.45
+		text.TextTransparency = fade
+		outline.Transparency = fade
+		coin.BackgroundTransparency = fade
+		rim.Transparency = fade
+	end, function()
+		if saleLabels[position] == label then
+			saleLabels[position] = nil
+		end
+		holder:Destroy()
+	end)
 end
 
 local function scenery(part: BasePart)
@@ -336,9 +429,12 @@ local function show(fx: { [string]: any })
 		fell(fx, position)
 	elseif kind == "Sell" then
 		if typeof(position) == "Vector3" then
-			-- a Shipping Bin selling: a small, silent sparkle at the bin
+			-- a Shipping Bin selling: a small, silent sparkle and the coins rising from the bin
 			if near(position) then
 				burst(position + Vector3.yAxis * 2, COIN, 5, 5, 0.22)
+				if typeof(fx.amount) == "number" and fx.amount > 0 then
+					saleLabel(position, fx.amount)
+				end
 			end
 		else
 			local at = characterPosition()

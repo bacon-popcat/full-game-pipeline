@@ -786,8 +786,8 @@ end
 -- Seconds an Auto Crafter takes per craft, before the machine-speed research.
 local CRAFT_TIME = 4
 
--- Whether `player` could craft `recipe` at their own bench: not an upgrade, and not locked by
--- research or bench tier (Crafting.locked). Inputs are the crafter's to gather.
+-- Whether `player` could craft `recipe` themselves: not an upgrade, and not locked by
+-- research or crafting tier (Crafting.locked). Inputs are the crafter's to gather.
 local function canAutoCraft(player: Player?, recipe: Crafting.Recipe): boolean
 	if not player or recipe.upgrade or recipe.count <= 0 then
 		return false
@@ -932,7 +932,7 @@ local function stepMachines(dt: number)
 		env.machineSpeed = Bonuses.get(owner, "machineSpeed")
 		env.harvesterSpeed = Bonuses.get(owner, "harvesterSpeed")
 		-- An Auto Crafter only runs a recipe its owner has unlocked right now; a saved pick that
-		-- isn't (research or bench tier not reached in this garden) waits until it is.
+		-- isn't (research or crafting tier not reached in this garden) waits until it is.
 		local picked = if block.def.crafts and block.recipe then Crafting.get(block.recipe) else nil
 		if block.def.crafts and not block.recipe then
 			Machine.step(machine, dt, env)
@@ -1279,7 +1279,7 @@ function FactoryService.restore(model: Model, saved: Plot.Contents): boolean
 	end
 	block.powered = saved.powered
 	-- A saved pick stays even while it is locked (stepMachines idles it); a recipe since cut, or
-	-- a bench upgrade, is dropped (DataService also drops them before this).
+	-- a crafting upgrade, is dropped (DataService also drops them before this).
 	local recipe = if saved.recipe then Crafting.get(saved.recipe) else nil
 	if recipe and not recipe.upgrade then
 		setCraft(block, recipe.id)

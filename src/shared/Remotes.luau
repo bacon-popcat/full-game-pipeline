@@ -113,11 +113,11 @@ return {
 	-- DataReady or SaveSlots.
 	SaveMenu = get("SaveMenu"),
 	-- client -> server: (recipeId: string, times: number) craft a Shared/Crafting recipe `times`
-	-- times (a whole number, 1 to Crafting.MAX_TIMES) at one of your own placed Crafting Benches
-	-- within reach. The server checks DataReady, the recipe's research and bench tier, every input
-	-- and room for the output, then trades them in one step. An upgrade recipe (Crafting.TIERS)
-	-- instead spends its inputs and raises the player's bench tier, which replicates as the
-	-- player's BenchTier attribute. Answered with Notify.
+	-- times (a whole number, 1 to Crafting.MAX_TIMES), from anywhere. The server checks DataReady,
+	-- the recipe's research and crafting tier, every input and room for the output, then trades
+	-- them in one step. An upgrade recipe (Crafting.TIERS) instead spends its inputs and raises the
+	-- player's crafting tier, which replicates as the player's BenchTier attribute. Answered with
+	-- Notify.
 	Craft = get("Craft"),
 	-- client -> server: (name: Settings.Name, value: string) change one saved player preference
 	-- (Shared/Settings), from anywhere, at any time. The server checks the value is allowed,

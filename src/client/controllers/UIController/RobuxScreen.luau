@@ -1,5 +1,5 @@
 -- RobuxScreen: the authored Robux Shop window (HUD.Robux), opened by the Robux Shop stall's prompt
--- or the Robux side button (SideButtons.Robux) from anywhere. Body.List holds one
+-- or, from anywhere, the Menu popup's Robux row (MenuScreen, through Screens.open). Body.List holds one
 -- Assets.UI.Robux.Pack card per Shared/Economy/Shops.ROBUX_PACKS entry: a coin, the pack's name,
 -- its coins and a Buy button priced in Robux. Buy only sends the intent (ShopBuy with the stall and
 -- the pack id); the server shows Roblox's purchase prompt, and MonetizationService grants the
@@ -67,22 +67,8 @@ function RobuxScreen.init(hud: ScreenGui)
 		}))
 	end
 
-	local window = HubWindow.bind(hud, "Robux", { Shops.ROBUX_SHOP }, render)
-	if not window then
+	if not HubWindow.bind(hud, "Robux", { Shops.ROBUX_SHOP }, render) then
 		return
-	end
-	local opener = Hud.find(hud, "SideButtons.Robux", "TextButton")
-	if opener then
-		trove:Add(UI.bindButton(opener, {
-			hoverScale = 1.08,
-			onActivate = function()
-				if window.isOpen() then
-					window.close()
-				else
-					window.open()
-				end
-			end,
-		}))
 	end
 	local function settle()
 		if pending then

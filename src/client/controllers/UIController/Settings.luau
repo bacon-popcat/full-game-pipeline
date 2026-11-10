@@ -112,7 +112,7 @@ function Settings.init(hud: ScreenGui)
 			controlsHint.Text = if input == Enum.PreferredInput.Touch
 				then "Tap the side buttons to open menus."
 				elseif input == Enum.PreferredInput.Gamepad then "Y  Inventory   •   D-pad up  Interact"
-				else `{Controls.TOGGLE_BACKPACK[1].Name}  Inventory   •   {Controls.INTERACT[1].Name}  Interact\n{Controls.ROTATE[1].Name}  Rotate   •   {Controls.DROP[1].Name}  Drop`
+				else `{Controls.TOGGLE_BACKPACK[1].Name}  Inventory   •   {Controls.INTERACT[1].Name}  Interact   •   {Controls.TOGGLE_CRAFTING[1].Name}  Crafting\n{Controls.ROTATE[1].Name}  Rotate   •   {Controls.DROP[1].Name}  Drop`
 		end
 	end
 	local function close()

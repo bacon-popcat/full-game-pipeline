@@ -4,7 +4,7 @@
 -- a press would do with what is in hand. It only reads: the attributes FactoryService
 -- publishes on placed blocks, worded by BlockText, and the hints in Shared/World. It shows
 -- only while the aim is on a block's or node's art, not the empty cells of its hitbox, and
--- not for the player's own machines, routers and benches: their prompt (BlockPrompts) says
+-- not for the player's own machines and routers: their prompt (BlockPrompts) says
 -- what they are doing and opens them.
 --
 -- The panel is authored in StarterGui.HUD.BlockInfo, sized by its Content frame (the
@@ -18,7 +18,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
-local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local World = require(ReplicatedStorage.Shared.World)
@@ -87,19 +86,6 @@ local function blockInfo(model: Model, itemId: string, def: Factory.Def): Info
 	return info
 end
 
--- A Crafting Bench isn't a factory block: its window (CraftingScreen) does the work. The
--- player's own benches have a prompt instead, so this one is someone else's.
-local function benchInfo(bench: Model): Info
-	local owner = Players:GetPlayerByUserId(tonumber(bench:GetAttribute("Owner")) or 0)
-	local tier = Crafting.sanitizeTier(if owner then owner:GetAttribute("BenchTier") else nil)
-	return {
-		title = Crafting.TIERS[tier].name,
-		working = false,
-		rows = {},
-		hint = `{Inventory.getItem(Crafting.BENCH).description}\nOnly its owner can craft at it.`,
-	}
-end
-
 local function nodeInfo(model: Model, nodeType: string): Info?
 	local node = World.NODES[nodeType]
 	if not node then
@@ -154,7 +140,7 @@ local function target(): Info?
 		return nil
 	end
 	local placed = Aim.modelUnder(result.Instance, "Placed")
-	-- The player's own machines, routers and benches are described by their prompt's card.
+	-- The player's own machines and routers are described by their prompt's card.
 	local root = if placed then placed.PrimaryPart else nil
 	if root and root:FindFirstChild("BlockPrompt") then
 		return nil
@@ -163,8 +149,6 @@ local function target(): Info?
 	local def = if typeof(itemId) == "string" then Factory.get(itemId) else nil
 	if placed and typeof(itemId) == "string" and def then
 		return blockInfo(placed, itemId, def)
-	elseif placed and itemId == Crafting.BENCH then
-		return benchInfo(placed)
 	end
 	local node = Aim.modelUnder(result.Instance, "World")
 	local nodeType = if node then node:GetAttribute("NodeType") else nil

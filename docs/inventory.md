@@ -20,6 +20,10 @@ BuildService (server)  <--PlaceBlock / PickUpBlock-------------+
 ```
 
 - `Shared/Inventory` holds the slot shape and the move/add/take rules both sides run.
+- Stacks have no limit: every item but a tool (one to a slot) has `stack = math.huge`
+  (`Inventory/Items`), so a slot, or a chest's slot, holds any number of one item. Code that sizes
+  slots by stack keeps an unlimited stack apart (`Machine.slotsUsed`/`room`: 0 x math.huge is NaN),
+  the item panel shows the amount without "/ limit", and saved machine counts have no upper cap.
 - `Shared/Build` holds the 3-stud grid, footprints, reach, ownership and overlap checks both sides run.
 - [plots.md](plots.md) maps profile loading, plot assignment, economy and saving.
 - `Shared/Remotes` names every RemoteEvent and documents its payload.

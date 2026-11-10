@@ -6,13 +6,13 @@ conventions.md § UI):
     bench tier's requirements and an UPGRADE button (CraftingScreen.luau).
   * Shop: a left rail of tab tiles (Seeds, Gear) with the restock timer under it, and a grid of
     tall cards (Assets.UI.Shop.Row) instead of a list of strips. The Robux tab is gone.
-  * Robux: its own window (HUD.Robux), its Assets.UI.Robux.Pack card, and a SideButtons.Robux
-    button after Shop (RobuxScreen.luau).
+  * Robux: its own window (HUD.Robux) and its Assets.UI.Robux.Pack card (RobuxScreen.luau). It
+    opens from the Menu popup's Robux row, which sidebar_hud.luau adds.
 
 Run it through the Studio MCP in the Edit datamodel, like progress_hud.luau: serve the repo
 (python -m http.server 34998 --bind 127.0.0.1), fetch this file into a temporary ModuleScript,
 require it and call the function it returns. Safe to rerun: what it makes is removed and rebuilt,
-and the Shop and side button edits check what is already done.
+and the Shop edits check what is already done.
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
@@ -25,8 +25,6 @@ local DIM = Color3.fromRGB(150, 150, 168)
 local STROKE = Color3.fromRGB(205, 205, 220)
 local GOLD = Color3.fromRGB(255, 214, 102)
 local SAGE = Color3.fromRGB(157, 220, 154)
--- Roblox's own Robux image, shipped with the client.
-local ROBUX_IMAGE = "rbxasset://textures/ui/common/robux.png"
 
 return function()
 	local hud = StarterGui:WaitForChild("HUD")
@@ -99,7 +97,12 @@ return function()
 				Name = corner[1],
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(x, y),
-				Position = UDim2.new(x, if x == 0 then -thickness else thickness, y, if y == 0 then -thickness else thickness),
+				Position = UDim2.new(
+					x,
+					if x == 0 then -thickness else thickness,
+					y,
+					if y == 0 then -thickness else thickness
+				),
 				Size = UDim2.fromOffset(length, length),
 				ZIndex = 2,
 			}, frame)
@@ -207,7 +210,11 @@ return function()
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 	}, packs)
-	new("UIPadding", { PaddingTop = UDim.new(0, 16), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) }, packs)
+	new(
+		"UIPadding",
+		{ PaddingTop = UDim.new(0, 16), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) },
+		packs
+	)
 	label({
 		Name = "Note",
 		AnchorPoint = Vector2.new(0, 1),
@@ -298,61 +305,6 @@ return function()
 	}, pack)
 	buy.Label.TextColor3 = GOLD
 
-	--------------------------------------------------------------------------- Robux side button
-	local side = hud.SideButtons
-	if not side:FindFirstChild("Robux") then
-		local layout = side.UIListLayout
-		local aspect = side.UIAspectRatioConstraint
-		-- One more square button: the same pixel size, so the column grows and the ratio follows.
-		local unit = 1 / aspect.AspectRatio -- column height in button widths
-		local gap = layout.Padding.Scale * unit -- gap in button widths
-		local count = 0
-		for _, child in side:GetChildren() do
-			if child:IsA("GuiButton") then
-				count += 1
-			end
-		end
-		local newUnit = unit + 1 + gap
-		aspect.AspectRatio = 1 / newUnit
-		layout.Padding = UDim.new(gap / newUnit, 0)
-		for _, child in side:GetChildren() do
-			if child:IsA("GuiButton") then
-				child.Size = UDim2.new(1, 0, 1 / newUnit, 0)
-			end
-		end
-		side.Size = UDim2.new(side.Size.X.Scale * 0.92, 0, 0.58, 0)
-		local made = side.Shop:Clone()
-		made.Name = "Robux"
-		made.Size = UDim2.new(1, 0, 1 / newUnit, 0)
-		for _, each in made.Tooltip:GetDescendants() do
-			if each:IsA("TextLabel") then
-				each.Text = "Robux"
-			end
-		end
-		made.Parent = side
-		side.Shop.LayoutOrder = 1
-		made.LayoutOrder = 2
-		side.Sell.LayoutOrder = 3
-		-- The Index moved into the Menu popup (progress_hud), so its side button may be gone.
-		if side:FindFirstChild("Index") then
-			side.Index.LayoutOrder = 4
-		end
-		side.Research.LayoutOrder = 5
-	end
-
-	-- The Robux button's icon is Roblox's own Robux image.
-	local icon = side.Robux.Icon
-	icon:ClearAllChildren()
-	new("ImageLabel", {
-		Name = "Image",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Image = ROBUX_IMAGE,
-		ScaleType = Enum.ScaleType.Fit,
-	}, icon)
-
 	--------------------------------------------------------------------------- Shop: rail and cards
 	local shop = hud.Shop
 	local body = shop.Body
@@ -398,7 +350,14 @@ return function()
 	local row = assets.Shop.Row
 	row.Size = UDim2.fromOffset(164, 206)
 	shop.UISizeConstraint.MaxSize = Vector2.new(900, 560)
-	local function place(name: string, anchor: Vector2, position: UDim2, size: UDim2, alignment: Enum.TextXAlignment, textSize: number)
+	local function place(
+		name: string,
+		anchor: Vector2,
+		position: UDim2,
+		size: UDim2,
+		alignment: Enum.TextXAlignment,
+		textSize: number
+	)
 		local node = row:FindFirstChild(name) -- not row[name]: "Name" would be the row's own name
 		node.AnchorPoint = anchor
 		node.Position = position
@@ -451,7 +410,15 @@ return function()
 	border(panel, GOLD, 0.3)
 	brackets(panel, GOLD, 12, 2).ZIndex = 11
 	new("UIScale", {}, panel)
-	local function text(name: string, y: number, height: number, content: string, color: Color3, size: number, wrapped: boolean?)
+	local function text(
+		name: string,
+		y: number,
+		height: number,
+		content: string,
+		color: Color3,
+		size: number,
+		wrapped: boolean?
+	)
 		local node = label({
 			Name = name,
 			Position = UDim2.fromOffset(12, y),

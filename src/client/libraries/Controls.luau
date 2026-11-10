@@ -10,9 +10,11 @@ Controls.BACK = { Enum.KeyCode.ButtonB }
 Controls.ROTATE = { Enum.KeyCode.R, Enum.KeyCode.ButtonX }
 -- Drops one of the held item into the world (or onto the conveyor aimed at).
 Controls.DROP = { Enum.KeyCode.Q, Enum.KeyCode.Backspace, Enum.KeyCode.DPadDown }
--- Works the nearest ProximityPrompt (PromptController), which is how a machine, router or
--- Crafting Bench opens (BlockPrompts); closes that window again. Touch taps the prompt's card.
+-- Works the nearest ProximityPrompt (PromptController), which is how a machine or router opens
+-- (BlockPrompts); closes that window again. Touch taps the prompt's card.
 Controls.INTERACT = { Enum.KeyCode.F, Enum.KeyCode.DPadUp }
+-- Opens and closes the Crafting window (CraftingScreen), like its side button.
+Controls.TOGGLE_CRAFTING = { Enum.KeyCode.C }
 Controls.HOTBAR_PREVIOUS = { Enum.KeyCode.ButtonL1 }
 Controls.HOTBAR_NEXT = { Enum.KeyCode.ButtonR1 }
 -- Key i selects hotbar slot i.

@@ -77,8 +77,8 @@ Queued syncs cannot outlive their garden state. Notice kinds belong to `Shared/N
 
 ## Screens
 
-The side `SideButtons.Menu` button opens `HUD.Menu`, a small popup whose rows (Achievements,
-Stats, Settings) open those windows through `libraries/Screens.open`, so the Menu requires
+The side `SideButtons.Menu` button opens `HUD.Menu`, a small popup whose rows (Index, Achievements,
+Stats, Robux Shop, Settings) open those windows through `libraries/Screens.open`, so the Menu requires
 none of their controllers (`UIController/MenuScreen`). `SideButtons.Quests` toggles
 `HUD.Quests` directly through its HubWindow. `QuestsScreen` updates that button's gold
 `Badge.Count` from `ProgressClient.claimable()` on every progress sync, even while closed;
@@ -98,5 +98,6 @@ them, their templates, the Menu and Quests side buttons and the Crafting window 
 file; its header says how to run it. After syncing code, run that builder once in Studio's
 Edit datamodel (no other HUD builder is needed for this change), then playtest. Rerunning
 replaces both buttons and rebuilds Menu without its old Quests row, preserving side-button
-size and spacing. Check a second run for duplicates, and check Quests toggle/close, switching
+size and spacing. It builds Menu with four rows; rerun `tools/hud/sidebar_hud.luau` after it (and
+after `shop_hud.luau`) to add the Robux Shop row and the Crafting side button. Check a second run for duplicates, and check Quests toggle/close, switching
 to other windows, and badge changes after completing and claiming a quest.
