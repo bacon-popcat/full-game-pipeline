@@ -27,7 +27,7 @@ export type Product = {
 
 local JUICE_FRUITS = { "Strawberry", "Blueberry", "Grape", "Apple", "Tomato" }
 -- A juice is worth this many of its fruit, made from JUICE_FRUIT_COUNT of them.
-local JUICE_MULTIPLIER = 3.5
+local JUICE_MULTIPLIER = 4.5
 local JUICE_FRUIT_COUNT = 3
 local PIES: { [string]: number } = { Strawberry = 250, Blueberry = 400, Apple = 600 }
 local CRATE_SIZE = 10

@@ -72,15 +72,18 @@ takes the fruit, and the fruit grows back after `regrow` seconds, for ever.
 | Carrot | Common | 10 | 18 | 60 | single | 1 |
 | Wheat | Common | 15 | 12 | 75 | single | 2 |
 | Strawberry | Uncommon | 45 | 15 | 90 | multi, regrow 45 | 3 |
-| Potato | Uncommon | 60 | 70 | 120 | single | 1 |
-| Tomato | Rare | 150 | 35 | 150 | multi, regrow 60 | 2 |
-| Corn | Rare | 250 | 160 | 240 | single | 1 |
+| Potato | Uncommon | 60 | 110 | 120 | single | 1 |
+| Tomato | Rare | 150 | 45 | 150 | multi, regrow 60 | 2 |
+| Corn | Rare | 250 | 360 | 240 | single | 1 |
 | Blueberry | Rare | 400 | 30 | 180 | multi, regrow 50 | 4 |
-| Pumpkin | Epic | 1,200 | 1,100 | 480 | single | 1 |
+| Pumpkin | Epic | 1,200 | 1,600 | 480 | single | 1 |
 | Apple | Epic | 3,000 | 90 | 360 | multi, regrow 90 | 3 |
-| Watermelon | Legendary | 6,000 | 3,500 | 600 | single | 1 |
+| Watermelon | Legendary | 3,000 | 4,000 | 600 | single | 1 |
 | Grape | Legendary | 10,000 | 260 | 480 | multi, regrow 120 | 4 |
 | Starfruit | Mythic | 30,000 | 1,800 | 720 | multi, regrow 150 | 2 |
+
+Potato, Tomato, Corn, Pumpkin and Watermelon were retuned on 2026-11-09 (retention.md § Crops and
+products): a single crop's harvest now repays its seed, and each rarity out-earns the one below.
 
 Stages stay `Sprout`, `Young`, `Mature`, `Ripe`, each a quarter of the grow time. Growth is
 timestamp based, so crops keep growing while the player is away and the plot is saved.
@@ -145,7 +148,7 @@ ports, belts out of output faces and the machine panel. The old Islands roster i
 | Sprinkler | 5 | 1,000 | Crops within 3 cells grow 1.25x faster and can turn out Wet |
 | Harvester | 6 | 2,000 | Harvests ripe crops in a 5 x 3 patch behind it onto its output belt; a single crop it harvests restarts from a sprout, so it replants itself |
 | Mill | 7 | 2,500 | 2 Wheat -> Flour (value 40) |
-| Juicer | 8 | 4,000 | 3 Strawberry, Blueberry, Grape, Apple or Tomato -> that Juice (3.5x the fruit) |
+| Juicer | 8 | 4,000 | 3 Strawberry, Blueberry, Grape, Apple or Tomato -> that Juice (4.5x the fruit) |
 | Oven | 10 | 8,000 | Flour + 2 Strawberry, Blueberry or Apple -> that Pie (value 250, 400, 600) |
 | Crate Packer | 9 | 6,000 | 10 of any crop -> its Crate (12x the crop) |
 | Smelter | 3 | 500 | Ore + Coal -> Bar |

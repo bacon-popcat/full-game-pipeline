@@ -20,6 +20,10 @@ local EconomyService = require(script.Parent.EconomyService)
 local InventoryService = require(script.Parent.InventoryService)
 -- A harvest whose mutations multiply its value at least this much (Shocked and up) gets a notice.
 local RARE_MULTIPLIER = 10
+-- A restock that rolls a seed of this rarity or better says so, so a rare roll is not found by chance.
+local STOCK_NOTICE = Content.RARITIES.Epic.order
+-- Seconds after a garden loads before its stock is announced, so the save menu has cleared.
+local LOAD_NOTICE_DELAY = 4
 type State = {
 	seedStock: { [string]: number },
 	restockAt: number,
@@ -54,6 +58,32 @@ end
 
 local function sync(player: Player, state: State)
 	Remotes.ShopSync:FireClient(player, { restockAt = state.restockAt, stock = table.clone(state.seedStock) })
+end
+
+-- After a fresh roll, or on arrival: names the Epic or better seeds in stock, rarest first, under the rarest's
+-- name ("Legendary seed in stock! Watermelon Seeds, Pumpkin Seeds"). Nothing when there are none.
+local function announceStock(player: Player, state: State)
+	local found: { World.Crop } = {}
+	for seed, crop in seeds do
+		if state.seedStock[seed] > 0 and Content.RARITIES[crop.rarity].order >= STOCK_NOTICE then
+			table.insert(found, crop)
+		end
+	end
+	if #found == 0 then
+		return
+	end
+	table.sort(found, function(a: World.Crop, b: World.Crop): boolean
+		local first, second = Content.RARITIES[a.rarity].order, Content.RARITIES[b.rarity].order
+		if first ~= second then
+			return first > second
+		end
+		return a.price > b.price
+	end)
+	local names = {}
+	for _, crop in found do
+		table.insert(names, Inventory.getItem(crop.seed).name)
+	end
+	Remotes.Notify:FireClient(player, `{found[1].rarity} seed in stock! {table.concat(names, ", ")}`, "Rare")
 end
 
 local function syncIndex(player: Player, state: State)
@@ -108,6 +138,12 @@ function GardenService.load(
 	restock(player, state)
 	sync(player, state)
 	syncIndex(player, state)
+	-- What is in stock on arrival, said once the garden has opened and its toasts can show.
+	task.delay(LOAD_NOTICE_DELAY, function()
+		if states[player] == state and player:GetAttribute("DataReady") == true then
+			announceStock(player, state)
+		end
+	end)
 end
 
 function GardenService.snapshot(player: Player): State?
@@ -214,7 +250,9 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 		buyPack(player, itemId)
 		return
 	end
-	restock(player, state)
+	if restock(player, state) then
+		announceStock(player, state)
+	end
 	local message = "Choose a valid amount."
 	local bought = false
 	if typeof(itemId) == "string" and typeof(count) == "number" and count % 1 == 0 and count >= 1 and count <= 99 then
@@ -296,8 +334,11 @@ function GardenService.init()
 			and player:GetAttribute("DataReady") == true
 			and Hub.inReach(player, "SeedShop")
 		then
-			restock(player, state)
+			local rolled = restock(player, state)
 			sync(player, state)
+			if rolled then
+				announceStock(player, state)
+			end
 		end
 	end)
 	while true do
@@ -305,6 +346,9 @@ function GardenService.init()
 		for player, state in states do
 			if player.Parent == Players and restock(player, state) then
 				sync(player, state)
+				if player:GetAttribute("DataReady") == true then
+					announceStock(player, state)
+				end
 			end
 		end
 	end

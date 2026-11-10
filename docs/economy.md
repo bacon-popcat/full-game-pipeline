@@ -14,6 +14,11 @@ zero. An expired window rolls each seed independently, using its rarity's chance
 inclusive quantity band in `Shared/Economy/Content`. The server checks boundaries once per
 second and also before a purchase, so a timer tick cannot sell yesterday's stock.
 
+A fresh roll that holds an Epic or better seed sends a Rare notice naming them, rarest first,
+under the rarest's name ("Legendary seed in stock! Grape Seeds, Pumpkin Seeds"), so a rare roll
+is seen without opening the Shop. A garden that loads with such seeds still in stock says so
+four seconds after it opens, once the save menu has cleared.
+
 A purchase accepts a known seed id and positive finite integer count no greater than the
 player's stock. The player must have DataReady; shops and selling work from anywhere, so
 there is no stall reach check. Purchases and sales share a 0.2-second action cooldown. The server
@@ -57,8 +62,8 @@ coins and XP without yielding. Rejected sales resync inventory and show a refusa
 
 `Inventory/Items` generates crop values from `World.CROPS`; mutation values already include
 the multiplier (stacked mutations add their bonuses, farming.md § Mutations). Selling sums `item.value * count` and never multiplies twice. Processed product
-values live in `Shared/Factory/Products`: Flour 40 (from 2 Wheat, worth 24), juices 3.5x one fruit
-(from three), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
+values live in `Shared/Factory/Products`: Flour 40 (from 2 Wheat, worth 24), juices 4.5x one fruit
+(from three, so one machine adds half again), pies 250 / 400 / 600, and crates 12x the crop (from ten). Every product is worth
 more than its plain inputs, which rewards building the line. A batch of mutated inputs makes a
 mutated product worth the same multiplier (ten Golden Carrots make a Golden Carrot Crate at
 x20), so processing keeps a mutation's premium; a batch never mixes variants. Seeds are not
@@ -321,24 +326,24 @@ reproducible hypothesis, not a measured player session.
 | Level 5 | 34.4 | 22.1 | 24.1 |
 | Level 6 | 42.7 | 27.2 | 29.3 |
 | Level 7 | 53.2 | 33.3 | 36.2 |
-| Level 8 | 65.8 | 38.0 | 42.8 |
-| Level 9 | 82.8 | 45.4 | 48.1 |
-| Level 10 | 99.4 | 50.0 | 53.5 |
-| Level 11 | 109.4 | 54.2 | 60.4 |
-| Level 12 | 120.4 | 61.6 | 68.8 |
-| Level 15 (extrapolated) | 162.7 | 90.1 | 105.1 |
-| Level 20 (extrapolated) | 270.3 | 173.2 | 213.6 |
-| Level 30 (extrapolated) | 640.6 | 542.3 | 692.9 |
-| Level 40 (extrapolated) | 1,258.2 | 1,308.0 | 1,685.8 |
-| Level 50 (extrapolated) | 2,161.8 | 2,626.2 | 3,396.2 |
+| Level 8 | 65.8 | 38.0 | 42.2 |
+| Level 9 | 82.8 | 44.7 | 47.5 |
+| Level 10 | 99.4 | 49.1 | 52.7 |
+| Level 11 | 109.4 | 53.2 | 59.2 |
+| Level 12 | 120.4 | 60.3 | 67.1 |
+| Level 15 (extrapolated) | 162.7 | 86.8 | 101.7 |
+| Level 20 (extrapolated) | 270.3 | 165.5 | 204.5 |
+| Level 30 (extrapolated) | 640.6 | 512.9 | 658.9 |
+| Level 40 (extrapolated) | 1,258.2 | 1,232.1 | 1,599.6 |
+| Level 50 (extrapolated) | 2,161.8 | 2,471.7 | 3,220.2 |
 
 The coin-shop column is the original `100 * n^1.5` curve with machines bought at their unlock
 level. Levels 2-12 are simulated. Levels 13-50 are extrapolated: the model plays one more hour
-after level 12, takes the XP per minute earned in that hour (about 320 with mutation EV, 247
+after level 12, takes the XP per minute earned in that hour (about 340 with mutation EV, 260
 plain; every tier-one machine owned, no new soil, no Mk II machines, no rare crops) and holds
 it flat. Real players keep expanding, which raises the rate, so those times are upper bounds
-for an engaged player: level 20 in about 3 hours (3.6 plain), level 30 in about 9 (11.5),
-level 50 in about 44 (57).
+for an engaged player: level 20 in about 2.8 hours (3.4 plain), level 30 in about 8.5 (11),
+level 50 in about 41 (54).
 
 Lifetime XP at the milestones (`Economy.required(n)` is the cost of advancing from level n):
 
@@ -385,13 +390,14 @@ recipe now, retention.md).
 
 | Players mining | Workshop | Machine Works | Harvester | Oven | Level 12 |
 |---:|---:|---:|---:|---:|---:|
-| 1 | 8.5 | 28.2 | 33.6 | 44.2 | 61.6 |
+| 1 | 8.5 | 28.2 | 33.6 | 44.2 | 60.3 |
 | 2, fixed timers | 8.8 | 29.0 | 34.1 | 46.3 | 62.1 |
 | 4, fixed timers | 10.5 | 42.1 | 51.0 | 71.6 | 77.0 |
 | 6, fixed timers | 12.3 | 57.8 | 70.9 | 101.4 | 72.4 |
-| 2 to 6, as built | 8.5 | 28.2 | 33.6 | 44.2 | 61.6 |
+| 2 to 6, as built | 8.5 | 28.2 | 33.6 | 44.2 | 60.3 |
 
-As built, a quarry rock's respawn is divided by the players mining (factory.md § The quarry),
+The fixed-timer rows were run before juice went to 4.5x; their level 12 would now be about a
+minute sooner. As built, a quarry rock's respawn is divided by the players mining (factory.md § The quarry),
 so each miner's share is what one player gets alone and `--miners 4` or `6` gives the solo row
 exactly. That equality is the model's: it shares the rocks out evenly and never has two players
 reach for the same rock, so real sessions will be a little slower. A lone miner on a full
@@ -407,7 +413,7 @@ level 12: levels then run ahead of the workshop.
 |---|---:|---:|---:|
 | Hand farming | 459.2 | 269.2 | 171.5 |
 | Harvester line, before the Mill | 1,079.5 | 1,661.7 | 941.9 |
-| With processors, to level 12 | 1,696.8 | 2,197.5 | 1,813.0 |
+| With processors, to level 12 | 1,696.8 | 2,313.2 | 1,926.1 |
 
 Income is realized sales less purchased seeds, averaged over time in that stage; it excludes
 onboarding grants. Hand farming earns less than in the coin-shop model because half the hand
@@ -436,12 +442,17 @@ coal, so a few drills cover a Mk II bundle in 10-15 unattended minutes.
 ### History
 
 All valued products beat their immediate inputs, plain and in every mutation; the script
-asserts this for every recipe, and that every Common and Uncommon seed repays in one plain
-harvest.
+asserts this for every recipe, that a single crop's seed (and any Common or Uncommon seed)
+repays in one plain harvest, and that each rarity's crops earn at least the best of the rarity
+below per cell on a Harvester (plain coins a minute: Common 18-19, Uncommon 55-60, Rare 90-144,
+Epic 180-200, Legendary 400-520, Mythic 1,440).
 
 | Owner / number | Before -> after | Reason |
 |---|---|---|
 | World.CROPS, Strawberry seed | 50 -> 45 | Its first plain harvest yields 3 x 15 = 45 |
+| World.CROPS, Potato / Tomato / Corn / Pumpkin value | 70 / 35 / 160 / 1,100 -> 110 / 45 / 360 / 1,600 | Corn and Pumpkin sold for less than their seed, which a hand harvest spends; Uncommon out-earned Rare and Rare out-earned Epic per cell (retention.md) |
+| World.CROPS, Watermelon seed and value | 6,000 and 3,500 -> 3,000 and 4,000 | A hand harvest lost 2,500 coins |
+| Products, juice | 3.5x one fruit -> 4.5x | From three fruit it added 17%, never worth a machine; one machine now adds half |
 | Economy.required | `100 * n^1.5` -> `20 * n^2.75` -> `12 * n^2.15` | The first made level 2 too slow; the second put level 12 at 259 minutes and level 50 at about 600 hours. The current curve is a plain power law: 12 XP for level 2, about 52,000 for level 49 to 50. Lifetime XP is kept, so levels only move up when recalculated |
 | Mk II parts | sized to 24-36 bars each | A first pass needed 80-120 hand-mined bars per machine from the shared quarry, a grind wall the calm target rules out |
 | Machines | coins at a Machine Shop -> crafted at the Crafting Bench -> crafted in the Crafting window from the side button | factory.md § Crafting. The coin prices and unlock levels in overhaul.md § Machines are the old shop's; crafting tiers at levels 3, 6 and 9 gate machines now |

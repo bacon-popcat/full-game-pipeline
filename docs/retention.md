@@ -121,8 +121,8 @@ needs a timed playtest, and the model does not include drills.
 
 ### Crops and products (phase R2)
 
-Rules: every seed repays its price in one plain hand harvest; coins per cell per minute on a
-Harvester rise with rarity; a product is worth its raw inputs times 1.5 after one machine, 3
+Rules: a single crop's seed repays its price in one plain hand harvest (the harvest spends
+it; a multi crop keeps its plant); coins per cell per minute on a Harvester rise with rarity; a product is worth its raw inputs times 1.5 after one machine, 3
 after two and 4.5 after three. Crates stay at 1.2 as the fallback for any crop.
 
 | Crop | Seed | Value | Coins/cell/min, was | now | Hand profit per harvest, was | now |
@@ -143,7 +143,7 @@ Unchanged: Carrot 18, Wheat 19, Strawberry 60, Blueberry 144, Apple 180, Grape 5
 | Pies | 250 / 400 / 600 | unchanged | The first hour is tuned round them; Strawberry and Blueberry Pie sit above the rule on purpose, as the reward for the first two-machine line |
 
 The model's assertion that Common and Uncommon seeds repay in one harvest widens to every
-seed. The model plants no Rare seeds, so its milestone table moves only through the Juicer.
+single crop, and it gains a second: no rarity out-earned per cell by the one below. The model plants no Rare seeds, so its milestone table moves only through the Juicer.
 
 Also in this phase: a notice when the player's restock rolls an Epic or better seed ("A
 Legendary seed is in stock: Watermelon"), so a rare roll is seen and not found by chance.
@@ -274,7 +274,7 @@ phases come first; the largest content phase waits until the daily layer can hol
 
 1. [x] **R1 Goal chain.** Steps 9-24, the progress line, the next-unlock tail, the level-up
    toast naming research, Rock Drill at Workshop. Docs: economy.md § Onboarding, factory.md.
-2. [ ] **R2 Crops and juice.** The crop and juice values, the widened model assertion, the rare
+2. [x] **R2 Crops and juice.** The crop and juice values, the widened model assertion, the rare
    stock notice. Rerun `tools/balance/model.py`; update economy.md § Balance and overhaul.md's
    crop table.
 3. [ ] **R3 Orders, dailies, achievements.** `Shared/Progress` content, the Quests window's two
@@ -326,3 +326,22 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   not build drills, so its tables are unchanged; whether a drill covers the Machine Works
   iron by minute 28 is for the R7 timed session.
 - **Playtest** and what is left to verify: economy.md § Onboarding.
+
+### R2 Crops and juice (2026-11-09)
+
+- **Values as planned**: Potato 110, Tomato 45, Corn 360, Pumpkin 1,600, Watermelon 4,000 with a
+  3,000 seed, juice 4.5x. Nothing saved changes: values are read from the tables.
+- **The repay rule covers single crops, not every seed.** A multi crop keeps its plant, so its
+  seed is an investment (an Apple tree pays back in about eleven harvests); only Common and
+  Uncommon multis must repay at the first fruit, as before.
+- **The model asserts both rules** and prints the per-cell bands; the historical fixture shows
+  what was wrong (Corn, Pumpkin and Watermelon losing; Uncommon over Rare, Rare over Epic).
+- **Model movement**: only through the Juicer. Level 12 at 60.3 minutes (was 61.6), processor
+  income 2,313 a minute (was 2,198). economy.md § Balance has the tables.
+- **The stock notice** names every Epic or better seed in a fresh roll, and again four seconds
+  after a garden loads with them still in stock. With two Epic seeds at 25% each, about four
+  restocks in nine send one.
+- **Playtested**: the new values read in Studio; a natural restock rolled Grape and Pumpkin and
+  sent "Legendary seed in stock! Grape Seeds, Pumpkin Seeds"; a reload in the same window sent
+  it again after four seconds. Not driven: a real sale of each retuned crop, and a Juicer batch
+  (both read the same tables).

@@ -8,26 +8,26 @@ Before = before.json with the coin Machine Shop; After = current content, machin
 | Level 5 | 41.1 | 24.1 |
 | Level 6 | 50.6 | 29.3 |
 | Level 7 | 64.3 | 36.2 |
-| Level 8 | 79.8 | 42.8 |
-| Level 9 | 98.2 | 48.1 |
-| Level 10 | 117.8 | 53.5 |
-| Level 11 | 130.8 | 60.4 |
-| Level 12 | 145.5 | 68.8 |
+| Level 8 | 79.8 | 42.2 |
+| Level 9 | 98.2 | 47.5 |
+| Level 10 | 117.8 | 52.7 |
+| Level 11 | 130.8 | 59.2 |
+| Level 12 | 145.5 | 67.1 |
 
 Beyond level 12 the run is extrapolated, not simulated: the model keeps playing one hour past
 level 12 and takes the XP/min earned in that hour (every tier-one machine owned, no new
 expansion, no tier-two machines, no rare crops) as a flat rate for all later levels.
 | Milestone | Before | After | After lifetime XP |
 |---|---:|---:|---:|
-| Level 15 (extrapolated) | 202.5 | 105.1 | 17,321 |
-| Level 20 (extrapolated) | 344.7 | 213.6 | 44,071 |
-| Level 30 (extrapolated) | 838.0 | 692.9 | 162,431 |
-| Level 40 (extrapolated) | 1660.3 | 1685.8 | 407,448 |
-| Level 50 (extrapolated) | 2863.6 | 3396.2 | 829,520 |
-| steady XP/min | 247.1 | 246.8 | |
+| Level 15 (extrapolated) | 202.5 | 101.7 | 17,321 |
+| Level 20 (extrapolated) | 344.7 | 204.5 | 44,071 |
+| Level 30 (extrapolated) | 838.0 | 658.9 | 162,431 |
+| Level 40 (extrapolated) | 1660.3 | 1599.6 | 407,448 |
+| Level 50 (extrapolated) | 2863.6 | 3220.2 | 829,520 |
+| steady XP/min | 247.1 | 260.4 | |
 | hand net coins/min | 346.3 | 171.5 |
 | automation net coins/min | 762.1 | 941.9 |
-| processors net coins/min | 1345.1 | 1813.0 |
+| processors net coins/min | 1345.1 | 1926.1 |
 
 Crafted machines, in the order the model builds them (median minutes from join; level then).
 Raw is what one costs from an empty inventory, belts included; coal is the Smelter's fuel.
@@ -55,5 +55,7 @@ SeedPlanterTier2: {'SteelFrame': 3, 'Gear': 6}, 4.7 min supplied, 24 iron, 8 coa
 SprinklerTier2: {'Circuit': 4, 'CopperWire': 6}, 5.0 min supplied, 8 iron, 14 copper, 8 coal
 MillTier2: {'SteelFrame': 2, 'Gear': 8}, 4.7 min supplied, 24 iron, 8 coal, 2 stone
 HarvesterTier2: {'SteelFrame': 3, 'Circuit': 6}, 7.9 min supplied, 24 iron, 12 copper, 12 coal, 3 stone
-First-harvest seed losses before / after: ['Strawberry'] / []
+First-harvest seed losses before / after: ['Strawberry', 'Corn', 'Pumpkin', 'Watermelon'] / []
+Coins a minute from one cell on a Harvester, plain, by rarity (lowest-highest): Common 18-19, Uncommon 55-60, Rare 90-144, Epic 180-200, Legendary 400-520, Mythic 1440-1440
+Rarities out-earned by the one below, before / after: ['Uncommon over Rare', 'Rare over Epic'] / []
 All valued recipes beat their immediate inputs, for every mutation.

@@ -868,9 +868,28 @@ def audit(config):
             for multiplier in config["multipliers"].values():
                 assert recipe["value"] * multiplier > cost * multiplier
     for key, crop in config["crops"].items():
-        if crop["rarity"] in ("Common", "Uncommon") and crop["value"] * crop["yield_count"] < crop["price"]:
+        # A hand harvest spends a single crop's seed, so one plain harvest must repay it whatever
+        # its rarity. A multi crop keeps its plant; only the cheap ones must repay at the first fruit.
+        once = crop["regrow"] is None or crop["rarity"] in ("Common", "Uncommon")
+        if once and crop["value"] * crop["yield_count"] < crop["price"]:
             losses.append(key)
     return losses
+
+
+def cell_bands(config):
+    """Plain coins a minute from one cell on a Harvester (a single crop restarts free, a multi
+    crop regrows), as (rarity, lowest, highest), common first."""
+    rates = {}
+    for crop in config["crops"].values():
+        cycle = crop["regrow"] or crop["grow"]
+        rates.setdefault(crop["rarity"], []).append(crop["value"] * crop["yield_count"] * 60 / cycle)
+    order = sorted(rates, key=lambda rarity: config["rarities"][rarity]["xp"])
+    return [(rarity, min(rates[rarity]), max(rates[rarity])) for rarity in order]
+
+
+def band_overlaps(config):
+    bands = cell_bands(config)
+    return [f"{low[0]} over {high[0]}" for low, high in zip(bands, bands[1:]) if low[2] > high[1]]
 
 
 def median(results, group, key):
@@ -976,7 +995,11 @@ def main():
             print(f"{key}: {parts}, {timing['minutes']:.1f} min supplied, {describe(raw_materials(current, parts))}")
             assert 4 <= timing["minutes"] <= 10, "Mk II parts are 4-10 min of supplied crafting (economy.md)"
     print("First-harvest seed losses before / after:", audit(before), "/", audit(current))
-    assert not audit(current), "A Common/Uncommon seed must repay in one plain harvest"
+    assert not audit(current), "A single crop's seed, and any Common/Uncommon seed, must repay in one plain harvest"
+    print("Coins a minute from one cell on a Harvester, plain, by rarity (lowest-highest):",
+          ", ".join(f"{rarity} {low:.0f}-{high:.0f}" for rarity, low, high in cell_bands(current)))
+    print("Rarities out-earned by the one below, before / after:", band_overlaps(before), "/", band_overlaps(current))
+    assert not band_overlaps(current), "Each rarity's crops must earn at least the rarity below's best per cell"
     print("All valued recipes beat their immediate inputs, for every mutation.")
 
 
