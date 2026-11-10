@@ -160,7 +160,8 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | onboarding | Next objective, integer 1..#Onboarding.STEPS+1; the last value means finished |
 | research | `done: {[id]: boolean}`, `active: {id, startedAt, seconds}?`; fractional Unix start and whole-second duration, loaded before blocks/crops (research.md) |
 | loadedAt | Unix seconds this save was last opened (0 before then), so a join reopens the one played last |
-| plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below); not in the template |
+| welcome | `days`, `giftDay`, `giftOwed`, `leftAt`, `binRate`, `coinsOwed`: the daily gift count and what the time away is owed, loaded last (welcome.md) |
+| plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below), 5 once its starter farm is saved as tilled ground, 6 once its onboarding step is past the inserted order goal; not in the template |
 
 Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an
 unturned garden and turned on load into the south row (`Plot.blockToWorld`/`turn`/`axis`). Ground restores first, so blocks

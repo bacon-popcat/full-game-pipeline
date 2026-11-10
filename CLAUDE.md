@@ -35,9 +35,10 @@ Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 ## Domain docs
 
 - [docs/animations.md](docs/animations.md) — client-only placed-block motion, art keys and quality culling.
+- [docs/welcome.md](docs/welcome.md) — the daily gift, the welcome-back card and offline coins: what is owed on load, collecting, the bin-rate buckets and the saved fields.
 - [docs/progress.md](docs/progress.md) — lifetime stats, achievements, daily quests, orders, rewards and per-garden saving.
 - [docs/overhaul.md](docs/overhaul.md) — the target design: plots, coins, crops and mutations, shops, the machine roster, crafting, saving, phases and the decisions taken in each. Where it disagrees with the docs below, it is the target and they describe what is built so far.
-- [docs/retention.md](docs/retention.md) — the plan for what comes next, in phases R1-R7: the goal chain (R1, built: 25 goals to the first Mk II machine, then the next level unlock; economy.md § Onboarding), crop and juice retuning with a rare seed stock notice (R2, built), daily quests, orders and raised achievement rewards (R3, built; progress.md), then a daily gift and offline coins, mid-game machines and recipes, light social play.
+- [docs/retention.md](docs/retention.md) — the plan for what comes next, in phases R1-R7: the goal chain (R1, built: 25 goals to the first Mk II machine, then the next level unlock; economy.md § Onboarding), crop and juice retuning with a rare seed stock notice (R2, built), daily quests, orders and raised achievement rewards (R3, built; progress.md), the daily gift, welcome-back card and offline coins (R4, built; welcome.md), then mid-game machines and recipes, light social play.
 - [docs/plots.md](docs/plots.md) — plot layout, sections and ownership, economy APIs, profile loading/saving and offline growth, plus the Studio playtest checklist.
 - [docs/farming.md](docs/farming.md) — crops: seeds, soil, growth stages, mutations, weather, hand harvesting, sprinklers and the watering can.
 - [docs/research.md](docs/research.md) — projects, saved timers, remotes, bonuses and their gameplay hooks.
@@ -58,7 +59,7 @@ Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), Crafting window (and its upgrade panel), Shop and Robux windows, notice look, prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), the welcome-back card (`welcome_hud`, after those), Crafting window (and its upgrade panel), Shop and Robux windows, notice look, prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

@@ -280,7 +280,7 @@ phases come first; the largest content phase waits until the daily layer can hol
    crop table.
 3. [x] **R3 Orders, dailies, achievements.** `Shared/Progress` content, the Quests window's two
    tabs, the Orders Board prop (a plain board until it has art). Docs: progress.md.
-4. [ ] **R4 Daily gift and welcome back.** The gift cycle, the card, bin-rate buckets and
+4. [x] **R4 Daily gift and welcome back.** The gift cycle, the card, bin-rate buckets and
    offline coins. Docs: plots.md (profile fields), economy.md.
 5. [ ] **R5 Mid-game machines.** The late-game balance policy first, then the six research
    projects, three machines and thirteen products on placeholder art. Docs: research.md,
@@ -378,4 +378,25 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   player who sends everything to orders levels about twice as fast. That is the plan's number;
   the R7 timed session should say whether it shortens the first hour too much.
 - **Playtest** and what is left to verify: progress.md § Studio playtest.
+
+### R4 Daily gift and welcome back (2026-11-09)
+
+- **Nothing is paid on load.** The gift and offline coins are owed and saved until the player
+  presses Collect, so the card can be closed, and a seed gift that does not fit waits.
+- **An uncollected gift holds the count.** The next day's gift comes only once the waiting one
+  is taken, so the seven-day cycle never skips a day's gift.
+- **A garden's first day has no gift**, and neither has an older save's first day with gifts:
+  a new player's first minutes stay with the goal chain, and the card first appears on a return.
+- **The rate needs three finished buckets** (fifteen minutes of play); a shorter visit keeps the
+  rate the garden loaded with. So a quick visit to collect does not wipe the rate, and offline
+  coins keep coming from the last real stretch of play. That is the return hook, and also the
+  thing to watch with the 264,000-coin example: a player can collect every eight hours without
+  playing.
+- **Coins from several absences add up** while uncollected; each absence is capped on its own.
+- **Offline coins need a Shipping Bin placed at load**, checked once from the plot's blocks.
+- **The card also greets with no reward**, after ten minutes away, to say what is ripe and
+  whether research is waiting; its button then reads Close.
+- **`WelcomeService` and `Shared/Welcome` are their own modules**, loaded last, with `welcome`
+  as a new saved field. docs/welcome.md describes what is built, its playtest and what is left
+  to verify.
 

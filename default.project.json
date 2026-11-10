@@ -16,6 +16,8 @@
         "EconomySync": { "$className": "RemoteEvent" },
         "ProgressSync": { "$className": "RemoteEvent" },
         "Progress": { "$className": "RemoteEvent" },
+        "WelcomeSync": { "$className": "RemoteEvent" },
+        "Welcome": { "$className": "RemoteEvent" },
         "ResearchSync": { "$className": "RemoteEvent" },
         "Research": { "$className": "RemoteEvent" },
         "Fx": { "$className": "RemoteEvent" },

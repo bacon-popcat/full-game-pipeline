@@ -81,15 +81,6 @@ local function countOf(itemId: string): number
 	return count
 end
 
--- "5h 12m", "12m", "under a minute".
-local function span(seconds: number): string
-	local minutes = math.ceil(math.max(0, seconds) / 60)
-	if minutes >= 60 then
-		return `{minutes // 60}h {minutes % 60}m`
-	end
-	return if minutes > 1 then `{minutes}m` else "under a minute"
-end
-
 local function press(parent: Instance, name: string): Press?
 	local button = Hud.find(parent, name, "TextButton")
 	local label = Hud.find(parent, name .. ".Label", "TextLabel")
@@ -325,7 +316,7 @@ function QuestsScreen.init(hud: ScreenGui)
 
 	local function renderHint(snapshot: ProgressClient.Snapshot)
 		if tab == "Daily" then
-			local left = span(snapshot.daily.resetsAt - workspace:GetServerTimeNow())
+			local left = Hud.span(snapshot.daily.resetsAt - workspace:GetServerTimeNow())
 			hint.Text = if snapshot.daily.bonus
 				then `All done for today. New quests in {left}.`
 				else `New quests in {left}. Finish all three for a bonus seed.`

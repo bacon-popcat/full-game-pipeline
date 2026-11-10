@@ -63,6 +63,14 @@ return {
 	-- stood), from: Vector3? (where its chopper stood) }) a moment to show and sound (FxService ->
 	-- FxController). Cosmetic only: nothing the client does with it changes the game.
 	Fx = get("Fx"),
+	-- server -> client: ({ greet: boolean (show the card: the load sync only), away: number (seconds
+	-- since the garden was last open), ripe: number (crops ready), research: string? (a project waiting
+	-- for Complete), coins: number (offline coins owed), gift: { day: number (1..7), coins: number,
+	-- rarity: string?, count: number? }? (the daily gift owed) }); sent on load and after a Collect.
+	WelcomeSync = get("WelcomeSync"),
+	-- client -> server: (action: "Collect") takes the offline coins and the daily gift owed
+	-- (WelcomeService); answered with a WelcomeSync.
+	Welcome = get("Welcome"),
 	-- server -> client: (objective: { step: number, total: number, text: string, done: boolean,
 	-- detail: string }) the player's current goal (OnboardingService) and its progress in words
 	-- ("12 / 50 sold", or ""); sent on load, on each step and as the progress moves.

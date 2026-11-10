@@ -846,6 +846,18 @@ function WorldService.snapshot(index: number): { Plot.SavedCrop }
 	return crops
 end
 
+-- How many of garden `index`'s crops are ripe now.
+function WorldService.ripeCount(index: number): number
+	local count = 0
+	for _, node in living do
+		local def = World.getNode(node.nodeType)
+		if def.crop and Plot.at(node.cell) == index and World.isRipe(def) then
+			count += 1
+		end
+	end
+	return count
+end
+
 function WorldService.restore(index: number, saved: Plot.SavedCrop): boolean
 	local crop = World.CROPS[saved.cropId]
 	local relative = Plot.unpack(saved.cell)

@@ -43,4 +43,13 @@ function Hud.time(seconds: number): string
 	local left = math.max(0, math.ceil(seconds))
 	return string.format("%d:%02d", math.floor(left / 60), left % 60)
 end
+
+-- A stretch of time in words: "5h 12m", "12m", "under a minute".
+function Hud.span(seconds: number): string
+	local minutes = math.ceil(math.max(0, seconds) / 60)
+	if minutes >= 60 then
+		return `{minutes // 60}h {minutes % 60}m`
+	end
+	return if minutes > 1 then `{minutes}m` else "under a minute"
+end
 return Hud
