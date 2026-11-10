@@ -42,6 +42,8 @@ local GardenEvents = {
 	-- (player, itemId: string, machineId: string) a machine on the player's plot finished a batch
 	-- that made `itemId` (a bar, a part, a product, in its mutation), once per kind of output
 	Processed = Signal.new(),
+	-- (player, itemId: string, count: number) an order delivered from the inventory (ProgressService)
+	OrderFilled = Signal.new(),
 	-- (player, researchId: string) a research project finished (Shared/Research)
 	ResearchDone = Signal.new(),
 }

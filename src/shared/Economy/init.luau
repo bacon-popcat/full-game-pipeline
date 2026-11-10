@@ -20,6 +20,14 @@ function Economy.progress(xp: number): (number, number, number)
 	return level, remaining, Economy.required(level)
 end
 
+-- The coin scale rewards grow by (orders, daily quests): 150 * level^1.6 to two significant
+-- figures, a few minutes of income at that level (docs/retention.md § Economy).
+function Economy.scale(level: number): number
+	local raw = 150 * math.max(1, level) ^ 1.6
+	local step = 10 ^ (math.floor(math.log10(raw)) - 1)
+	return math.round(raw / step) * step
+end
+
 -- The XP still to earn before lifetime `xp` reaches level `target`; 0 once it has.
 function Economy.toReach(xp: number, target: number): number
 	local level, into = Economy.progress(xp)

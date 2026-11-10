@@ -16,11 +16,15 @@ end
 
 return {
 	-- server -> client: ({ stats: { [statId: string]: number }, achievements: { [achievementId: string]: true },
-	-- quests: { { id: string, progress: number, goal: number, done: boolean } }, syncedAt: number });
-	-- progress is clamped to goal; syncedAt uses workspace:GetServerTimeNow() for playtime extrapolation.
+	-- daily: { quests: { { id: string, text: string, progress: number, goal: number, done: boolean,
+	-- claimed: boolean, reward: { coins: number, xp: number } } }, resetsAt: number, bonus: boolean },
+	-- orders: { { item: string, count: number, reward: { coins: number, xp: number } } | { waitUntil: number } },
+	-- ordersToBonus: number, syncedAt: number }); progress is clamped to goal; resetsAt, waitUntil and
+	-- syncedAt are on workspace:GetServerTimeNow()'s clock, syncedAt also for playtime extrapolation.
 	ProgressSync = get("ProgressSync"),
-	-- client -> server: (action: "ClaimQuest", slot: number), a whole slot 1..Progress.QUEST_SLOTS.
-	-- The server checks DataReady, cooldown and saved progress; invalid requests are ignored.
+	-- client -> server: (action: "ClaimDaily" | "DeliverOrder" | "SkipOrder", slot: number), a whole
+	-- slot 1..Progress.QUEST_SLOTS or ORDER_SLOTS. The server checks DataReady, a cooldown, saved
+	-- progress and the inventory; a well-formed request is answered with a ProgressSync.
 	Progress = get("Progress"),
 	-- server -> client: ({ done: { string }, active: { id: string, endsAt: number, seconds: number }?,
 	-- bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().

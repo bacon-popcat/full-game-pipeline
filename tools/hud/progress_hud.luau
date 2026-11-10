@@ -8,6 +8,9 @@ Run it through the Studio MCP in the Edit datamodel: serve the repo (python -m h
 it returns. It is safe to rerun: every node it makes is removed and rebuilt, and the moves (the
 backpack button into the Hotbar, Settings out of SideButtons) check where things already are.
 
+It builds the Quests window with one list; run quests_hud.luau after it for the Daily and Orders
+tabs and the order row, then sidebar_hud.luau.
+
 Looks follow the existing windows: the Crafting window's shell (near-black gradient, accent
 brackets, Sarpanch) is cloned for each new window, so one retune of the shell's look in Studio is
 the template for the rest.

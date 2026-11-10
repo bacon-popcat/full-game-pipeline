@@ -5,7 +5,8 @@
 -- evidence, so it must be observed live.
 -- Later steps are goals (Shared/Onboarding) checked against what the garden has: items crafted,
 -- made by a machine, placed or carried (the Index, the inventory and the plot's blocks stand in
--- on load), the crafting tier, finished research and Shipping Bin sales (each bin's saved count).
+-- on load), the crafting tier, finished research, Shipping Bin sales (each bin's saved count)
+-- and orders filled (the saved stat).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -23,6 +24,7 @@ local GardenService = require(script.Parent.GardenService)
 local GroundService = require(script.Parent.GroundService)
 local InventoryService = require(script.Parent.InventoryService)
 local PlotService = require(script.Parent.PlotService)
+local ProgressService = require(script.Parent.ProgressService)
 local WorldService = require(script.Parent.WorldService)
 
 -- Bin sales between progress updates while the count goal is the current one.
@@ -36,6 +38,7 @@ type State = {
 	placed: { [string]: boolean },
 	research: boolean,
 	binSales: number,
+	orders: boolean,
 }
 local states: { [Player]: State } = {}
 local started = false
@@ -85,6 +88,8 @@ local function satisfied(player: Player, state: State, index: number): boolean
 		return state.research
 	elseif goal.kind == "BinSales" then
 		return state.binSales >= (goal.count or math.huge)
+	elseif goal.kind == "Orders" then
+		return state.orders
 	end
 	local seen = if goal.kind == "Placed" then state.placed else state.had
 	for _, itemId in goal.items or {} do
@@ -236,6 +241,13 @@ function OnboardingService.init(): ()
 			advance(player, state)
 		end
 	end)
+	GardenEvents.OrderFilled:Connect(function(player: Player)
+		local state = live(player)
+		if state then
+			state.orders = true
+			advance(player, state)
+		end
+	end)
 end
 
 function OnboardingService.load(player: Player, step: number): ()
@@ -247,6 +259,7 @@ function OnboardingService.load(player: Player, step: number): ()
 		placed = {},
 		research = false,
 		binSales = 0,
+		orders = false,
 	}
 	states[player] = state
 	local index = PlotService.get(player)
@@ -291,6 +304,8 @@ function OnboardingService.load(player: Player, step: number): ()
 			state.had[itemId] = true
 		end
 	end
+	local progress = ProgressService.snapshot(player)
+	state.orders = progress ~= nil and progress.stats.ordersFilled > 0
 	for _, project in Research.PROJECTS do
 		if Bonuses.has(player, project.id) then
 			state.research = true

@@ -25,6 +25,8 @@ local LOOKS: { [string]: { canopy: Color3, action: string, title: string, prop: 
 		title = "Robux Shop",
 		prop = "MachineShop",
 	},
+	-- No prop of its own yet: the plain placeholder stall, with a sky-blue canopy.
+	OrdersBoard = { canopy = Color3.fromRGB(142, 197, 255), action = "View", title = "Orders Board" },
 }
 
 local function part(parent: Instance, name: string, size: Vector3, position: Vector3, color: Color3): Part

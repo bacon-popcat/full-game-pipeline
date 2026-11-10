@@ -1,6 +1,7 @@
 --!strict
 -- Hub: stall locations and reach shared by prompt windows and server transactions.
--- These positions stay west of the quarry and clear of the hub spawn.
+-- These positions stay west of the quarry and clear of the hub spawn. The Orders Board is a
+-- stall only in that it stands in the hub and its prompt opens a window (Quests, on Orders).
 local Hub = {}
 Hub.REACH = 12
 Hub.STALLS = {
@@ -8,6 +9,7 @@ Hub.STALLS = {
 	SellStand = Vector3.new(24, 0, -15),
 	GearShop = Vector3.new(-24, 0, 15),
 	RobuxShop = Vector3.new(24, 0, 15),
+	OrdersBoard = Vector3.new(-48, 0, 0),
 }
 
 function Hub.inReach(player: Player, name: string): boolean

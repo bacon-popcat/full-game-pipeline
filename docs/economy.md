@@ -82,9 +82,10 @@ and one changed signal. First harvest also marks the crop id in saved `discovere
 
 ## Hub and screens
 
-HubService stands four soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
-SellStand, GearShop and RobuxShop, each its `Assets.Props` model or a plain placeholder (the
-Robux Shop borrows the old `MachineShop` prop until it has its own).
+HubService stands five soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
+SellStand, GearShop, RobuxShop and OrdersBoard, each its `Assets.Props` model or a plain
+placeholder (the Robux Shop borrows the old `MachineShop` prop until it has its own; the Orders
+Board, at (-48, 0, 0), has no prop yet and opens the Quests window on Orders, progress.md).
 Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
@@ -493,25 +494,28 @@ first five steps teach farming by hand: buy seeds, till, plant, harvest, sell.
 | 20 | Sell 50 items through a Shipping Bin | 50 bin sales | 500 |
 | 21 | Craft a Grain Mill and mill Flour | Had Flour | 750 |
 | 22 | Craft a Baking Oven and bake a pie | Had any pie | 1,500 |
-| 23 | Reach level 9, then upgrade crafting to Fabricator | Crafting tier >= 4 | 2,500 |
-| 24 | Build your first Mk II machine | Had any Mk II machine | 4,000 |
+| 23 | Open Quests and deliver an order | An order filled | 1,000 |
+| 24 | Reach level 9, then upgrade crafting to Fabricator | Crafting tier >= 4 | 2,500 |
+| 25 | Build your first Mk II machine | Had any Mk II machine | 4,000 |
 
-Step 2 was inserted later; DataService moves a save's step past it once (layout 5). Steps 9-24
+Step 2 was inserted later; DataService moves a save's step past it once (layout 5). Steps 9-25
 (retention.md § Goal chain, which gives the reason for each reward) were appended, which needs
-no migration: a save that had finished holds step 9, now the first new goal.
+no migration: a save that had finished holds step 9, now the first new goal. Step 23, the
+order, was inserted once orders existed; a save at or past it moves along once (layout 6).
 
-Steps 9-24 are goals (`Shared/Onboarding` `Goal`) checked against the garden, not named
+Steps 9-25 are goals (`Shared/Onboarding` `Goal`) checked against the garden, not named
 conditions. **Had** an item means it was crafted in the Crafting window, made by a machine on
 the plot (`GardenEvents.Processed`, a mutated product counting as its product), or placed; on
 load the Index, the inventory and the plot's blocks stand in. **Placed** means it stands on the
 plot or was just placed. The crafting tier is read whenever a goal is checked. Bin sales count
-each Shipping Bin sale live and, on load, start from the bins' saved `sold` counts. A goal with
+each Shipping Bin sale live and, on load, start from the bins' saved `sold` counts. The order
+goal hears `GardenEvents.OrderFilled` and, on load, reads the saved ordersFilled stat. A goal with
 progress sends it as the snapshot's `detail` ("12 / 50 sold", every fifth sale; "Level 2 / 3"
 while a tier goal waits on the level), and the panel shows it in place of the step count.
 
 Each completion advances the saved next step before paying once and sending
 `Done! +N coins`; completion sends `Your garden is yours to grow. Happy gardening!`.
-Total rewards are 170 coins for steps 1-8 and 13,100 for steps 9-24. There is no extra
+Total rewards are 170 coins for steps 1-8 and 14,100 for steps 9-25. There is no extra
 finishing grant.
 
 Once every goal is done the panel stays, titled "Next unlock": the next level that opens
@@ -539,7 +543,7 @@ for missing/mistyped nodes, and leaves gameplay usable if the authored screen is
 StarterGui.HUD.Objective [Frame]       top-left below side buttons; initially hidden
   Title [TextLabel]                    Next step (the authored text), or Next unlock
   Text [TextLabel]                     current objective, or "Level 10: ..."
-  Progress [TextLabel]                 Step 2 of 24, a goal's progress, or "550 XP to go"
+  Progress [TextLabel]                 Step 2 of 25, a goal's progress, or "550 XP to go"
   Check [ImageLabel or Frame]          initially hidden
 ```
 

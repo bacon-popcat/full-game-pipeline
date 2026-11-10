@@ -6,7 +6,8 @@
 -- observes); the rest lead through crafting and automation to the first Mk II machine, each a
 -- `goal` checked against what the garden has (OnboardingService).
 -- Appending a step needs no migration: a finished save holds the old #STEPS + 1, which is the
--- first new goal. Inserting one moves saved steps (DataService migrates them).
+-- first new goal. Inserting one moves saved steps (DataService migrates them, as it did for the
+-- order goal at step 23).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -28,8 +29,9 @@ export type Condition =
 --   Tier: crafting is at `tier` or past it.
 --   Research: any research project is finished.
 --   BinSales: Shipping Bins have sold `count` items.
+--   Orders: an order has been filled.
 export type Goal = {
-	kind: "Had" | "Placed" | "Tier" | "Research" | "BinSales",
+	kind: "Had" | "Placed" | "Tier" | "Research" | "BinSales" | "Orders",
 	items: { string }?,
 	tier: number?,
 	count: number?,
@@ -96,6 +98,7 @@ local STEPS: { Step } = {
 		reward = 1500,
 		goal = had("StrawberryPie", "BlueberryPie", "ApplePie"),
 	},
+	{ text = "Open Quests and deliver an order from the Orders tab", reward = 1000, goal = { kind = "Orders" } },
 	{ text = "Reach level 9, then upgrade crafting to Fabricator", reward = 2500, goal = tier(4) },
 	{
 		text = "Build your first Mk II machine",

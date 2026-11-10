@@ -98,10 +98,10 @@ stage the model reaches each step.
 | 23 | Reach level 9 and upgrade crafting to Fabricator | Crafting tier >= 4 | 2,500 |
 | 24 | Build your first Mk II machine | Crafted or owns any Mk II | 4,000 |
 
-R3 inserts "Fill an order at the Orders Board" (1,000 coins) before the Fabricator goal, with
-a saved-step migration like the one layout 5 did.
+R3 inserted "Open Quests and deliver an order" (1,000 coins) before the Fabricator goal, as
+step 23, with a saved-step migration like the one layout 5 did.
 
-The chain pays 13,100 coins over about 70 minutes, roughly a fifth of what the model earns in
+The chain pays 14,100 coins over about 70 minutes, roughly a fifth of what the model earns in
 that time. A goal with progress shows it in place of the step count ("12 / 50 sold"). After
 step 24 the panel shows the next level that opens something and the XP left ("Level 13:
 Haggling II", "1,240 XP to go"), read from `Shared/Unlocks`.
@@ -167,10 +167,11 @@ Deliver takes the items from the inventory in one transaction; nothing is taken 
 bins. New stat `ordersFilled`, with achievement tiers.
 
 **Dailies.** Three per UTC day from the present quest pool, replacing the endless slots. Goals
-scale by level band: x1 for levels 1-4, x4 for 5-11, x12 for 12-24, x30 from 25. Each pays
+scale by level band: x1 for levels 1-4, x4 for 5-11, x12 for 12-24, x30 from 25 (as built, only
+for stats a factory raises; see this phase's implementation decisions). Each pays
 `V(level) / 2` coins and 5% of the current level's XP cost. Finishing all three opens a seed:
-Rare 60%, Epic 30%, Legendary 9%, Mythic 1% (first guess). Old saves' active quests are
-dropped by sanitization; done ones are paid first.
+Rare 60%, Epic 30%, Legendary 9%, Mythic 1% (first guess). Old saves' endless quests are
+dropped by sanitization, unpaid (they paid 20 to 80 coins).
 
 **Achievements.** Tier rewards go from 50 / 250 / 2,000 coins and 5 / 15 / 40 XP to 100 /
 1,500 / 25,000 coins and 10 / 150 / 2,000 XP, and a fourth tier at ten times tier three's goal
@@ -277,7 +278,7 @@ phases come first; the largest content phase waits until the daily layer can hol
 2. [x] **R2 Crops and juice.** The crop and juice values, the widened model assertion, the rare
    stock notice. Rerun `tools/balance/model.py`; update economy.md § Balance and overhaul.md's
    crop table.
-3. [ ] **R3 Orders, dailies, achievements.** `Shared/Progress` content, the Quests window's two
+3. [x] **R3 Orders, dailies, achievements.** `Shared/Progress` content, the Quests window's two
    tabs, the Orders Board prop (a plain board until it has art). Docs: progress.md.
 4. [ ] **R4 Daily gift and welcome back.** The gift cycle, the card, bin-rate buckets and
    offline coins. Docs: plots.md (profile fields), economy.md.
@@ -345,3 +346,36 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   sent "Legendary seed in stock! Grape Seeds, Pumpkin Seeds"; a reload in the same window sent
   it again after four seconds. Not driven: a real sale of each retuned crop, and a Juicer batch
   (both read the same tables).
+
+### R3 Orders, dailies, achievements (2026-11-09)
+
+- **Goal growth depends on the stat.** The x4 / x12 / x30 bands suit stats a factory raises
+  (harvests, crafts, mutated harvests). Applied to hand actions they asked a level-25 player to
+  till 600 cells or finish 30 research projects in a day, so hand quests grow x2 / x2 / x3, the
+  sales quest asks for three times `Economy.scale`, and the research quest stays at one.
+- **The three bigger quests left the pool** (Harvest 100, Sell 5,000, Craft 100): scaling makes
+  them the same quests.
+- **Mutated orders are small**: a fifth of the usual worth, ten at most. Sized like plain ones,
+  a level-12 order asked for 23 Golden Carrots, hours of luck.
+- **Carrot and Wheat can always be ordered**, so a fresh garden has two orders before it has
+  harvested anything; a slot with nothing left to ask for waits and tries again.
+- **A product is orderable when the garden has had its machine** (the Index) and can make its
+  inputs, so an order never asks for something out of reach.
+- **Bonus seeds must fit.** A delivery or last daily claim that would give one is refused until
+  there is room; a day that ends pays its done quests anyway and drops a bonus that cannot fit.
+- **Old endless quests are dropped unpaid**, not paid first as planned: their rewards were 20 to
+  80 coins and their definitions are gone.
+- **Fourth achievement tiers** only where a factory keeps counting: harvests, mutated harvests,
+  crafts, sales and research (45 of the 49 projects). Daily quests' third tier is 100, not 250,
+  now that three a day is the most.
+- **The order goal is step 23** of 25; saves at or past it moved along once (layout 6).
+- **Loading order**: ProgressService now loads after GardenService, whose discoveries and Index
+  orders read.
+- **The Orders Board** is a fifth hub stall at (-48, 0, 0) on the placeholder stall, opening the
+  Quests window on Orders. The window's tabs and the Order row are authored by
+  `tools/hud/quests_hud.luau`, run after progress_hud.
+- **To watch**: orders pay double a sale's XP on goods worth a few minutes of income, so a
+  player who sends everything to orders levels about twice as fast. That is the plan's number;
+  the R7 timed session should say whether it shortens the first hour too much.
+- **Playtest** and what is left to verify: progress.md § Studio playtest.
+

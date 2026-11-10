@@ -366,6 +366,19 @@ local function keepFarm(data: any, fresh: boolean)
 	end
 end
 
+-- The "fill an order" goal was inserted at step ORDER_STEP (Shared/Onboarding); once, a save at
+-- or past it moves along.
+local ORDER_STEP = 23
+local function insertOrderGoal(data: any)
+	if typeof(data.plotLayout) == "number" and data.plotLayout >= 6 then
+		return
+	end
+	data.plotLayout = 6
+	if typeof(data.onboarding) == "number" and data.onboarding >= ORDER_STEP then
+		data.onboarding += 1
+	end
+end
+
 -- Returns whether the save predates the Hoe.
 local function migrate(data: any): boolean
 	-- A profile ProfileStore just made from the template has no layout version and nothing on it.
@@ -380,6 +393,7 @@ local function migrate(data: any): boolean
 	sinkFarm(data)
 	local owesHoe = tillPlacedSoil(data)
 	keepFarm(data, fresh)
+	insertOrderGoal(data)
 	for index, stack in if typeof(data.inventory) == "table" then data.inventory else {} do
 		if typeof(stack) == "table" and RENAMED[stack.itemId] then
 			stack.itemId = RENAMED[stack.itemId]
@@ -705,7 +719,6 @@ local function load(player: Player, slot: number)
 		end
 		InventoryService.load(player, profile.Data.inventory)
 		EconomyService.load(player, profile.Data.coins, profile.Data.xp)
-		ProgressService.load(player, profile.Data.progress)
 		GardenService.load(
 			player,
 			profile.Data.seedStock,
@@ -713,6 +726,8 @@ local function load(player: Player, slot: number)
 			profile.Data.discovered,
 			profile.Data.indexed
 		)
+		-- After the garden: orders read its discoveries and Index.
+		ProgressService.load(player, profile.Data.progress)
 		OnboardingService.load(player, profile.Data.onboarding)
 	end)
 	if not ok then
