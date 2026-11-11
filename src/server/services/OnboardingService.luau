@@ -113,7 +113,7 @@ local function advance(player: Player, state: State): ()
 		-- Advance before publishing any reward or objective; repeated signals cannot repay it.
 		state.step += 1
 		EconomyService.add(player, objective.reward)
-		Remotes.Notify:FireClient(player, `Done! +{objective.reward} coins`, "Reward")
+		Remotes.Notify:FireClient(player, `Done! +{objective.reward} coins`, "Reward", { quiet = true })
 		sync(player, state)
 		if state.step > #Onboarding.STEPS then
 			Remotes.Notify:FireClient(player, "Your garden is yours to grow. Happy gardening!", "Success")

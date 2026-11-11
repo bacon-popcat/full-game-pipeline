@@ -14,7 +14,7 @@ zero. An expired window rolls each seed independently, using its rarity's chance
 inclusive quantity band in `Shared/Economy/Content`. The server checks boundaries once per
 second and also before a purchase, so a timer tick cannot sell yesterday's stock.
 
-A fresh roll that holds an Epic or better seed sends a Rare notice naming them, rarest first,
+A fresh roll that holds an Epic or better seed sends a Stock notice (a top banner that opens the Shop when clicked) naming them, rarest first,
 under the rarest's name ("Legendary seed in stock! Grape Seeds, Pumpkin Seeds"), so a rare roll
 is seen without opening the Shop. A garden that loads with such seeds still in stock says so
 four seconds after it opens, once the save menu has cleared.
@@ -28,8 +28,8 @@ The UI buys one seed per press; the server supports larger validated counts.
 
 `ShopSync` sends `{restockAt, stock}` on load, restock, purchase response and Seed Shop
 prompt activation. Prompt refresh recovers from a load sync that preceded HUD binding.
-`ShopBuy(shopId, itemId, count)` is intent only; `shopId` names the stall. `Notify(message, kind)` explains purchases, refusals and
-rare harvests; `Shared/Notices` owns the kinds, their colours and which messages are worth one. All remote instances/payloads are owned by `default.project.json` and
+`ShopBuy(shopId, itemId, count)` is intent only; `shopId` names the stall. `Notify(message, kind, detail)` explains purchases, refusals and
+rare harvests; `Shared/Notices` owns the kinds (colour, sound, lifetime, stack or banner), the detail and which messages are worth one. All remote instances/payloads are owned by `default.project.json` and
 `Shared/Remotes`.
 
 ## Garden sections
@@ -202,8 +202,9 @@ StarterGui.HUD [ScreenGui]
     Time [TextLabel]                    1:42
   DayClock [Frame]                      optional; top-right time of day, to the minute (DayClock.luau builds it if absent)
     Icon [Frame], Time, Phase [TextLabel], Bar.Fill [Frame]
-  Toasts [Frame]                        bottom-stacked UIListLayout; at most four clones; Toasts.luau
+  Toasts [Frame]                        bottom-stacked UIListLayout; at most four slots; Toasts.luau
                                         keeps it just above ItemName, so notices sit over the hotbar
+  Banner [Frame]                        top centre, under Weather; holds one Banner card at a time (UIScale)
   Shop [Frame]                         initially hidden
     UIScale [UIScale]
     Header [Frame]
@@ -241,8 +242,13 @@ ReplicatedStorage.Assets.UI
   Robux [Folder]
     Pack [Frame]                        Coin, Name, Coins, Caption, Buy [TextButton] (Label)
   Toast [Folder]
-    Toast [TextLabel]                   expires after 3s; fades for 0.25s; text and its `Border`
-                                        UIStroke take the notice kind's colour (Shared/Notices)
+    Toast [Frame]                       a stack slot (UIScale) holding Card [TextButton]: Border, UIScale,
+                                        Icon, Item [ViewportFrame], Text, Count, Go
+    Banner [TextButton]                 the banner card: Border, UIScale, Brackets, Row (Icon, Item,
+                                        Column (Title, Text), Go)
+    Icons [Folder]                      one white Frame per notice kind (parts named Cut keep their colour)
+                                        All built by tools/hud/notice_hud.luau; Toasts.luau's header
+                                        owns how they behave
 ```
 
 Wallet, Weather, Toasts, Shop and Sell each have their own client module. Existing

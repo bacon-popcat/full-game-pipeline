@@ -245,7 +245,8 @@ local function onResearch(player: Player, action: unknown, id: unknown)
 			message = "Choose Start, Cancel or Complete."
 		end
 	end
-	Remotes.Notify:FireClient(player, message, kind or "Error")
+	-- A finished project has its own sound (ResearchDone, through Fx).
+	Remotes.Notify:FireClient(player, message, kind or "Error", if kind == "Reward" then { quiet = true } else nil)
 	sync(player)
 end
 
@@ -262,7 +263,7 @@ local function announce(player: Player, state: Research.Saved)
 	announced[player] = active.id
 	local project = Research.get(active.id)
 	assert(project, "ResearchService: active project must exist")
-	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`, "Success")
+	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`, "Quest", { open = "Research" })
 	sync(player)
 end
 

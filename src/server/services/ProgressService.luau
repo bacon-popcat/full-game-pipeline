@@ -174,8 +174,9 @@ local function check(player: Player, state: State): ()
 					EconomyService.addXp(player, achievement.reward.xp)
 					Remotes.Notify:FireClient(
 						player,
-						`Achievement unlocked! {achievement.name} +{achievement.reward.coins} coins`,
-						"Achievement"
+						`{achievement.name}! +{achievement.reward.coins} coins`,
+						"Achievement",
+						{ open = "Achievements" }
 					)
 				end
 			end
@@ -191,7 +192,8 @@ local function check(player: Player, state: State): ()
 				Remotes.Notify:FireClient(
 					player,
 					`Daily quest done! {Progress.questText(quest, entry.level)}. Claim it in Quests.`,
-					"Quest"
+					"Quest",
+					{ open = "Quests" }
 				)
 			end
 		end
@@ -296,7 +298,7 @@ local function claimDaily(player: Player, state: State, slot: number, auto: bool
 	if seed then
 		daily.bonus = true
 		InventoryService.give(player, seed, 1)
-		Remotes.Notify:FireClient(player, `All three done! Bonus {Inventory.getItem(seed).name}`, "Rare")
+		Remotes.Notify:FireClient(player, `All three done! Bonus {Inventory.getItem(seed).name}`, "Rare", { item = seed })
 	end
 	return true
 end
@@ -447,7 +449,7 @@ local function deliver(player: Player, state: State, slot: number): ()
 		end
 	end
 	if have < asked then
-		Remotes.Notify:FireClient(player, `You need {asked} {item.name} in your inventory.`, "Error")
+		Remotes.Notify:FireClient(player, `You need {asked} {item.name} in your inventory.`, "Error", { item = itemId })
 		return
 	end
 	local seed = if Progress.ordersToBonus(state.saved.stats.ordersFilled) == 1 then bonusSeed(player) else nil
@@ -466,7 +468,7 @@ local function deliver(player: Player, state: State, slot: number): ()
 	Remotes.Notify:FireClient(player, `Order filled! +{reward.coins} coins`, "Reward")
 	if seed then
 		InventoryService.give(player, seed, 1)
-		Remotes.Notify:FireClient(player, `Bonus {Inventory.getItem(seed).name} for your fifth order!`, "Rare")
+		Remotes.Notify:FireClient(player, `Bonus {Inventory.getItem(seed).name} for your fifth order!`, "Rare", { item = seed })
 	end
 	GardenEvents.OrderFilled:Fire(player, itemId, asked)
 	state.saved.orders[slot] = drawOrder(player, state, slot)

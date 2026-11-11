@@ -149,8 +149,8 @@ local function gift(visitor: Player, owner: Player, count: unknown): ()
 	mine.saved.given += worth * count
 	theirs.saved.received += 1
 	local name = Inventory.getItem(itemId).name
-	Remotes.Notify:FireClient(visitor, `Gave {count} {name} to {owner.DisplayName}.`, "Success")
-	Remotes.Notify:FireClient(owner, `{visitor.DisplayName} gave you {count} {name}!`, "Reward")
+	Remotes.Notify:FireClient(visitor, `Gave {count} {name} to {owner.DisplayName}.`, "Success", { item = itemId })
+	Remotes.Notify:FireClient(owner, `{visitor.DisplayName} gave you {count} {name}!`, "Reward", { item = itemId })
 	GardenEvents.Gifted:Fire(visitor, owner, itemId, count)
 	if saver then
 		-- Both gardens saved together, so neither side is left ahead of the other for long.
@@ -288,13 +288,14 @@ function SocialService.init(): ()
 			return
 		end
 		lastNews[player] = now
-		local item = Inventory.find(World.CROPS[cropId].produce .. "+" .. mutation)
+		local itemId = World.CROPS[cropId].produce .. "+" .. mutation
+		local item = Inventory.find(itemId)
 		if not item then
 			return
 		end
 		for _, other in Players:GetPlayers() do
 			if other ~= player and other:GetAttribute("DataReady") == true then
-				Remotes.Notify:FireClient(other, `{player.DisplayName} harvested a {item.name}!`, "Rare")
+				Remotes.Notify:FireClient(other, `{player.DisplayName} harvested a {item.name}!`, "Rare", { item = itemId })
 			end
 		end
 	end)

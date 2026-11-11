@@ -55,7 +55,10 @@ return {
 	PlotBuySection = get("PlotBuySection"),
 	-- client -> server: (mode: "Held" | "All"), checked against server inventory, from anywhere.
 	Sell = get("Sell"),
-	-- server -> client: (message: string, kind: Notices.Kind?) a notice worth stopping for, shown above the hotbar in its kind's colour (Shared/Notices); a missing kind is Info.
+	-- server -> client: (message: string, kind: Notices.Kind?, detail: Notices.Detail?) a notice worth
+	-- stopping for. Shared/Notices owns the kinds and the detail (an item to picture, a window a click
+	-- opens, whether the moment has its own sound); a missing kind is Info. The client's Toasts stack
+	-- routine kinds above the hotbar and show big moments in the top banner.
 	Notify = get("Notify"),
 	-- server -> client: (fx: { kind: "Plant" | "Harvest" | "Water" | "Sell" | "Buy" | "LevelUp" | "Chop" |
 	-- "Craft" | "Research", position: Vector3?, itemId: string?, mutation: string?, amount: number?,

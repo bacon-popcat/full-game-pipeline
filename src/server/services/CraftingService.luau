@@ -99,13 +99,13 @@ local function craft(player: Player, recipeId: unknown, times: unknown)
 	if recipe.upgrade then
 		tiers[player] = recipe.upgrade
 		player:SetAttribute("BenchTier", recipe.upgrade)
-		Remotes.Notify:FireClient(player, `Crafting upgraded to {Crafting.TIERS[recipe.upgrade].name}!`, "Reward")
+		Remotes.Notify:FireClient(player, `Crafting upgraded to {Crafting.TIERS[recipe.upgrade].name}!`, "Reward", { quiet = true })
 		GardenEvents.Crafted:Fire(player, recipe.id, times)
 		return
 	end
 	local made = recipe.count * times
 	InventoryService.give(player, recipe.output, made)
-	Remotes.Notify:FireClient(player, `Crafted {made} {Inventory.getItem(recipe.output).name}.`, "Success")
+	Remotes.Notify:FireClient(player, `Crafted {made} {Inventory.getItem(recipe.output).name}.`, "Success", { item = recipe.output })
 	GardenEvents.Crafted:Fire(player, recipe.id, times)
 end
 

@@ -122,7 +122,7 @@ local function collect(player: Player, action: unknown): ()
 	if gift and seed then
 		local count = gift.count or 1
 		InventoryService.give(player, seed, count)
-		Remotes.Notify:FireClient(player, `Daily gift! {Inventory.getItem(seed).name} x{count}`, "Rare")
+		Remotes.Notify:FireClient(player, `Daily gift! {Inventory.getItem(seed).name} x{count}`, "Rare", { item = seed })
 	end
 	sync(player, state, false)
 end

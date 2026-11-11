@@ -33,6 +33,11 @@ local ROLES: { [string]: Role } = {
 	Step = { id = "rbxassetid://110055073598907", volume = 0.45, spatial = false },
 	-- a new level
 	LevelUp = { id = "rbxassetid://138182978724965", volume = 0.5, spatial = false },
+	-- notices, by kind (Shared/Notices): a refusal's two soft wooden ticks, a reward's two chimes,
+	-- and the banner's three chimes over a swell
+	NoticeError = { id = "rbxassetid://88770489922620", volume = 0.3, spatial = false },
+	NoticeReward = { id = "rbxassetid://92287795162801", volume = 0.3, spatial = false },
+	NoticeBanner = { id = "rbxassetid://138460409961936", volume = 0.4, spatial = false },
 }
 
 return ROLES

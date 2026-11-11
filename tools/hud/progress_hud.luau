@@ -1,7 +1,8 @@
 --[[
-Authors the HUD pieces for notices, the hotbar's backpack button, the side Menu and Quests buttons (the Index is a Menu row, not a side button),
+Authors the hotbar's backpack button, the side Menu and Quests buttons (the Index is a Menu row, not a side button),
 the progress windows (Achievements, Quests, Stats) and the Islands-style Crafting window, in StarterGui.HUD and
-ReplicatedStorage.Assets.UI (the place file only; conventions.md § UI).
+ReplicatedStorage.Assets.UI (the place file only; conventions.md § UI). The notices' pieces are
+notice_hud.luau's.
 
 Run it through the Studio MCP in the Edit datamodel: serve the repo (python -m http.server 34998
 --bind 127.0.0.1), fetch this file into a temporary ModuleScript, require it and call the function
@@ -405,26 +406,6 @@ return function()
 		}, pill)
 		text:FindFirstChildOfClass("UIStroke"):Destroy()
 		return pill
-	end
-
-	---------------------------------------------------------------- notices
-	do
-		local toast = assets.Toast.Toast
-		remove(toast, "Border")
-		border(toast, WHITE, 0.35, "Border").Thickness = 1.5
-		toast.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
-		toast.BackgroundTransparency = 0.12
-		toast.ZIndex = 50
-		local corner = toast:FindFirstChildOfClass("UICorner") or new("UICorner", {}, toast)
-		corner.CornerRadius = UDim.new(0, 4)
-		local layout = hud.Toasts:FindFirstChildOfClass("UIListLayout")
-		layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		hud.Toasts.AnchorPoint = Vector2.new(0.5, 1)
-		-- Over every window (they sit at ZIndex 30), so a notice answering a press in one (a craft, a claim) is seen.
-		hud.Toasts.ZIndex = 50
-		table.insert(log, "toasts: bottom-stacked, Border stroke")
 	end
 
 	---------------------------------------------------------------- backpack button

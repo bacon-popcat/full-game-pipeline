@@ -501,7 +501,7 @@ local function purchase(player: Player, x: unknown, z: unknown)
 	model:SetAttribute("Sections", table.concat(Plot.encode(bought), ";"))
 	landscape(index)
 	GroundService.extend(index)
-	Remotes.Notify:FireClient(player, "New garden section unlocked!", "Reward")
+	Remotes.Notify:FireClient(player, "New garden section unlocked!", "Reward", { quiet = true })
 	GardenEvents.SectionBought:Fire(player, x, z)
 end
 

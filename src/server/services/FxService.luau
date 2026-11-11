@@ -99,7 +99,7 @@ function FxService.init()
 	end)
 	GardenEvents.LevelUp:Connect(function(player: Player, level: number)
 		Remotes.Fx:FireClient(player, { kind = "LevelUp", amount = level })
-		Remotes.Notify:FireClient(player, levelMessage(player, level), "Reward")
+		Remotes.Notify:FireClient(player, levelMessage(player, level), "Level", { quiet = true })
 	end)
 end
 

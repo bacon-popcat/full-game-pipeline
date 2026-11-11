@@ -46,3 +46,6 @@ one. The new Harvest replaces the ElevenLabs pluck (140384005911871); put that i
 | TreeFall | Garden_TreeFall.wav | 118623246906163 | a low creak, a leafy whoosh and a soft thud, 1.7 s |
 | Craft | Garden_Craft.wav | 104446383390823 | two quick wooden taps and a click, 0.5 s |
 | ResearchDone | Garden_ResearchDone.wav | 82850696869958 | a rising two-note chime (E5, B5) over a warm fifth that swells and fades, 1.9 s |
+| NoticeError | Garden_NoticeError.wav | 88770489922620 | two soft low wooden ticks, falling, for a refusal notice, 0.3 s |
+| NoticeReward | Garden_NoticeReward.wav | 92287795162801 | two soft chimes rising a third (C6, E6), for a reward, quest or rare notice, 0.7 s |
+| NoticeBanner | Garden_NoticeBanner.wav | 138460409961936 | three chimes rising (G5, C6, E6) over a short warm swell, for a banner notice, 1.5 s |

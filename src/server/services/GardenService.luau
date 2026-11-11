@@ -83,7 +83,12 @@ local function announceStock(player: Player, state: State)
 	for _, crop in found do
 		table.insert(names, Inventory.getItem(crop.seed).name)
 	end
-	Remotes.Notify:FireClient(player, `{found[1].rarity} seed in stock! {table.concat(names, ", ")}`, "Rare")
+	Remotes.Notify:FireClient(
+		player,
+		`{found[1].rarity} seed in stock! {table.concat(names, ", ")}`,
+		"Stock",
+		{ item = found[1].seed, open = "Shop" }
+	)
 end
 
 local function syncIndex(player: Player, state: State)
@@ -174,11 +179,9 @@ function GardenService.harvest(player: Player, cropId: string, mutation: string?
 	-- Only a rare mutation is worth a notice; Wet comes with every sprinkler.
 	local names = if mutation then Mutations.parse(mutation) else nil
 	if names and Mutations.multiplier(names) >= RARE_MULTIPLIER then
-		Remotes.Notify:FireClient(
-			player,
-			`{Inventory.getItem(World.CROPS[cropId].produce .. "+" .. mutation).name}!`,
-			"Rare"
-		)
+		local itemId = World.CROPS[cropId].produce .. "+" .. mutation
+		-- Quiet: the harvest's own effect already chimes for a mutated crop.
+		Remotes.Notify:FireClient(player, `{Inventory.getItem(itemId).name}!`, "Rare", { item = itemId, quiet = true })
 	end
 end
 
@@ -284,7 +287,12 @@ local function buy(player: Player, shopId: unknown, itemId: unknown, count: unkn
 	if shopId == "SeedShop" then
 		sync(player, state)
 	end
-	Remotes.Notify:FireClient(player, message, if bought then "Success" else "Error")
+	Remotes.Notify:FireClient(
+		player,
+		message,
+		if bought then "Success" else "Error",
+		if bought then { item = itemId } else nil
+	)
 end
 
 local function sell(player: Player, mode: unknown)

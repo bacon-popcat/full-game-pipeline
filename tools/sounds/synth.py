@@ -9,7 +9,9 @@ silence and peaks at PEAK so none of them is harsh played over and over.
 Roles: Harvest (leaves rustling, a green stem snapping and soil crumbling off the roots), HarvestRare (a shimmer of three
 soft chimes, layered over Harvest for a mutated crop), Chop (a soft wooden thock), TreeFall (a creak,
 a leafy whoosh and a soft thud), Craft (two quick wooden taps and a click), ResearchDone (a rising
-two-note chime over a warm swell).
+two-note chime over a warm swell), and the notice roles: NoticeError (two soft low wooden ticks,
+falling), NoticeReward (two soft chimes, rising a third) and NoticeBanner (three chimes rising over
+a short warm swell, for the top banner).
 """
 import math
 import random
@@ -200,6 +202,34 @@ def research_done():
     return finish(out, 0.2)
 
 
+def notice_error():
+    out = silence(0.3)
+    mix(out, wood(300, 0.16, 0.03), 0, 0.8)
+    mix(out, wood(236, 0.18, 0.035), 0.085, 0.7)
+    return finish(lowpass(out, 3200))
+
+
+def notice_reward():
+    out = silence(0.7)
+    mix(out, bell(1046.5, 0.5, 0.2), 0, 0.55)
+    mix(out, bell(1318.5, 0.6, 0.24), 0.09, 0.55)
+    return finish(out, 0.1)
+
+
+def notice_banner():
+    out = silence(1.5)
+    n = int(1.3 * RATE)
+    pad = [0.0] * n
+    for freq in (392, 523.25):
+        for i in range(n):
+            t = i / RATE
+            pad[i] += math.sin(math.tau * freq * t) * min(1, t / 0.25) * math.exp(-t / 0.5)
+    mix(out, pad, 0, 0.14)
+    for at, freq in ((0.0, 783.99), (0.11, 1046.5), (0.22, 1318.5)):
+        mix(out, bell(freq, 1.1, 0.4), at, 0.5)
+    return finish(out, 0.2)
+
+
 ROLES = {
     "Harvest": harvest,
     "HarvestRare": harvest_rare,
@@ -207,6 +237,9 @@ ROLES = {
     "TreeFall": tree_fall,
     "Craft": craft,
     "ResearchDone": research_done,
+    "NoticeError": notice_error,
+    "NoticeReward": notice_reward,
+    "NoticeBanner": notice_banner,
 }
 
 

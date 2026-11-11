@@ -20,8 +20,9 @@ round a hub (each category a coloured fan), showing what is in reach plus undisc
 one step past it, rippling open from the middle and closed from the edge, with requirement cards
 in its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
 Since then: a side Menu opens Achievements, Stats and Settings, and Quests has its own side
-button and claimable badge (progress.md); notices are
-coloured by kind and stack above the hotbar; the backpack button sits after hotbar slot 9; and the
+button and claimable badge (progress.md); notices carry
+a kind icon or item picture, merge repeats, wrap, open their window when clicked and stack above the
+hotbar, with level-ups, achievements and rare seed stock in a top banner (`Shared/Notices`); the backpack button sits after hotbar slot 9; and the
 Crafting window is an Islands-style catalogue (categories, search, cards, a details panel). The
 Rock Drill digs quarry materials on your own plot from coal (factory.md). Machines are now
 crafted only, in the Crafting window opened from its side button (or C) anywhere, with four
@@ -60,7 +61,7 @@ Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 | `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), the welcome-back card (`welcome_hud`, after those), the Visit card (`visit_hud`, after that), the Settings window's Gifting row (`settings_hud`), Crafting window (and its upgrade panel), Shop and Robux windows, notice look, prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), the welcome-back card (`welcome_hud`, after those), the Visit card (`visit_hud`, after that), the Settings window's Gifting row (`settings_hud`), Crafting window (and its upgrade panel), Shop and Robux windows, the notice card, banner and kind icons (`notice_hud`, any time), prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

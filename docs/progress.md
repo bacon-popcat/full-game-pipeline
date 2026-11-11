@@ -30,7 +30,7 @@ as coins earned; load-time rewards do not, because DataReady is still false.
 ## Achievements
 
 Achievements unlock when their lifetime stat reaches the goal. The service marks the id
-before awarding coins and XP through EconomyService, then sends an Achievement notice.
+before awarding coins and XP through EconomyService, then sends an Achievement notice (a top banner that opens Achievements when clicked).
 Reward-triggered stat changes are checked too. Loading checks all saved totals, so a newly
 introduced achievement can unlock immediately, but an already-unlocked id never pays again
 (so one unlocked before its reward was raised keeps what it paid then). A family has three
