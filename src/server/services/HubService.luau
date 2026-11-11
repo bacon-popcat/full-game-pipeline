@@ -15,7 +15,8 @@ local FLOWER_BOXES = { Vector3.new(-7, 0, -8), Vector3.new(7, 0, -8), Vector3.ne
 
 -- Each stall's canopy colour and prompt words, and the Assets.Props model it borrows when it has
 -- none of its own name (the Robux Shop stands in the old Machine Shop's stall).
-local LOOKS: { [string]: { canopy: Color3, action: string, title: string, prop: string? } } = {
+-- `turn` faces a stall some other way than north or south toward the spawn (radians about Y).
+local LOOKS: { [string]: { canopy: Color3, action: string, title: string, prop: string?, turn: number? } } = {
 	SeedShop = { canopy = Color3.fromRGB(179, 207, 158), action = "Shop", title = "Seed Shop" },
 	SellStand = { canopy = Color3.fromRGB(242, 211, 164), action = "Sell", title = "Sell Stand" },
 	GearShop = { canopy = Color3.fromRGB(160, 205, 214), action = "Shop", title = "Gear Shop" },
@@ -25,8 +26,13 @@ local LOOKS: { [string]: { canopy: Color3, action: string, title: string, prop: 
 		title = "Robux Shop",
 		prop = "MachineShop",
 	},
-	-- No prop of its own yet: the plain placeholder stall, with a sky-blue canopy.
-	OrdersBoard = { canopy = Color3.fromRGB(142, 197, 255), action = "View", title = "Orders Board" },
+	-- West of the spawn, so it turns to face east.
+	OrdersBoard = {
+		canopy = Color3.fromRGB(142, 197, 255),
+		action = "View",
+		title = "Orders Board",
+		turn = -math.pi / 2,
+	},
 }
 
 local function part(parent: Instance, name: string, size: Vector3, position: Vector3, color: Color3): Part
@@ -62,7 +68,10 @@ function HubService.init()
 	for name, position in Hub.STALLS do
 		local look = LOOKS[name]
 		-- the prop's counter faces -Z; stalls north of the spawn turn round to face it
-		local facing = if position.Z < 0 then CFrame.Angles(0, math.pi, 0) else CFrame.identity
+		local facing = if look.turn
+			then CFrame.Angles(0, look.turn, 0)
+			elseif position.Z < 0 then CFrame.Angles(0, math.pi, 0)
+			else CFrame.identity
 		local propName = if Props.template(name) then name else look.prop or name
 		local prop = Props.place(propName, CFrame.new(position) * facing, hub)
 		if prop then

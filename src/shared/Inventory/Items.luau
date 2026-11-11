@@ -183,26 +183,12 @@ local ITEMS: { Item } = {
 	machine("MillTier2", "Grain Mill Mk II", "Grinds wheat into flour twice as fast.", "Mill"),
 	machine("JuicerTier2", "Fruit Press Mk II", "Presses fruit into juice twice as fast.", "Juicer"),
 	machine("OvenTier2", "Baking Oven Mk II", "Bakes everything the Baking Oven does, twice as fast.", "Oven"),
-	machine(
-		"Roaster",
-		"Roaster",
-		"Roasts 2 potatoes into crisps, 2 corn into popcorn, or a pumpkin.",
-		"Oven",
-		Color3.fromRGB(196, 132, 84)
-	),
-	machine(
-		"Kettle",
-		"Preserving Kettle",
-		"Simmers 4 tomatoes into sauce, or a juice and 2 of its fruit into jam.",
-		"Juicer",
-		Color3.fromRGB(214, 150, 96)
-	),
+	machine("Roaster", "Roaster", "Roasts 2 potatoes into crisps, 2 corn into popcorn, or a pumpkin."),
+	machine("Kettle", "Preserving Kettle", "Simmers 4 tomatoes into sauce, or a juice and 2 of its fruit into jam."),
 	machine(
 		"Chiller",
 		"Chiller",
-		"Freezes a watermelon and strawberry juice, or 2 starfruit and blueberry juice, into sorbet.",
-		"CratePacker",
-		Color3.fromRGB(150, 206, 232)
+		"Freezes a watermelon and strawberry juice, or 2 starfruit and blueberry juice, into sorbet."
 	),
 	machine("ShippingBin", "Shipping Bin", "Sells whatever a belt brings it, one a second, and pays you for it."),
 	machine("Chest", "Chest", "Holds 12 slots of anything you put in. Open it to put items in or take them out."),

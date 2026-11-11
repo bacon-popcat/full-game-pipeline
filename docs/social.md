@@ -73,15 +73,17 @@ it after welcome_hud.
 
 ## Leaderboards
 
-Three boards stand in the hub at (-72, 0, 0), west of the Orders Board: coins earned, crops
-harvested (Progress stats) and garden likes. Each is an OrderedDataStore
+Three boards stand in the hub at (-72, 0, 0), west of the plaza and facing it: coins earned,
+crops harvested (Progress stats) and garden likes. Each is an OrderedDataStore
 (`Board_<id>_v1`); `LeaderboardService.record` writes a loaded garden's numbers whenever
 DataService snapshots it (every autosave and on release), keeping the higher of the stored and
 the new value, since a player's three save files share one row. The boards are read every
 `REFRESH` seconds and show the top ten by display name. The store calls are pcalled and run on
 their own threads; without API access the columns say the boards open when the game is live.
 Studio uses its own stores (`_studio`), so playtests never write to the live boards. The board
-is built from plain parts and a SurfaceGui until it has art.
+is the `Leaderboards` prop (`garden_kitchen.py`): a slate panel in a wooden frame under three
+medallions, a coin, a harvest and a heart, one over each column. The columns are a SurfaceGui
+on the front of its `Board` part; a place without the prop gets a slab built from plain parts.
 
 ## Saving
 
@@ -107,8 +109,11 @@ Played on 2026-11-10 with one player, which is all the Studio tools here can dri
 - The leaderboards stood in the hub. Quitting to the save menu wrote the garden's coins earned
   and crops harvested to the Studio stores (read back directly), and the next refresh drew
   "1. yaoming 289,589" and "1. yaoming 4,301"; the likes column, with nothing above zero, read
-  "No gardens yet." The slab and its text were enlarged after that session and not looked at
-  again.
+  "No gardens yet." The slab and its text were enlarged after that session.
+- With the prop (later the same day): the board stood at (-72, 0, 0) facing the plaza with the
+  three columns under their medallions, reading "1. Chicken1228pro 295,233" under Coins earned
+  and rows under the other two; from the spawn nothing stood in front of it once the Orders
+  Board moved to (-48, 0, 16).
 
 After gifting moved to players: the Settings window's Gifting row switched Off and back On,
 the attribute following; no Gift prompt hangs on one's own character; a Meet and a Gift aimed

@@ -11,6 +11,7 @@
 -- GardenService must be loaded first: orders read its discoveries and Index.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local Content = require(ReplicatedStorage.Shared.Economy.Content)
@@ -606,6 +607,27 @@ function ProgressService.init(): ()
 	do
 		signal:Connect(function(player: Player, coins: number)
 			observe(player, stat, coins)
+		end)
+	end
+	-- In Studio, a line in the output at each level: how long the garden has been played and
+	-- what it has earned, for timing a fresh garden against the balance model (economy.md §
+	-- Balance). Play time is the saved stat, so the lines carry on across sittings.
+	if RunService:IsStudio() then
+		GardenEvents.LevelUp:Connect(function(player: Player, level: number)
+			local state = states[player]
+			if state then
+				local stats = state.saved.stats
+				print(
+					string.format(
+						"Pace: level %d at %d:%02d played, %d coins earned, %d crops harvested",
+						level,
+						stats.playtime // 60,
+						stats.playtime % 60,
+						stats.coinsEarned,
+						stats.cropsHarvested
+					)
+				)
+			end
 		end)
 	end
 	Remotes.Progress.OnServerEvent:Connect(act)

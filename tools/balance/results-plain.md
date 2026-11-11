@@ -105,3 +105,19 @@ One raw Apple patch pays for all of it in 16.7 hours.
 One raw Grape patch pays for all of it in 5.8 hours.
 One raw Starfruit patch pays for all of it in 2.1 hours.
 The best patch above (154,000 a minute) pays for all of it in 0.7 hours.
+
+Orders and daily quests against a level (an order asks for Economy.scale coins of goods):
+| Level | Order's goods | Order XP | Over selling them | Level costs | Order / level | Day's quests / level |
+|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 2,000 | 400 | +200 | 382 | 105% | 15% |
+| 10 | 6,000 | 1,200 | +600 | 1,695 | 71% | 15% |
+| 15 | 11,000 | 2,200 | +1,100 | 4,053 | 54% | 15% |
+| 20 | 18,000 | 3,600 | +1,800 | 7,523 | 48% | 15% |
+| 30 | 35,000 | 7,000 | +3,500 | 17,988 | 39% | 15% |
+An order pays 1.5x its goods' coins and 2x their sale XP. In the steady hour the run nets 1,926 coins a minute, so delivering all of it as orders adds at most 193 XP a minute to 260 (74%).
+Minutes from join, with orders at that most from level 12 on (the first column is the table above):
+| Milestone | No orders | Every sale an order |
+|---|---:|---:|
+| Level 15 | 101.7 | 86.9 |
+| Level 20 | 204.5 | 146.0 |
+| Level 30 | 658.9 | 407.5 |

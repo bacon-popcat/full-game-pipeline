@@ -4,15 +4,18 @@
 -- higher of the stored and the new value (a player's save files share one row), and the boards
 -- are read again every REFRESH seconds. Names are display names looked up from user ids.
 --
--- The board itself is built here from plain parts until it has art: a slab on two posts at
--- BOARD_AT with a SurfaceGui of three columns. Every data store call is pcalled and off the
--- caller's thread; with no API access the columns say so. Studio writes to its own stores
--- (STUDIO_SUFFIX), so playtests never touch the live boards.
+-- The board is the Leaderboards prop (Assets.Props, garden_kitchen.py) stood at BOARD_AT, with a
+-- SurfaceGui of three columns on its Board part's front, each column under the prop's medallion
+-- for it; a place without the prop gets a slab on two posts built from plain parts. Every data
+-- store call is pcalled and off the caller's thread; with no API access the columns say so.
+-- Studio writes to its own stores (STUDIO_SUFFIX), so playtests never touch the live boards.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 
+local Props = require(ServerScriptService.Libraries.Props)
 local ProgressService = require(script.Parent.ProgressService)
 local SocialService = require(script.Parent.SocialService)
 
@@ -110,7 +113,8 @@ local function label(
 	return created
 end
 
-local function build(): ()
+-- The stand-in for a place without the prop; returns the slab the columns go on.
+local function plainBoard(): BasePart
 	local model = Instance.new("Model")
 	model.Name = "Leaderboards"
 	local function part(name: string, size: Vector3, offset: Vector3, color: Color3): Part
@@ -129,6 +133,13 @@ local function build(): ()
 	end
 	part("Frame", SLAB + Vector3.new(0.8, 0.8, -0.2), Vector3.new(0, 4 + SLAB.Y / 2, 0), WOOD)
 	local slab = part("Slab", SLAB, Vector3.new(0, 4 + SLAB.Y / 2, -0.15), FACE)
+	model.Parent = workspace
+	return slab
+end
+
+local function build(): ()
+	local prop = Props.place("Leaderboards", BOARD_AT, workspace)
+	local slab = (if prop then Props.part(prop, "Board") else nil) or plainBoard()
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -153,7 +164,6 @@ local function build(): ()
 		columns[board.id] = column
 	end
 	gui.Parent = slab
-	model.Parent = workspace
 end
 
 local function refresh(board: Board): ()

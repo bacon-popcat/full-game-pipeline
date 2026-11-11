@@ -106,7 +106,7 @@ The side `SideButtons.Menu` button opens `HUD.Menu`, a small popup whose rows (I
 Stats, Robux Shop, Settings) open those windows through `libraries/Screens.open`, so the Menu requires
 none of their controllers (`UIController/MenuScreen`). `SideButtons.Quests` toggles
 `HUD.Quests` directly through its HubWindow, and the hub's Orders Board (`Hub.STALLS.OrdersBoard`,
-a plain placeholder stall until it has art) opens it on the Orders tab. `QuestsScreen` updates
+the `OrdersBoard` prop: a notice board whose counter holds the prompt) opens it on the Orders tab. `QuestsScreen` updates
 the button's gold `Badge.Count` on every progress sync and inventory change, even while closed:
 daily quests waiting to be claimed plus orders the inventory can fill. Zero hides the badge and
 counts above nine show `9+`. `libraries/ProgressClient` holds the latest ProgressSync and

@@ -5,8 +5,9 @@
 -- and its product keeps that mutation (Machine; Items makes the variants of every valued
 -- product). Parts have no value: they are spent crafting machines (Shared/Crafting).
 --
--- Art: products borrow an existing Assets.Items model (`art`), tinted `color` when given, until
--- the art phase.
+-- Art: a product with a model of its own id in Assets.Items wears it. The others share their
+-- family's model (`art`: Juice, Pie, Jam, JamTart, Sorbet), whose Tint part takes the product's
+-- `color` (ItemArt); crates and the Assembler's parts still borrow older item models, tinted whole.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -55,7 +56,7 @@ local PRODUCTS: { Product } = {
 		machine = "Mill",
 		inputs = { Wheat = 2 },
 		time = 4,
-		art = "BerryDough",
+		art = "Flour",
 		color = FLOUR_COLOR,
 	},
 }
@@ -70,7 +71,7 @@ for _, cropId in JUICE_FRUITS do
 		machine = "Juicer",
 		inputs = { [produceOf(cropId)] = JUICE_FRUIT_COUNT },
 		time = 5,
-		art = "MapleSyrup",
+		art = "Juice",
 		color = crop.color,
 	})
 end
@@ -90,7 +91,7 @@ for _, cropId in pieFruits do
 		machine = "Oven",
 		inputs = { Flour = 1, [produceOf(cropId)] = 2 },
 		time = 8,
-		art = "BerryBread",
+		art = "Pie",
 		color = crop.color,
 	})
 end
@@ -126,7 +127,8 @@ local JAM_FRUITS = { "Strawberry", "Blueberry", "Apple", "Grape" }
 local JAM_FRUIT_COUNT = 2
 local JAM_TIME = 8
 local TART_TIME = 8
-local CREAM = Color3.fromRGB(244, 226, 190)
+-- A jam is its fruit's colour, this much darker; a tart shows the same jam.
+local JAM_DARKEN = 0.3
 
 local byId: { [string]: Product } = {}
 for _, product in PRODUCTS do
@@ -186,20 +188,10 @@ chained(
 	{ Potato = 2 },
 	1,
 	6,
-	"BerryDough",
+	"Crisps",
 	Color3.fromRGB(232, 196, 110)
 )
-chained(
-	"Popcorn",
-	"Popcorn",
-	"Corn, popped.",
-	"Roaster",
-	{ Corn = 2 },
-	1,
-	6,
-	"BerryDough",
-	Color3.fromRGB(250, 240, 208)
-)
+chained("Popcorn", "Popcorn", "Corn, popped.", "Roaster", { Corn = 2 }, 1, 6, "Popcorn", Color3.fromRGB(250, 240, 208))
 chained(
 	"RoastPumpkin",
 	"Roast Pumpkin",
@@ -208,7 +200,7 @@ chained(
 	{ Pumpkin = 1 },
 	1,
 	6,
-	"Pumpkin",
+	"RoastPumpkin",
 	Color3.fromRGB(196, 118, 62)
 )
 chained(
@@ -219,7 +211,7 @@ chained(
 	{ Tomato = 4 },
 	1,
 	8,
-	"MapleSyrup",
+	"TomatoSauce",
 	Color3.fromRGB(200, 70, 56)
 )
 for _, cropId in JAM_FRUITS do
@@ -232,8 +224,8 @@ for _, cropId in JAM_FRUITS do
 		{ [cropId .. "Juice"] = 1, [produceOf(cropId)] = JAM_FRUIT_COUNT },
 		2,
 		JAM_TIME,
-		"MapleSyrup",
-		crop.color:Lerp(Color3.new(0, 0, 0), 0.3)
+		"Jam",
+		crop.color:Lerp(Color3.new(0, 0, 0), JAM_DARKEN)
 	)
 end
 chained(
@@ -244,7 +236,7 @@ chained(
 	{ Flour = 1, TomatoSauce = 1 },
 	2,
 	8,
-	"BerryBread",
+	"Pizza",
 	Color3.fromRGB(226, 150, 96),
 	"RecipeBook1"
 )
@@ -256,7 +248,7 @@ chained(
 	{ Flour = 1, RoastPumpkin = 1 },
 	2,
 	8,
-	"BerryBread",
+	"Pie",
 	Color3.fromRGB(214, 140, 70),
 	"RecipeBook1"
 )
@@ -270,8 +262,8 @@ for _, cropId in JAM_FRUITS do
 		{ Flour = 1, [cropId .. "Jam"] = 1 },
 		3,
 		TART_TIME,
-		"BerryBread",
-		crop.color:Lerp(CREAM, 0.5),
+		"JamTart",
+		crop.color:Lerp(Color3.new(0, 0, 0), JAM_DARKEN),
 		"RecipeBook2"
 	)
 end
@@ -283,7 +275,7 @@ chained(
 	{ Watermelon = 1, StrawberryJuice = 1 },
 	2,
 	10,
-	"MapleSyrup",
+	"Sorbet",
 	Color3.fromRGB(240, 130, 140)
 )
 chained(
@@ -294,7 +286,7 @@ chained(
 	{ Starfruit = 2, BlueberryJuice = 1 },
 	2,
 	10,
-	"MapleSyrup",
+	"Sorbet",
 	Color3.fromRGB(250, 234, 150)
 )
 

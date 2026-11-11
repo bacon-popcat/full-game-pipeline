@@ -305,4 +305,5 @@ at every corner of the fence, leaving the two-cell gate at the start block's fro
 spawn, parents its ProximityPrompt to the stall's `Counter` part, and lays a paved plaza with
 `HubLamp` and `HubFlowerBox` props. `server/libraries/Props` places them all as scenery (no
 collisions, queries or touches). The props come from `IslandsMachines/build/garden_props.py`
-into `ReplicatedStorage.Assets.Props`; without them both services build plain parts.
+(and the Orders Board and Leaderboards from `garden_kitchen.py`) into
+`ReplicatedStorage.Assets.Props`; without them the services build plain parts.

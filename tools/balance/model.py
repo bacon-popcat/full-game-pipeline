@@ -1006,6 +1006,52 @@ def late_game(config):
     print(f"The best patch above ({top:,.0f} a minute) pays for all of it in {sinks / top / 60:.1f} hours.")
 
 
+def scale(level):
+    """Economy.scale: the coin scale orders and daily quests grow by, to two significant figures."""
+    text = source("src/shared/Economy/init.luau")
+    raw = number(text, r"local raw = (\d+) \* math\.max\(1, level\)") * level ** number(text, r"level\) \^ ([\d.]+)")
+    step = 10 ** (math.floor(math.log10(raw)) - 1)
+    return math.floor(raw / step + .5) * step
+
+
+def orders(config, results):
+    """Prints what an order and a day's quests are worth against a level, and how far orders can
+    shorten the run. Not simulated: an order replaces the sale of the goods it takes, so it adds
+    its XP over a sale's and its coin premium, and nothing else changes."""
+    progress = source("src/shared/Progress.luau")
+    per_xp = number(progress, r"ORDER_COINS_PER_XP = (\d+)")
+    premium = number(progress, r"ORDER_PREMIUM = ([\d.]+)")
+    quests = int(number(progress, r"QUEST_SLOTS = (\d+)"))
+    quest_share = number(progress, r"Economy\.required\(level\) \* ([\d.]+)")
+    sale_per_xp = 10
+    assert "a sale gives 1 per 10" in progress, "Progress.luau no longer states the sale XP rate this audit assumes"
+    model = Model(config)
+    print("\nOrders and daily quests against a level (an order asks for Economy.scale coins of goods):")
+    print("| Level | Order's goods | Order XP | Over selling them | Level costs | Order / level | Day's quests / level |")
+    print("|---:|---:|---:|---:|---:|---:|---:|")
+    for level in (5, 10, 15, 20, 30):
+        goods, cost = scale(level), model.required(level)
+        xp = goods // per_xp
+        extra = xp - goods // sale_per_xp
+        daily = quests * max(3, math.floor(cost * quest_share + .5))
+        print(f"| {level} | {goods:,.0f} | {xp:,.0f} | +{extra:,.0f} | {cost:,} | {xp / cost:.0%} | {daily / cost:.0%} |")
+        assert extra / cost <= .6, "One order must not add more than 60% of a level over selling its goods"
+    # The most orders can do: every coin the steady hour sells goes through an order instead.
+    steady = statistics.median(r["steady_xp"] for r in results)
+    sold = statistics.median(r["rates"]["processors"] for r in results)
+    gain = sold / sale_per_xp * (sale_per_xp / per_xp - 1)
+    print(f"An order pays {premium:g}x its goods' coins and {sale_per_xp / per_xp:g}x their sale XP. In the steady hour the run nets "
+          f"{sold:,.0f} coins a minute, so delivering all of it as orders adds at most {gain:,.0f} XP a minute "
+          f"to {steady:,.0f} ({gain / steady:.0%}).")
+    print("Minutes from join, with orders at that most from level 12 on (the first column is the table above):")
+    print("| Milestone | No orders | Every sale an order |\n|---|---:|---:|")
+    for level in MILESTONES[:3]:
+        plain = statistics.median(reach_minutes(config, r, level) for r in results)
+        fast = statistics.median(r["levels"][12] + (cumulative(config, level) - cumulative(config, 12))
+                                 / (r["steady_xp"] + gain) for r in results)
+        print(f"| Level {level} | {plain:.1f} | {fast:.1f} |")
+
+
 def band_overlaps(config):
     bands = cell_bands(config)
     return [f"{low[0]} over {high[0]}" for low, high in zip(bands, bands[1:]) if low[2] > high[1]]
@@ -1121,6 +1167,7 @@ def main():
     assert not band_overlaps(current), "Each rarity's crops must earn at least the rarity below's best per cell"
     print("All valued recipes beat their immediate inputs, for every mutation.")
     late_game(current)
+    orders(current, after)
 
 
 if __name__ == "__main__":

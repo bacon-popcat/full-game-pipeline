@@ -4,7 +4,8 @@
 -- Assets.Blocks (without its hitbox), tools their Tool from Assets.Tools (a plain built one
 -- for the Hoe until it has its own), and resources a
 -- Model from Assets.Items. Build delegates template lookup here. Missing crop/seed art
--- borrows the crop table's base art and tint; mutations tint their base produce. Expected
+-- borrows the crop table's base art and tint; a product without a model of its own wears its
+-- family's, with the family's Tint part in its colour; mutations tint their base item. Expected
 -- fallbacks are silent; other missing resources draw a grey cube and warn once.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -126,6 +127,23 @@ function ItemArt.tint(model: Model, color: Color3)
 	end
 end
 
+-- Colours a borrowed model as one of its family: just its Tint part when it has one (a jar's
+-- jam, a pie's filling; garden_kitchen.py leaves those white), or the whole model when it has
+-- none (the older borrowed art).
+local TINT_SUFFIX = "_Tint"
+local function tintFamily(model: Model, color: Color3)
+	local found = false
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and string.sub(part.Name, -#TINT_SUFFIX) == TINT_SUFFIX then
+			part.Color = color
+			found = true
+		end
+	end
+	if not found then
+		ItemArt.tint(model, color)
+	end
+end
+
 -- Washes a copy of a borrowed template toward the item's `color`, part by part, so a machine
 -- standing in on another's art keeps its shading but reads as its own. Nothing happens to an
 -- item with a template or no colour of its own.
@@ -204,8 +222,10 @@ function ItemArt.copy(itemId: string): Model?
 		local copy = template:Clone()
 		if item.mutations then
 			ItemArt.tint(copy, Mutations.color(item.mutations))
-		elseif tint then
+		elseif tint and crop then
 			ItemArt.tint(copy, tint)
+		elseif tint then
+			tintFamily(copy, tint)
 		end
 		return copy
 	end

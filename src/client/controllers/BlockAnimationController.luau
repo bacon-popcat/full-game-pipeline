@@ -59,6 +59,11 @@ local ANIMATIONS: { [string]: Animation } = {
 	Reel = { motion = "Spin", axis = Vector3.xAxis, speed = -4 },
 	Wheels = { motion = "Spin", axis = Vector3.xAxis, speed = 1.2 },
 	Gear = { motion = "Spin", axis = Vector3.zAxis, speed = 2.5 },
+	-- The Roaster's barrel rolls on its rollers; the Preserving Kettle's paddle stirs; the
+	-- Chiller's condenser fan runs (garden_kitchen.py).
+	Drum = { motion = "Spin", axis = Vector3.zAxis, speed = 1.5 },
+	Stirrer = { motion = "Spin", axis = Vector3.yAxis, speed = 1.8 },
+	Fan = { motion = "Spin", axis = Vector3.yAxis, speed = 8 },
 	Head = { motion = "Spin", axis = Vector3.yAxis, speed = 2.6, always = true },
 	Press = { motion = "Slide", axis = -Vector3.yAxis, distance = 0.32, period = 1.3 },
 	-- The Fruit Press's handle: its stem sits 0.665 studs behind the part's centre (the yellow knob

@@ -288,7 +288,8 @@ phases come first; the largest content phase waits until the daily layer can hol
 6. [x] **R6 Social.** Notices, leaderboards, likes, gifts. Needs API access for
    OrderedDataStores and a two-player playtest. Docs: a new social.md.
 7. [ ] **R7 Art and balance pass.** Models for the Roaster, Kettle, Chiller, Orders Board and
-   leaderboards, product items, and a timed fresh session to level 20.
+   leaderboards, product items, and a timed fresh session to level 20. The art is built and
+   playtested; the timed session is still to be played by a person (§ R7 below).
 
 Every new saved field (`orders`, `daily`, `away`, `likes`, gift counters) gets a default in
 GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plots.md).
@@ -297,7 +298,7 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
 
 - Is land ever scarce? The free start block is 900 cells and a Harvester tends 15, so the
   1,027,500 coins of sections may not be a goal. Check in the R7 timed session before changing
-  section prices or the start block.
+  section prices or the start block. Still open: the session has not been played.
 - Whether 25% for eight hours of offline coins outruns the sinks (R4's worked example).
 - Late-game income against sinks (R5's risk).
 
@@ -458,3 +459,41 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
 - **Two-player behaviour is unverified.** The Studio tools drive one player, so a like or a gift
   between two gardens, the other player's notices and the caps' refusals still need a
   two-client test. docs/social.md lists what was and was not checked.
+
+### R7 Art and balance (2026-11-10)
+
+- **One build script, three new showcase sets.** `IslandsMachines/build/garden_kitchen.py`
+  builds the Roaster, Preserving Kettle and Chiller (GardenKitchen), the Orders Board and
+  Leaderboards (GardenBoards) and eleven product item models (GardenProducts), so nothing
+  finished re-imports. All sixteen pass the Roblox QA profile.
+- **The machines keep the processors' footprint and ports** (one cell wide, three deep, two
+  tall, ports 1.1 deep), measured the same as the Oven's in Studio, so gardens that placed them
+  on borrowed art load unchanged. Each has its own silhouette and one moving part: a copper
+  roasting barrel on rollers, a jam pan under a stirring paddle, a white cabinet with a glass
+  door and a roof fan.
+- **Product families share a model with a white `Tint` part.** Juice, Pie, Jam, JamTart and
+  Sorbet are one model each; the game colours only the juice, filling, jam or scoops. Five
+  juices, four pies, four jams, four tarts and two sorbets cost five models instead of
+  nineteen. Flour, Crisps, Popcorn, Roast Pumpkin, Tomato Sauce and Pizza have their own.
+  A jam tart now shows its jam's colour (it was washed half to cream when the whole model was
+  tinted).
+- **The Orders Board moved to (-48, 0, 16)** and faces east. At (-48, 0, 0) it stood between
+  the spawn and the Leaderboards and hid the middle column's lower rows.
+- **Crates and the Assembler's parts keep their older borrowed models**; they were not in this
+  phase's list.
+- **The timed session was not played.** The Studio tools cannot stand in for a person playing
+  a fresh garden for two to three hours. What was done instead: the balance model now prints
+  what orders and daily quests add (economy.md § Orders and daily quests), and in Studio the
+  server prints a `Pace:` line at every level from the saved play-time stat, so the run records
+  itself. The model's yardsticks for it: level 12 at about an hour, level 20 at about 2 h 45 m
+  without orders, the Fabricator (bench tier 3) at 28 minutes.
+- **Orders stay as they are.** R3's worry was that double XP would halve the first hours. The
+  model's bound is a quarter off the run to level 20 and a third off level 30, and only for a
+  player who hand-delivers every sale as an order.
+- **Playtested** on a fresh garden in an empty save slot (deleted after): the three machines
+  placed and ran batches, each moving part turned about its axle without drifting (0.0000
+  studs over 1.5 s), the Kettle's flame glowed; the backpack and hotbar drew every product
+  with its own model and tint (pink Strawberry Juice, purple Grape Jam and tart, a blue-filled
+  Blueberry Pie, pink and yellow sorbets); both boards stood in the hub with their prompts and
+  columns; a level-up printed its Pace line. Not checked: the new items riding belts, the
+  Roaster's smoke, and the boards on Low quality.

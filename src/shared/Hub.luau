@@ -9,7 +9,8 @@ Hub.STALLS = {
 	SellStand = Vector3.new(24, 0, -15),
 	GearShop = Vector3.new(-24, 0, 15),
 	RobuxShop = Vector3.new(24, 0, 15),
-	OrdersBoard = Vector3.new(-48, 0, 0),
+	-- South of the hub's east-west line, so it never stands between the spawn and the Leaderboards.
+	OrdersBoard = Vector3.new(-48, 0, 16),
 }
 
 function Hub.inReach(player: Player, name: string): boolean

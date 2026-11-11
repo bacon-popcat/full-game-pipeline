@@ -87,9 +87,10 @@ and one changed signal. First harvest also marks the crop id in saved `discovere
 
 HubService stands five soft, non-colliding stalls at runtime under Workspace.Hub: SeedShop,
 SellStand, GearShop, RobuxShop and OrdersBoard, each its `Assets.Props` model or a plain
-placeholder (the Robux Shop borrows the old `MachineShop` prop until it has its own; the Orders
-Board, at (-48, 0, 0), has no prop yet and opens the Quests window on Orders, progress.md).
-LeaderboardService stands the leaderboards west of it, at (-72, 0, 0) (social.md).
+placeholder (the Robux Shop borrows the old `MachineShop` prop until it has its own). The Orders
+Board, a notice board with a counter at (-48, 0, 16), faces east and opens the Quests window on
+Orders (progress.md); it stands south of the hub's east-west line so it never hides the
+leaderboards, which LeaderboardService stands at (-72, 0, 0) (social.md).
 Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
@@ -487,6 +488,40 @@ of it in 2.1 hours, one raw Grape patch in 5.8, and even a Strawberry Pie patch 
 brake is seeds (a Mythic seed is 2% of restocks), not prices. So the late game runs out of
 things to buy, with or without the mid-game products, and needs a coin sink that keeps going;
 retention.md records that as open.
+
+### Orders and daily quests
+
+The model also prints what an order and a day's quests are worth against a level
+(`orders` in the script). It is arithmetic, not simulation: an order replaces the sale of the
+goods it takes, paying 1.5 times their coins and twice their sale XP.
+
+| Level | Order's goods | Order XP | Over selling them | Level costs | Order / level | Day's quests / level |
+|---:|---:|---:|---:|---:|---:|---:|
+| 5 | 2,000 | 400 | +200 | 382 | 105% | 15% |
+| 10 | 6,000 | 1,200 | +600 | 1,695 | 71% | 15% |
+| 15 | 11,000 | 2,200 | +1,100 | 4,053 | 54% | 15% |
+| 20 | 18,000 | 3,600 | +1,800 | 7,523 | 48% | 15% |
+| 30 | 35,000 | 7,000 | +3,500 | 17,988 | 39% | 15% |
+
+An order looks large beside a level, but half its XP is what selling the same goods would have
+given, and the goods are several minutes of the garden's whole income. The script asserts that
+one order never adds more than 60% of a level over a sale. The most orders can do is double the
+sale XP of everything sold: in the steady hour that is 231 XP a minute on top of 340 (193 on 260
+without mutations), which only a player hand-delivering every sale as an order would see.
+
+| Milestone | No orders | Every sale an order, from level 12 |
+|---|---:|---:|
+| Level 15 | 86.8 | 76.1 |
+| Level 20 | 165.5 | 123.0 |
+| Level 30 | 512.9 | 330.0 |
+
+So orders can take at most a quarter off the run to level 20 and a third off level 30, and far
+less for a factory that ships through bins. The order numbers stay as they are.
+
+**Timing a real run.** In Studio the server prints a line at every level
+(`Pace: level 12 at 58:20 played, 61,400 coins earned, 1,930 crops harvested`, from
+ProgressService and the saved play-time stat), so a fresh garden played to level 20 can be set
+beside the tables above. That run has not been played yet (retention.md § R7).
 
 ### History
 

@@ -17,6 +17,9 @@ nothing here changes the game.
 | Assembler (`Workbench`) | `Gear` | turns |
 | Sprinkler (Mk II too) | `Head` | sweeps all the time (a sprinkler has no working state) |
 | Smelter, Baking Oven | `Glow`, `Stack` | the fire flickers; soft smoke rises from the stack |
+| Roaster | `Drum`, `Glow`, `Stack` | the barrel rolls on its rollers over the flickering burner; smoke from the flue |
+| Preserving Kettle (`Kettle`) | `Stirrer`, `Glow` | the paddle stirs the jam; the ring of flame flickers |
+| Chiller | `Fan` | the condenser fan on its roof runs |
 
 "Working" is the machine model's `Status` attribute, which FactoryService replicates. A machine eases
 up to speed and winds down over `EASE` seconds rather than snapping.
@@ -37,7 +40,8 @@ up to speed and winds down over `EASE` seconds rather than snapping.
 ## The art contract
 
 Each moving piece is its own mesh part, built under its own key in
-`IslandsMachines/build/garden_machines.py`, and rotationally symmetric about its axle, so its
+`IslandsMachines/build/garden_machines.py` (the Roaster, Kettle and Chiller in
+`garden_kitchen.py`), and rotationally symmetric about its axle, so its
 bounding-box centre (where Studio puts the part) lies on the axle. Axes are in the block's authored
 frame: +Y up, +Z the way items travel, +X across.
 

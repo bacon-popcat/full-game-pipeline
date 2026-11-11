@@ -76,9 +76,16 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
   too. No placeable block uses Islands art any more.
 - **Borrowed art.** An item with no template of its own can name one in its `art`
   (Shared/Inventory/Items); the Auto Crafter names `Workbench` as a fallback, though it has a
-  template of its own, and products and parts still borrow Assets.Items art this way. `ItemArt.blockTemplate` is the one place that resolves it, so
+  template of its own. `ItemArt.blockTemplate` is the one place that resolves it, so
   placement, the ghost, icons and the factory all agree. Placed models are named for the
-  item, not the template.
+  item, not the template. A borrowing machine with a `color` is washed toward it, part by part
+  (`ItemArt.wash`), so two machines on one template can be told apart; none borrows today.
+- **Product art.** A product with a model of its own id in Assets.Items wears it (Flour, Crisps,
+  Popcorn, Roast Pumpkin, Tomato Sauce, Pizza). The families share a model named by `art`
+  (Juice, Pie, Jam, JamTart, Sorbet) whose `Tint` part is white, and `ItemArt.copy` colours
+  just that part with the product's `color`, so a Grape Jam is the jar with purple jam. Crates
+  and the Assembler's parts still borrow older item models, tinted whole. A mutated product is
+  tinted whole in its mutation's colour, like mutated produce.
 - **Chest** (`Chest`, stores 12: twelve item types, any number of each, since stacks have no
   limit) has no belt: its owner puts any item in by hand
   (`Factory.takesByHand` is true for every item in a chest; the panel's "Load" with
@@ -136,7 +143,7 @@ Interact -> FactoryService -> owner/reach/payload checks -> machine or router
 ## Processors
 
 `Shared/Factory/Products` owns every processed product: its inputs, machine, batch time,
-value and borrowed art. Items makes the product items from it and Blocks the recipes, so a
+value and art. Items makes the product items from it and Blocks the recipes, so a
 product is one entry. Mill: 2 Wheat -> Flour. Juicer: 3 of a fruit -> its Juice. Oven:
 Flour + 2 of a fruit -> its Pie. Crate Packer: 10 of any crop -> its Crate. Roaster: 2 Potato
 -> Crisps, 2 Corn -> Popcorn, a Pumpkin -> Roast Pumpkin. Preserving Kettle: 4 Tomato -> Tomato
@@ -151,9 +158,9 @@ times 1.5, 3 or 4.5 for one, two or three machines deep, to two significant figu
 (economy.md § Balance has the table). A product may name a `research` project; its recipe
 carries it, and a machine skips a recipe whose research its owner has not finished
 (`Machine.Env.unlocked`, from `Bonuses.has`). It still takes the inputs, and reads "Needs
-research" while a whole batch waits on it. The Roaster, Kettle and Chiller have no art yet:
-they borrow the Oven's, Fruit Press's and Crate Packer's templates (Items `art`), washed toward
-their own colour (`ItemArt.wash`) in icons, the placement ghost and the placed block. Workbench: the
+research" while a whole batch waits on it. The Roaster, Kettle and Chiller have templates of
+their own (`IslandsMachines/build/garden_kitchen.py`), the same footprint and ports as every
+processor, each with a moving part (animations.md). Workbench: the
 crafting parts (Gear, Copper Wire, Circuit, Steel Frame) from bars, which have no value.
 A machine runs the first recipe it holds the inputs for, and Blocks lists recipes with more
 kinds of input first, so loading Stone with Iron Bars makes Steel Frames and Iron Bars alone
