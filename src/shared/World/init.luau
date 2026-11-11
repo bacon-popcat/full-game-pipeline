@@ -157,10 +157,10 @@ end
 -- Two rules, asserted by tools/balance/model.py: a single crop's one plain harvest repays its
 -- seed (a hand harvest spends it), and coins per cell per minute rise with rarity.
 local CROPS: { [string]: Crop } = {
-	Carrot = defineCrop("Carrot", "Common", 10, 18, 60, 1, nil, "Carrot", Color3.fromRGB(240, 151, 80)),
-	Wheat = defineCrop("Wheat", "Common", 15, 12, 75, 2, nil, "Wheat", Color3.fromRGB(234, 204, 112)),
-	Strawberry = defineCrop("Strawberry", "Uncommon", 45, 15, 90, 3, 45, "Potato", Color3.fromRGB(232, 117, 133)),
-	Potato = defineCrop("Potato", "Uncommon", 60, 110, 120, 1, nil, "Potato", Color3.fromRGB(202, 174, 128)),
+	Carrot = defineCrop("Carrot", "Common", 10, 18, 30, 1, nil, "Carrot", Color3.fromRGB(240, 151, 80)),
+	Wheat = defineCrop("Wheat", "Common", 15, 12, 40, 2, nil, "Wheat", Color3.fromRGB(234, 204, 112)),
+	Strawberry = defineCrop("Strawberry", "Uncommon", 45, 15, 60, 3, 45, "Potato", Color3.fromRGB(232, 117, 133)),
+	Potato = defineCrop("Potato", "Uncommon", 60, 110, 84, 1, nil, "Potato", Color3.fromRGB(202, 174, 128)),
 	Tomato = defineCrop("Tomato", "Rare", 150, 45, 150, 2, 60, "Carrot", Color3.fromRGB(224, 113, 97)),
 	Corn = defineCrop("Corn", "Rare", 250, 360, 240, 1, nil, "Wheat", Color3.fromRGB(244, 218, 113)),
 	Blueberry = defineCrop("Blueberry", "Rare", 400, 30, 180, 4, 50, "Potato", Color3.fromRGB(131, 151, 221)),

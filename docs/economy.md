@@ -326,22 +326,22 @@ reproducible hypothesis, not a measured player session.
 
 | Milestone (minutes from join) | Coin shop (before.json) | Crafted, mutation EV | Crafted, plain only |
 |---|---:|---:|---:|
-| Level 2 | 9.6 | 3.7 | 2.5 |
-| Level 3 | 18.8 | 8.5 | 9.2 |
-| Level 4 | 27.4 | 15.5 | 16.7 |
-| Level 5 | 34.4 | 22.1 | 24.1 |
-| Level 6 | 42.7 | 27.2 | 29.3 |
-| Level 7 | 53.2 | 33.3 | 36.2 |
-| Level 8 | 65.8 | 38.0 | 42.2 |
-| Level 9 | 82.8 | 44.7 | 47.5 |
-| Level 10 | 99.4 | 49.1 | 52.7 |
-| Level 11 | 109.4 | 53.2 | 59.2 |
-| Level 12 | 120.4 | 60.3 | 67.1 |
-| Level 15 (extrapolated) | 162.7 | 86.8 | 101.7 |
-| Level 20 (extrapolated) | 270.3 | 165.5 | 204.5 |
-| Level 30 (extrapolated) | 640.6 | 512.9 | 658.9 |
-| Level 40 (extrapolated) | 1,258.2 | 1,232.1 | 1,599.6 |
-| Level 50 (extrapolated) | 2,161.8 | 2,471.7 | 3,220.2 |
+| Level 2 | 9.6 | 1.9 | 2.0 |
+| Level 3 | 18.8 | 8.1 | 8.0 |
+| Level 4 | 27.4 | 14.9 | 15.8 |
+| Level 5 | 34.4 | 21.0 | 23.5 |
+| Level 6 | 42.7 | 26.2 | 28.6 |
+| Level 7 | 53.2 | 32.2 | 34.8 |
+| Level 8 | 65.8 | 37.3 | 41.1 |
+| Level 9 | 82.8 | 43.8 | 46.7 |
+| Level 10 | 99.4 | 48.5 | 51.9 |
+| Level 11 | 109.4 | 52.7 | 58.4 |
+| Level 12 | 120.4 | 59.9 | 66.4 |
+| Level 15 (extrapolated) | 162.7 | 86.2 | 100.8 |
+| Level 20 (extrapolated) | 270.3 | 165.1 | 203.6 |
+| Level 30 (extrapolated) | 640.6 | 514.2 | 658.1 |
+| Level 40 (extrapolated) | 1,258.2 | 1,237.0 | 1,599.0 |
+| Level 50 (extrapolated) | 2,161.8 | 2,481.9 | 3,219.9 |
 
 The coin-shop column is the original `100 * n^1.5` curve with machines bought at their unlock
 level. Levels 2-12 are simulated. Levels 13-50 are extrapolated: the model plays one more hour
@@ -365,18 +365,18 @@ an empty inventory, its belts and the Smelter's coal included.
 
 | Step | Crafting tier | Mutation EV | Plain | Level then | Raw |
 |---|---:|---:|---:|---:|---|
-| Shipping Bin | 1 | 2.0 | 3.0 | 1 | 3 wood |
-| Smelter | 1 | 3.0 | 4.0 | 1 | 16 stone, 1 wood |
-| Workshop (tier 2, level 3) | - | 8.5 | 9.2 | 3 | 8 iron, 3 coal, 30 stone, 10 wood |
-| Assembler | 2 | 11.5 | 12.0 | 3 | 8 iron, 2 copper, 4 coal, 2 wood |
-| Seed Planter | 2 | 14.5 | 14.8 | 3 | 10 iron, 4 coal, 2 wood |
-| Sprinkler | 2 | 16.4 | 16.8 | 4 | 4 iron, 4 copper, 3 coal |
-| Machine Works (tier 3, level 6) | - | 28.2 | 29.3 | 6 | 48 iron, 12 copper, 20 coal, 8 wood |
-| Harvester | 3 | 33.6 | 34.5 | 7 | 17 iron, 4 copper, 7 coal, 5 wood |
-| Mill | 2 | 35.7 | 36.4 | 7 | 7 iron, 3 coal, 20 stone, 3 wood |
-| Juicer | 2 | 38.0 | 38.7 | 8 | 11 iron, 4 coal, 1 wood, 4 Glass |
-| Crate Packer | 3 | 42.2 | 43.0 | 8 | 17 iron, 6 coal, 5 wood |
-| Oven | 3 | 44.2 | 44.9 | 8 | 7 iron, 2 copper, 3 coal, 1 wood, 20 Bricks |
+| Shipping Bin | 1 | 2.5 | 2.5 | 2 | 3 wood |
+| Smelter | 1 | 3.6 | 3.6 | 2 | 16 stone, 1 wood |
+| Workshop (tier 2, level 3) | - | 8.1 | 8.1 | 3 | 8 iron, 3 coal, 30 stone, 10 wood |
+| Assembler | 2 | 11.1 | 11.7 | 3 | 8 iron, 2 copper, 4 coal, 2 wood |
+| Seed Planter | 2 | 14.2 | 14.2 | 3 | 10 iron, 4 coal, 2 wood |
+| Sprinkler | 2 | 16.1 | 16.1 | 4 | 4 iron, 4 copper, 3 coal |
+| Machine Works (tier 3, level 6) | - | 27.8 | 28.8 | 6 | 48 iron, 12 copper, 20 coal, 8 wood |
+| Harvester | 3 | 33.2 | 34.0 | 7 | 17 iron, 4 copper, 7 coal, 5 wood |
+| Mill | 2 | 35.3 | 36.1 | 7 | 7 iron, 3 coal, 20 stone, 3 wood |
+| Juicer | 2 | 37.6 | 38.4 | 8 | 11 iron, 4 coal, 1 wood, 4 Glass |
+| Crate Packer | 3 | 41.9 | 42.6 | 8 | 17 iron, 6 coal, 5 wood |
+| Oven | 3 | 43.9 | 44.5 | 9 | 7 iron, 2 copper, 3 coal, 1 wood, 20 Bricks |
 
 Everything up to the first Harvester costs 95 Iron Ore, 22 Copper Ore, 41 Coal, 46 Stone and
 31 Wood, about 14 minutes of hand time gathering (walks, mining, chopping, waiting at rocks)
@@ -396,14 +396,14 @@ recipe now, retention.md).
 
 | Players mining | Workshop | Machine Works | Harvester | Oven | Level 12 |
 |---:|---:|---:|---:|---:|---:|
-| 1 | 8.5 | 28.2 | 33.6 | 44.2 | 60.3 |
+| 1 | 8.1 | 27.8 | 33.2 | 43.9 | 59.9 |
 | 2, fixed timers | 8.8 | 29.0 | 34.1 | 46.3 | 62.1 |
 | 4, fixed timers | 10.5 | 42.1 | 51.0 | 71.6 | 77.0 |
 | 6, fixed timers | 12.3 | 57.8 | 70.9 | 101.4 | 72.4 |
-| 2 to 6, as built | 8.5 | 28.2 | 33.6 | 44.2 | 60.3 |
+| 2 to 6, as built | 8.1 | 27.8 | 33.2 | 43.9 | 59.9 |
 
-The fixed-timer rows were run before juice went to 4.5x; their level 12 would now be about a
-minute sooner. As built, a quarry rock's respawn is divided by the players mining (factory.md § The quarry),
+The fixed-timer rows were run before juice went to 4.5x and before the first four crops grew
+faster; their level 12 would now be about a minute sooner. As built, a quarry rock's respawn is divided by the players mining (factory.md § The quarry),
 so each miner's share is what one player gets alone and `--miners 4` or `6` gives the solo row
 exactly. That equality is the model's: it shares the rocks out evenly and never has two players
 reach for the same rock, so real sessions will be a little slower. A lone miner on a full
@@ -417,9 +417,9 @@ level 12: levels then run ahead of the workshop.
 
 | Stage, net coins/minute | Coin shop, mutation EV | Crafted, mutation EV | Crafted, plain only |
 |---|---:|---:|---:|
-| Hand farming | 459.2 | 269.2 | 171.5 |
-| Harvester line, before the Mill | 1,079.5 | 1,661.7 | 941.9 |
-| With processors, to level 12 | 1,696.8 | 2,313.2 | 1,926.1 |
+| Hand farming | 459.2 | 277.8 | 170.8 |
+| Harvester line, before the Mill | 1,079.5 | 1,605.3 | 1,165.2 |
+| With processors, to level 12 | 1,696.8 | 2,303.2 | 1,923.0 |
 
 Income is realized sales less purchased seeds, averaged over time in that stage; it excludes
 onboarding grants. Hand farming earns less than in the coin-shop model because half the hand
@@ -506,14 +506,14 @@ goods it takes, paying 1.5 times their coins and twice their sale XP.
 An order looks large beside a level, but half its XP is what selling the same goods would have
 given, and the goods are several minutes of the garden's whole income. The script asserts that
 one order never adds more than 60% of a level over a sale. The most orders can do is double the
-sale XP of everything sold: in the steady hour that is 231 XP a minute on top of 340 (193 on 260
+sale XP of everything sold: in the steady hour that is 230 XP a minute on top of 339 (192 on 260
 without mutations), which only a player hand-delivering every sale as an order would see.
 
 | Milestone | No orders | Every sale an order, from level 12 |
 |---|---:|---:|
-| Level 15 | 86.8 | 76.1 |
-| Level 20 | 165.5 | 123.0 |
-| Level 30 | 512.9 | 330.0 |
+| Level 15 | 86.2 | 75.7 |
+| Level 20 | 165.1 | 122.8 |
+| Level 30 | 514.2 | 330.4 |
 
 So orders can take at most a quarter off the run to level 20 and a third off level 30, and far
 less for a factory that ships through bins. The order numbers stay as they are.
@@ -528,13 +528,14 @@ beside the tables above. That run has not been played yet (retention.md § R7).
 All valued products beat their immediate inputs, plain and in every mutation; the script
 asserts this for every recipe, that a single crop's seed (and any Common or Uncommon seed)
 repays in one plain harvest, and that each rarity's crops earn at least the best of the rarity
-below per cell on a Harvester (plain coins a minute: Common 18-19, Uncommon 55-60, Rare 90-144,
+below per cell on a Harvester (plain coins a minute: Common 36, Uncommon 60-79, Rare 90-144,
 Epic 180-200, Legendary 400-520, Mythic 1,440).
 
 | Owner / number | Before -> after | Reason |
 |---|---|---|
 | World.CROPS, Strawberry seed | 50 -> 45 | Its first plain harvest yields 3 x 15 = 45 |
 | World.CROPS, Potato / Tomato / Corn / Pumpkin value | 70 / 35 / 160 / 1,100 -> 110 / 45 / 360 / 1,600 | Corn and Pumpkin sold for less than their seed, which a hand harvest spends; Uncommon out-earned Rare and Rare out-earned Epic per cell (retention.md) |
+| World.CROPS, Carrot / Wheat / Strawberry / Potato grow seconds | 60 / 75 / 90 / 120 -> 30 / 40 / 60 / 84 | The first minutes were mostly waiting. Regrow times are unchanged: a 32 s Strawberry regrow swamped the Harvester line in the model (level 12 at 65 minutes, not 60) |
 | World.CROPS, Watermelon seed and value | 6,000 and 3,500 -> 3,000 and 4,000 | A hand harvest lost 2,500 coins |
 | Products, juice | 3.5x one fruit -> 4.5x | From three fruit it added 17%, never worth a machine; one machine now adds half |
 | Products, mid-game | none -> sixteen `chained` products on three machines and two Recipe Books | Levels 13-35 unlocked only percentages, and Potato, Corn, Tomato, Pumpkin, Watermelon and Starfruit had only a crate or juice (retention.md § Mid-game machines) |

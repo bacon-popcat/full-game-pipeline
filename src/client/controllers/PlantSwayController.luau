@@ -4,6 +4,13 @@
 -- where they are. No physics either: each plant is one tilt about its foot, a wind term plus
 -- a damped spring for pushes.
 --
+-- It also eases growth, since it already owns every crop part's pose. The server swaps a crop's
+-- model for the next stage's in one step; here the new model starts at the size of the one it
+-- replaced (or small, for a seed just planted) and swells to its own over GROW_TIME, about its
+-- foot, with one soft overshoot. Fruit added to a standing plant as it ripens swells in place.
+-- Sizes and poses are set locally and end exactly at the art's own, so nothing else sees it.
+-- Reduced motion, and plants past FAR, skip it.
+--
 -- What moves: every part of a crop node except its Hitbox and the parts keyed in STILL (stakes,
 -- and roots in the ground; art keys are in IslandsMachines/build/crops.py). A
 -- part's rest pose is taken the first time it is seen, before this has moved it, and restored
@@ -46,10 +53,33 @@ local SPRING_RATE = 2 * math.pi * 1.4
 local SPRING_DAMPING = 0.32
 local SETTLED = 1e-4
 local MOVE_EPSILON = math.rad(0.08)
+-- Growth: seconds a new stage takes to swell to its size, how far past it the swell overshoots,
+-- the least and most of its size a stage starts at when it replaces another, the size a planted
+-- seed and a ripening fruit start at, and how long after a model leaves a cell the next one
+-- there still counts as growing out of it.
+local GROW_TIME = 0.6
+local GROW_OVERSHOOT = 1.6
+local GROW_FROM_MIN = 0.45
+local GROW_FROM_MAX = 0.9
+local PLANT_FROM = 0.25
+local FRUIT_FROM = 0.2
+local HANDOVER = 0.6
+-- A sprout with at least this share of its first quarter still to go was planted just now.
+local FRESH_SHARE = 0.9
+-- A part added this long after its plant was first seen is new growth, not late streaming.
+local SETTLE_TIME = 1
 
+-- One part's swell: from `from` of its size at `at` (os.clock), about the plant's foot or, for
+-- fruit added to a standing plant, about its own centre.
+type Growth = { at: number, from: number, own: boolean }
 type Plant = {
 	model: Model,
 	rest: { [BasePart]: CFrame },
+	-- Parts that never sway (STILL) and every part's own size, kept for growth.
+	still: { [BasePart]: CFrame },
+	sizes: { [BasePart]: Vector3 },
+	growing: { [BasePart]: Growth },
+	boundAt: number,
 	-- Each moving part relative to the foot's position, rebuilt from `rest`.
 	parts: { BasePart },
 	locals: { CFrame },
@@ -69,6 +99,8 @@ local PlantSwayController = {}
 
 local plants: { [Model]: Plant } = {}
 local byCell: { [string]: { Plant } } = {}
+-- The height of the crop model that last left each cell, and when (os.clock).
+local left: { [string]: { at: number, height: number } } = {}
 
 local function artKey(part: BasePart): string?
 	return string.match(part.Name, "_(%w+)$")
@@ -112,15 +144,63 @@ local function restore(plant: Plant)
 end
 
 local function track(plant: Plant, part: Instance)
-	if not part:IsA("BasePart") or part.Name == "Hitbox" or plant.rest[part] then
+	if not part:IsA("BasePart") or part.Name == "Hitbox" or plant.rest[part] or plant.still[part] then
 		return
 	end
+	-- Seen before this controller moves or sizes it, so these are its own.
+	plant.sizes[part] = part.Size
 	local key = artKey(part)
 	if key and STILL[key] then
+		plant.still[part] = part.CFrame
 		return
 	end
-	-- Seen before this controller moves it, so its CFrame now is its rest pose.
 	plant.rest[part] = part.CFrame
+end
+
+-- Back-out easing: 0 to 1, a little past 1 on the way.
+local function swell(alpha: number): number
+	local t = alpha - 1
+	return 1 + (GROW_OVERSHOOT + 1) * t * t * t + GROW_OVERSHOOT * t * t
+end
+
+-- Puts every growing part at its size and place for `now`, under the plant's `pose` (its foot,
+-- tilted), and ends the ones that are done at exactly their own size.
+local function poseGrowth(plant: Plant, pose: CFrame, now: number)
+	local origin = CFrame.new(-plant.foot)
+	for part, growth in plant.growing do
+		local rest = plant.rest[part]
+		local resting = rest or plant.still[part]
+		local size = plant.sizes[part]
+		if not resting or not size or not part.Parent then
+			plant.growing[part] = nil
+			continue
+		end
+		local alpha = math.clamp((now - growth.at) / GROW_TIME, 0, 1)
+		local scale = if alpha >= 1 then 1 else growth.from + (1 - growth.from) * swell(alpha)
+		-- A stake stands still while the plant leans, so it grows under the untilted foot.
+		local under = if rest then pose else CFrame.new(plant.foot)
+		local relative = origin * resting
+		part.Size = size * scale
+		part.CFrame = if growth.own
+			then under * relative
+			else under * (CFrame.new(relative.Position * scale) * relative.Rotation)
+		if alpha >= 1 then
+			plant.growing[part] = nil
+		end
+	end
+end
+
+-- Ends a plant's growth at once: every part at its own size and rest pose.
+local function finishGrowth(plant: Plant)
+	for part in plant.growing do
+		local resting = plant.rest[part] or plant.still[part]
+		local size = plant.sizes[part]
+		if resting and size and part.Parent then
+			part.Size = size
+			part.CFrame = resting
+		end
+	end
+	table.clear(plant.growing)
 end
 
 local function unbind(model: Model)
@@ -131,6 +211,7 @@ local function unbind(model: Model)
 	-- No restore: the model has left the world (harvested, grown into its next stage, or
 	-- streamed out), and a streamed-in copy comes back at its rest pose.
 	plants[model] = nil
+	left[plant.key] = { at = os.clock(), height = plant.height }
 	local list = byCell[plant.key]
 	if list then
 		local index = table.find(list, plant)
@@ -141,6 +222,26 @@ local function unbind(model: Model)
 			byCell[plant.key] = nil
 		end
 	end
+end
+
+-- The share of its size a newly seen crop model starts at, or nil when it should simply stand:
+-- the height of the stage that left its cell a moment ago over its own, or PLANT_FROM for a
+-- sprout whose first quarter has barely begun.
+local function startSize(plant: Plant, def: World.Node): number?
+	local before = left[plant.key]
+	left[plant.key] = nil
+	if before and os.clock() - before.at <= HANDOVER then
+		return math.clamp(before.height / plant.height, GROW_FROM_MIN, GROW_FROM_MAX)
+	end
+	local crop = if def.crop then World.CROPS[def.crop] else nil
+	local growsAt = plant.model:GetAttribute("GrowsAt")
+	if crop and def.stage == 1 and typeof(growsAt) == "number" then
+		local remaining = growsAt - workspace:GetServerTimeNow()
+		if remaining >= crop.every * FRESH_SHARE then
+			return PLANT_FROM
+		end
+	end
+	return nil
 end
 
 local function bind(model: Instance)
@@ -163,6 +264,10 @@ local function bind(model: Instance)
 	local plant: Plant = {
 		model = model,
 		rest = {},
+		still = {},
+		sizes = {},
+		growing = {},
+		boundAt = os.clock(),
 		parts = {},
 		locals = {},
 		foot = foot,
@@ -184,17 +289,44 @@ local function bind(model: Instance)
 		track(plant, part)
 	end
 	rebuild(plant)
+	-- Growing out of the stage that just left this cell, or out of a seed planted just now.
+	local from = startSize(plant, def)
+	if from and not GuiService.ReducedMotionEnabled then
+		local now = os.clock()
+		for part in plant.sizes do
+			plant.growing[part] = { at = now, from = from, own = false }
+		end
+		-- Sized now, so the new stage is never drawn full size for a frame first.
+		poseGrowth(plant, CFrame.new(plant.foot), now)
+		plant.posed = true
+	end
 	-- Parts stream in and out on their own; bring the moving set up to date as they do.
 	model.DescendantAdded:Connect(function(part)
 		if plants[model] == plant and part:IsA("BasePart") then
+			local known = plant.sizes[part] ~= nil
 			track(plant, part)
 			rebuild(plant)
+			-- Fruit the server adds to a standing plant as it ripens.
+			if
+				not known
+				and plant.sizes[part]
+				and os.clock() - plant.boundAt > SETTLE_TIME
+				and not GuiService.ReducedMotionEnabled
+			then
+				plant.growing[part] = { at = os.clock(), from = FRUIT_FROM, own = true }
+				poseGrowth(plant, CFrame.new(plant.foot), os.clock())
+			end
 		end
 	end)
 	model.DescendantRemoving:Connect(function(part)
-		if plants[model] == plant and part:IsA("BasePart") and plant.rest[part] then
-			plant.rest[part] = nil
-			rebuild(plant)
+		if plants[model] == plant and part:IsA("BasePart") then
+			plant.growing[part] = nil
+			plant.sizes[part] = nil
+			plant.still[part] = nil
+			if plant.rest[part] then
+				plant.rest[part] = nil
+				rebuild(plant)
+			end
 		end
 	end)
 end
@@ -281,11 +413,13 @@ local function step(dt: number, frame: number)
 			plant.tilt += plant.velocity * dt
 		end
 		local distance = (plant.foot - eye).Magnitude
-		if distance > FAR or #plant.parts == 0 then
+		local growing = next(plant.growing) ~= nil
+		if distance > FAR or (#plant.parts == 0 and not growing) then
+			finishGrowth(plant)
 			restore(plant)
 			continue
 		end
-		if distance > NEAR and (index + frame) % 2 == 1 then
+		if not growing and distance > NEAR and (index + frame) % 2 == 1 then
 			continue
 		end
 		local lean = plant.tilt
@@ -299,7 +433,7 @@ local function step(dt: number, frame: number)
 		if lean.Magnitude > MAX_ANGLE then
 			lean = lean.Unit * MAX_ANGLE
 		end
-		if (lean - plant.shown).Magnitude < MOVE_EPSILON then
+		if not growing and (lean - plant.shown).Magnitude < MOVE_EPSILON then
 			continue
 		end
 		plant.shown = lean
@@ -310,8 +444,13 @@ local function step(dt: number, frame: number)
 			then CFrame.new(plant.foot) * CFrame.fromAxisAngle(Vector3.new(lean.Z, 0, -lean.X) / angle, angle)
 			else CFrame.new(plant.foot)
 		for i, part in plant.parts do
-			table.insert(parts, part)
-			table.insert(cframes, pose * plant.locals[i])
+			if not plant.growing[part] then
+				table.insert(parts, part)
+				table.insert(cframes, pose * plant.locals[i])
+			end
+		end
+		if growing then
+			poseGrowth(plant, pose, now)
 		end
 	end
 	if #parts > 0 then

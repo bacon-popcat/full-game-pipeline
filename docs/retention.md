@@ -135,7 +135,9 @@ after two and 4.5 after three. Crates stay at 1.2 as the fallback for any crop.
 
 Unchanged: Carrot 18, Wheat 19, Strawberry 60, Blueberry 144, Apple 180, Grape 520, Starfruit
 1,440 coins per cell per minute. After the change the bands are Common up to 19, Uncommon
-55-60, Rare 90-144, Epic 180-200, Legendary 400-520, Mythic 1,440.
+55-60, Rare 90-144, Epic 180-200, Legendary 400-520, Mythic 1,440. (Since 2026-11-10 the first
+four crops grow faster, at the user's request, so Common is 36 and Uncommon 60-79; economy.md §
+History.)
 
 | Product | Was | Now | Reason |
 |---|---|---|---|

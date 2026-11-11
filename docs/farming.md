@@ -56,6 +56,14 @@ reached. Ripe is immediately harvestable at that endpoint. This resolves the des
 quarters versus only three transitions to a harvestable Ripe model. The hover panel calls
 the fourth quarter Ripening. Multi regrowth stays Mature until its regrow deadline.
 
+**The stage change is eased on the client.** The server swaps a crop's model for the next stage's in
+one step. `PlantSwayController`, which already owns each crop part's pose, starts the new model at
+the height of the one that left its cell a moment before (45% to 90% of its own size) and swells it
+to full size over 0.6 s about its foot, with one soft overshoot; a seed planted just now rises from a
+quarter of the sprout's size, and fruit added to a standing plant as it ripens swells in place.
+Sizes and poses are local and end exactly at the art's own, so the server, saves, hitboxes and aim
+never see it. Reduced motion and plants more than 120 studs away skip it.
+
 Growth uses `wallTime() - plantedAt + growthBonus`; wallTime is fractional Unix seconds
 from DateTime. Phase 1 integer timestamps remain valid. `plantedAt` is the current cycle's Unix
 start (reset by reaping), and `harvestCount` distinguishes initial growth from multi regrowth.
