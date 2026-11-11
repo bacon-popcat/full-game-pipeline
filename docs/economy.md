@@ -89,6 +89,7 @@ HubService stands five soft, non-colliding stalls at runtime under Workspace.Hub
 SellStand, GearShop, RobuxShop and OrdersBoard, each its `Assets.Props` model or a plain
 placeholder (the Robux Shop borrows the old `MachineShop` prop until it has its own; the Orders
 Board, at (-48, 0, 0), has no prop yet and opens the Quests window on Orders, progress.md).
+LeaderboardService stands the leaderboards west of it, at (-72, 0, 0) (social.md).
 Positions live in Shared/Hub: the stalls are at world (-24, 0, -15),
 (24, 0, -15), (-24, 0, 15) and (24, 0, 15), clear of spawn and the quarry. Each counter contains Prompt
 with ActionText Shop/Sell, ten-stud activation and no line-of-sight requirement. A prompt opens
@@ -155,7 +156,7 @@ Settings row opens the authored `HUD.Settings` frame (Settings registers its ope
 `libraries/Screens`; there is no Settings side button), with `Header.Close`,
 `Header.Title`, `Body.MusicVolume` and `Body.SfxVolume` (each a `Track` TextButton holding
 `Fill` and `Knob`, and a `Value` TextBox), `Body.Note`, `Body.ControlsHint` and the
-`Body.LightingQuality` (Low, Medium and High buttons; lighting.md), the
+`Body.LightingQuality` (Low, Medium and High buttons; lighting.md), `Body.Gifting` (On and Off; social.md), the
 `Body.SaveQuit` button (back to the save menu, plots.md § Save files). Clicking or
 dragging a track, or typing 0-100 in its box, sets that session volume (`libraries/AudioSettings`:
 music and every `Sound.play` effect each play through their own SoundGroup).

@@ -4,7 +4,9 @@
 -- box to type 0-100 into; both stay in step. Body.LightingQuality has one button per
 -- Shared/Settings lighting quality (Low, Medium, High), each with a Selected child shown on the
 -- current one; a press applies the preset at once (libraries/Lighting) and asks SettingsService
--- to save it. Screens owns window exclusivity; AudioSettings owns audio state independently of
+-- to save it. Body.Gifting has an On and an Off button the same way, for the saved Gifting
+-- setting (whether players may hand this player gifts, and this player them; Shared/Social).
+-- Screens owns window exclusivity; AudioSettings owns audio state independently of
 -- this screen's lifecycle. Body.SaveQuit saves the garden and goes back to the save menu
 -- (SaveMenuController).
 local ContextActionService = game:GetService("ContextActionService")
@@ -87,6 +89,18 @@ function Settings.init(hud: ScreenGui)
 			})
 		end
 	end
+	local toggles: { Choice } = {}
+	for _, value in GameSettings.GIFTING do
+		local button = Hud.find(hud, `Settings.Body.Gifting.{value}`, "GuiButton")
+		if button and button:IsA("GuiButton") then
+			local selected = button:FindFirstChild("Selected")
+			table.insert(toggles, {
+				quality = value,
+				button = button,
+				selected = if selected and selected:IsA("GuiObject") then selected else nil,
+			})
+		end
+	end
 	local music: GuiObject? = if sliders[1] then sliders[1].track else nil
 	local trove = Trove.new()
 	local prior: GuiObject? = nil
@@ -105,6 +119,11 @@ function Settings.init(hud: ScreenGui)
 		for _, choice in choices do
 			if choice.selected then
 				choice.selected.Visible = choice.quality == Lighting.quality()
+			end
+		end
+		for _, toggle in toggles do
+			if toggle.selected then
+				toggle.selected.Visible = toggle.quality == Players.LocalPlayer:GetAttribute("Gifting")
 			end
 		end
 		if controlsHint and controlsHint:IsA("TextLabel") then
@@ -168,6 +187,17 @@ function Settings.init(hud: ScreenGui)
 			end,
 		}))
 	end
+	for _, toggle in toggles do
+		trove:Add(UI.bindButton(toggle.button, {
+			onActivate = function()
+				-- The server saves it and mirrors the attribute back, which repaints the row.
+				Remotes.Settings:FireServer("Gifting", toggle.quality)
+			end,
+		}))
+	end
+	trove:Connect(Players.LocalPlayer:GetAttributeChangedSignal("Gifting"), function()
+		task.defer(render)
+	end)
 	-- The saved quality can arrive while the window is open (LightingController applies it).
 	trove:Connect(Players.LocalPlayer:GetAttributeChangedSignal("LightingQuality"), function()
 		task.defer(render)

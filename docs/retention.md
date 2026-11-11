@@ -285,7 +285,7 @@ phases come first; the largest content phase waits until the daily layer can hol
 5. [x] **R5 Mid-game machines.** The late-game balance policy first, then the six research
    projects, three machines and thirteen products on placeholder art. Docs: research.md,
    factory.md, economy.md.
-6. [ ] **R6 Social.** Notices, leaderboards, likes, gifts. Needs API access for
+6. [x] **R6 Social.** Notices, leaderboards, likes, gifts. Needs API access for
    OrderedDataStores and a two-player playtest. Docs: a new social.md.
 7. [ ] **R7 Art and balance pass.** Models for the Roaster, Kettle, Chiller, Orders Board and
    leaderboards, product items, and a timed fresh session to level 20.
@@ -436,3 +436,25 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   their plans and made a Roaster with Roaster Plans; the Research window drew the new line off
   Crate Making. Not driven: the items riding belts between these machines, an order for one of
   the new products, and the Recipe Book tiles' icon (added after the session).
+
+### R6 Social (2026-11-10)
+
+- **Likes happen at the garden's sign; gifts by walking up to a player** (the user's change
+  after testing: gifts first happened at the sign too). Each opens the same small card. A gift
+  needs the saved Gifting setting On for both players, On by default, and the two standing
+  together; giving is always a deliberate button on the card, never the prompt itself.
+- **A gift is what the giver holds**, one of it or as many as the day's cap allows; there is no
+  item picker.
+- **The giver's cap is worth, the receiver's a count** (five gifts a day), as planned. A seed
+  counts at its price, so a level-1 account cannot pass on anything rarer than a few Common seeds
+  and nothing at all before level 5.
+- **Rare-harvest notices go to the other players only**: the harvester already has one.
+- **Likes are the board's third column**, and show on the sign under the owner's name.
+- **Leaderboards keep the higher value** per player, since three save files share a row, and
+  Studio writes to stores of its own so playtests never reach the live boards.
+- **The boards are plain parts and a SurfaceGui** at (-72, 0, 0) until R7 gives them art.
+- **`GardenEvents.Gifted` exists but nothing counts it yet**; a gifts stat or achievement can
+  listen later.
+- **Two-player behaviour is unverified.** The Studio tools drive one player, so a like or a gift
+  between two gardens, the other player's notices and the caps' refusals still need a
+  two-client test. docs/social.md lists what was and was not checked.

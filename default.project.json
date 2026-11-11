@@ -18,6 +18,8 @@
         "Progress": { "$className": "RemoteEvent" },
         "WelcomeSync": { "$className": "RemoteEvent" },
         "Welcome": { "$className": "RemoteEvent" },
+        "VisitSync": { "$className": "RemoteEvent" },
+        "Social": { "$className": "RemoteEvent" },
         "ResearchSync": { "$className": "RemoteEvent" },
         "Research": { "$className": "RemoteEvent" },
         "Fx": { "$className": "RemoteEvent" },

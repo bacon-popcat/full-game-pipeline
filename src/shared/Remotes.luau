@@ -63,6 +63,18 @@ return {
 	-- stood), from: Vector3? (where its chopper stood) }) a moment to show and sound (FxService ->
 	-- FxController). Cosmetic only: nothing the client does with it changes the game.
 	Fx = get("Fx"),
+	-- server -> client: ({ open: boolean (show the Visit card), via: "Sign" | "Player" (a garden sign's
+	-- prompt: likes; walking up to a player: gifts), gifting: boolean (both have it on), owner: number (user id),
+	-- name: string, mine: boolean, likes: number, liked: boolean (by this player today), level: number,
+	-- capLeft: number (worth this player may still give today), receiverLeft: number (gifts the garden
+	-- still takes today) }) a garden's standing for a visitor (SocialService); sent by its sign's
+	-- prompt and after every Social request.
+	VisitSync = get("VisitSync"),
+	-- client -> server: (action: "Like" | "Meet" | "Gift", owner: number (user id), count: number?
+	-- (Gift: how many of the held item)). Like needs the visitor at the garden's sign; Meet (open the
+	-- card for a player) and Gift need the two players together, and Gift both Gifting settings On.
+	-- The server checks all of it and every cap.
+	Social = get("Social"),
 	-- server -> client: ({ greet: boolean (show the card: the load sync only), away: number (seconds
 	-- since the garden was last open), ripe: number (crops ready), research: string? (a project waiting
 	-- for Complete), coins: number (offline coins owed), gift: { day: number (1..7), coins: number,

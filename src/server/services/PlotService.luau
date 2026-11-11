@@ -58,6 +58,9 @@ local PlotService = {}
 local assigned: { [Player]: number } = {}
 local models: { Model } = {}
 local signs: { TextLabel } = {}
+-- Each garden's owner's name and the line under it on the sign (its likes), while it has them.
+local signNames: { [number]: string } = {}
+local signNotes: { [number]: string } = {}
 local lastAction: { [Player]: number } = {}
 local respawns: { [Player]: RBXScriptConnection } = {}
 local plots = Instance.new("Folder")
@@ -358,6 +361,15 @@ local function build()
 	spawn.Parent = plots
 end
 
+-- A garden's sign: its owner's name, with a note under it when it has one.
+local function paintSign(index: number)
+	local name, note = signNames[index], signNotes[index]
+	signs[index].Text = if not name
+		then "Available garden"
+		elseif note then `{name}'s garden\n{note}`
+		else `{name}'s garden`
+end
+
 -- In front of a garden's gate, facing in.
 local function gateFrame(index: number): CFrame
 	local outside = Plot.pointToWorld(index, Vector3.new(GATE_CENTRE, 0, -GATE_STEP)) * GRID
@@ -393,7 +405,8 @@ function PlotService.assign(player: Player, sections: { string }?): number?
 			model:SetAttribute("Sections", table.concat(Plot.encode(Plot.decode(sections)), ";"))
 			model:SetAttribute("Owner", player.UserId)
 			landscape(index)
-			signs[index].Text = player.DisplayName .. "'s garden"
+			signNames[index] = player.DisplayName
+			paintSign(index)
 			respawns[player] = player.CharacterAdded:Connect(function(character)
 				sendToGate(player, character)
 			end)
@@ -408,6 +421,21 @@ end
 
 function PlotService.get(player: Player): number?
 	return assigned[player]
+end
+
+-- The part a garden's sign hangs on, for a prompt and for reach.
+function PlotService.signPart(index: number): BasePart?
+	build()
+	local label = signs[index]
+	return if label then label:FindFirstAncestorWhichIsA("BasePart") else nil
+end
+
+-- A line under the owner's name on the sign ("12 likes"); nil clears it.
+function PlotService.setSignNote(index: number, note: string?)
+	signNotes[index] = note :: any
+	if signs[index] then
+		paintSign(index)
+	end
 end
 
 -- The sections a garden has bought, for its owner's save.
@@ -430,7 +458,9 @@ function PlotService.release(player: Player)
 	models[index]:SetAttribute("Sections", "")
 	landscape(index)
 	GroundService.reset(index)
-	signs[index].Text = "Available garden"
+	signNames[index] = nil
+	signNotes[index] = nil
+	paintSign(index)
 	assigned[player] = nil
 end
 

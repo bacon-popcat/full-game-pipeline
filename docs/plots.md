@@ -161,6 +161,7 @@ installed ServerStorage package; its normal session lock and EndSession API are 
 | research | `done: {[id]: boolean}`, `active: {id, startedAt, seconds}?`; fractional Unix start and whole-second duration, loaded before blocks/crops (research.md) |
 | loadedAt | Unix seconds this save was last opened (0 before then), so a join reopens the one played last |
 | welcome | `days`, `giftDay`, `giftOwed`, `leftAt`, `binRate`, `coinsOwed`: the daily gift count and what the time away is owed, loaded last (welcome.md) |
+| social | `likes`, and the day's `liked` owners, worth `given` and gifts `received` (social.md) |
 | plotLayout | 2 once the save's cells are laid out in sections, 3 once its farm is sunk, 4 once placed soil under crops is tilled ground (below), 5 once its starter farm is saved as tilled ground, 6 once its onboarding step is past the inserted order goal; not in the template |
 
 Vectors serialize as three-number arrays. Cells, Rotation and Against are saved as in an

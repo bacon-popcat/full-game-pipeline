@@ -5,12 +5,16 @@
 
 local Settings = {}
 
-export type Name = "LightingQuality"
+export type Name = "LightingQuality" | "Gifting"
 
 Settings.LIGHTING_QUALITIES = { "Low", "Medium", "High" }
+-- Whether other players may hand this player gifts, and this player may hand them out: a gift
+-- needs it On for both (Shared/Social).
+Settings.GIFTING = { "On", "Off" }
 
 local DEFAULTS: { [Name]: string } = {
 	LightingQuality = "High",
+	Gifting = "On",
 }
 Settings.DEFAULTS = DEFAULTS
 
@@ -18,6 +22,8 @@ Settings.DEFAULTS = DEFAULTS
 function Settings.valid(name: any, value: any): boolean
 	if name == "LightingQuality" then
 		return typeof(value) == "string" and table.find(Settings.LIGHTING_QUALITIES, value) ~= nil
+	elseif name == "Gifting" then
+		return typeof(value) == "string" and table.find(Settings.GIFTING, value) ~= nil
 	end
 	return false
 end

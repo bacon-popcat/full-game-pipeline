@@ -44,6 +44,9 @@ local GardenEvents = {
 	Processed = Signal.new(),
 	-- (player, itemId: string, count: number) an order delivered from the inventory (ProgressService)
 	OrderFilled = Signal.new(),
+	-- (giver: Player, receiver: Player, itemId: string, count: number) a gift handed over at the
+	-- receiver's garden sign (SocialService)
+	Gifted = Signal.new(),
 	-- (player, researchId: string) a research project finished (Shared/Research)
 	ResearchDone = Signal.new(),
 }
