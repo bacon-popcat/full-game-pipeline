@@ -447,11 +447,12 @@ and bench art in Blender.
     on level-up. Reduced motion keeps colour and sound and drops the movement.
   - Sound roles live in `Shared/Sounds` (Plant, Harvest, Coin, Buy, Water, Step, LevelUp),
     played through `client/libraries/Sound`: spatial for world moments, flat for the player's
-    own. The palette was generated with ElevenLabs sound effects in one family of material words
-    (warm wood, soil, soft chimes, no voice or melody); every take is in `assets/sounds/takes`
-    and the chosen ones in `assets/sounds` (README there). They are uploaded as audio assets
-    through the Open Cloud Assets API (`ROBLOX_API_KEY`) and their ids set in `Sounds.luau`; a
-    role with no id is silent, so the game is whole without sound.
+    own. The game cues are bright and bouncy in a Roblox-simulator way (blips, bubble pops,
+    quick arpeggios, sparkles), synthesized by `tools/sounds/synth.py`; the world sounds (Water,
+    Chop, TreeFall) stay material. The files and their recipes are in `assets/sounds` (README
+    there). They are uploaded as audio assets through the Open Cloud Assets API
+    (`ROBLOX_API_KEY`) and their ids set in `Sounds.luau`; a role with no id is silent, so the
+    game is whole without sound.
   - Background music: two calm instrumentals (ElevenLabs Music, 150 s each, in `assets/music`)
     listed in `Shared/Music`. `MusicController` plays them flat at 0.22 volume in a shuffled
     order, fading in and out over 4 s, with 25-60 s of quiet between tracks.

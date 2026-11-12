@@ -1,43 +1,44 @@
 --!strict
--- Sounds: the game's sound palette, one entry per role. Generated with ElevenLabs sound effects in
--- one family of material words (warm wood, soil, soft chimes; never voice or melody), or for the
--- phase 7 roles synthesized in that family by tools/sounds/synth.py, and uploaded from
--- assets/sounds as audio assets through Open Cloud. A role with no id plays nothing, so the game is
--- whole when muted.
--- Volumes sit well under music level: these confirm a moment, they never announce one.
+-- Sounds: the game's sound palette, one entry per role, uploaded from assets/sounds as audio assets
+-- through Open Cloud (assets/sounds/README.md has each role's file, recipe and earlier ids). The
+-- game cues are bright and bouncy in a Roblox-simulator way (blips, bubble pops, quick arpeggios,
+-- sparkles), synthesized by tools/sounds/synth.py; Water is an ElevenLabs take and Chop and
+-- TreeFall are synthesized in a material family (wood, leaves). A role with no id plays nothing, so
+-- the game is whole when muted.
+-- Volumes sit well under music level and are balanced by measured loudness: these confirm a
+-- moment, they never announce one.
 
 export type Role = { id: string, volume: number, spatial: boolean }
 
 local ROLES: { [string]: Role } = {
-	-- a seed pressed into soil
-	Plant = { id = "rbxassetid://90385484162031", volume = 0.35, spatial = true },
-	-- a crop picked or reaped: leaves, a stem snapping, soil crumbling (the phase 7 pop was
-	-- rbxassetid://85383832508508, the ElevenLabs pluck before it rbxassetid://140384005911871)
-	Harvest = { id = "rbxassetid://121632984070614", volume = 0.5, spatial = true },
-	-- layered over Harvest when the crop came out mutated
-	HarvestRare = { id = "rbxassetid://90954647450235", volume = 0.3, spatial = true },
+	-- a seed popped into soil: a bubbly bloop
+	Plant = { id = "rbxassetid://108581884979353", volume = 0.25, spatial = true },
+	-- a crop picked or reaped: a leafy tug, a stem snap and a bright pop
+	Harvest = { id = "rbxassetid://120566065392427", volume = 0.25, spatial = true },
+	-- layered over Harvest when the crop came out mutated: a twinkling run up
+	HarvestRare = { id = "rbxassetid://116274355495687", volume = 0.3, spatial = true },
 	-- an axe biting into a forest tree, and the tree coming down
 	Chop = { id = "rbxassetid://110876799577978", volume = 0.45, spatial = true },
 	TreeFall = { id = "rbxassetid://97110688548965", volume = 0.4, spatial = true },
 	-- something crafted in the Crafting window
-	Craft = { id = "rbxassetid://104446383390823", volume = 0.4, spatial = false },
+	Craft = { id = "rbxassetid://104827661586586", volume = 0.3, spatial = false },
 	-- a research project finished
-	ResearchDone = { id = "rbxassetid://117847291795847", volume = 0.45, spatial = false },
-	-- coins earned at the Sell Stand or by a Shipping Bin
-	Coin = { id = "rbxassetid://126449219917694", volume = 0.4, spatial = false },
+	ResearchDone = { id = "rbxassetid://110212030422183", volume = 0.5, spatial = false },
+	-- coins earned at the Sell Stand (a Shipping Bin's sales are silent)
+	Coin = { id = "rbxassetid://80805932029640", volume = 0.32, spatial = false },
 	-- a purchase at a stall
-	Buy = { id = "rbxassetid://133840506516150", volume = 0.4, spatial = false },
+	Buy = { id = "rbxassetid://118394111171147", volume = 0.32, spatial = false },
 	-- a watering can splash
 	Water = { id = "rbxassetid://95345293500300", volume = 0.4, spatial = true },
 	-- an onboarding step done
-	Step = { id = "rbxassetid://110055073598907", volume = 0.45, spatial = false },
-	-- a new level
-	LevelUp = { id = "rbxassetid://138182978724965", volume = 0.5, spatial = false },
-	-- notices, by kind (Shared/Notices): a refusal's two soft wooden ticks, a reward's two chimes,
-	-- and the banner's three chimes over a swell
-	NoticeError = { id = "rbxassetid://88770489922620", volume = 0.3, spatial = false },
-	NoticeReward = { id = "rbxassetid://128450852333088", volume = 0.3, spatial = false },
-	NoticeBanner = { id = "rbxassetid://82992648114553", volume = 0.4, spatial = false },
+	Step = { id = "rbxassetid://110150377452756", volume = 0.4, spatial = false },
+	-- a new level: an arpeggio up to a ringing chord
+	LevelUp = { id = "rbxassetid://78053196984145", volume = 0.5, spatial = false },
+	-- notices, by kind (Shared/Notices): a refusal's low "nuh-uh", a reward's three-note bling,
+	-- and the banner's five-note run over a swell
+	NoticeError = { id = "rbxassetid://94091563133765", volume = 0.16, spatial = false },
+	NoticeReward = { id = "rbxassetid://115224806235121", volume = 0.4, spatial = false },
+	NoticeBanner = { id = "rbxassetid://103094767156685", volume = 0.45, spatial = false },
 }
 
 return ROLES

@@ -14,8 +14,7 @@ built and playtested: research, crafting, the forest map and chopping, tree crop
 curve, the industrial machine and conveyor art, the new effects, sounds and music. Since then:
 research is a full-screen upgrade tree per category, with info on hover and click, and a
 finished timer waits for Complete (with a burst on the tile and the `ResearchComplete` VFX); grass and dirt wear the game's
-own textures (`World/GroundLook`); the map is built from parts, not Terrain; and Harvest
-sounds like a plant pulled from soil. Research is now one five-fold tree of diamond tiles
+own textures (`World/GroundLook`); and the map is built from parts, not Terrain. Research is now one five-fold tree of diamond tiles
 round a hub (each category a coloured fan), showing what is in reach plus undiscovered "?" tiles
 one step past it, rippling open from the middle and closed from the edge, with requirement cards
 in its info and a glow that runs out to each unlock; harvesting plays the `HarvestPop` effect.
@@ -36,7 +35,9 @@ ReplicatedFirst loading screen (`src/first/LoadingScreen.client.luau`) shows the
 field that turns to dawn as it loads, until the garden opens or the save menu waits. The
 welcome-back card has icon rows, a gift panel with a seven-day track and motion (welcome.md), and
 `Shared/TextColors` colours coins, XP, times, levels, rarities, item names and numbers in the
-Objective, notices, Quests, Achievements, block hints and save cards.
+Objective, notices, Quests, Achievements, block hints and save cards. The game's sound cues are Roblox-style
+(bright blips, bubble pops, arpeggios and sparkles, synthesized; assets/sounds/README.md), while
+Water, Chop and TreeFall stay material.
 
 ## Domain docs
 
