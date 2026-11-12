@@ -15,14 +15,14 @@ local ROLES: { [string]: Role } = {
 	-- rbxassetid://85383832508508, the ElevenLabs pluck before it rbxassetid://140384005911871)
 	Harvest = { id = "rbxassetid://121632984070614", volume = 0.5, spatial = true },
 	-- layered over Harvest when the crop came out mutated
-	HarvestRare = { id = "rbxassetid://126550585056131", volume = 0.3, spatial = true },
+	HarvestRare = { id = "rbxassetid://90954647450235", volume = 0.3, spatial = true },
 	-- an axe biting into a forest tree, and the tree coming down
-	Chop = { id = "rbxassetid://136761976782388", volume = 0.45, spatial = true },
-	TreeFall = { id = "rbxassetid://118623246906163", volume = 0.4, spatial = true },
+	Chop = { id = "rbxassetid://110876799577978", volume = 0.45, spatial = true },
+	TreeFall = { id = "rbxassetid://97110688548965", volume = 0.4, spatial = true },
 	-- something crafted in the Crafting window
 	Craft = { id = "rbxassetid://104446383390823", volume = 0.4, spatial = false },
 	-- a research project finished
-	ResearchDone = { id = "rbxassetid://82850696869958", volume = 0.45, spatial = false },
+	ResearchDone = { id = "rbxassetid://117847291795847", volume = 0.45, spatial = false },
 	-- coins earned at the Sell Stand or by a Shipping Bin
 	Coin = { id = "rbxassetid://126449219917694", volume = 0.4, spatial = false },
 	-- a purchase at a stall
@@ -36,8 +36,8 @@ local ROLES: { [string]: Role } = {
 	-- notices, by kind (Shared/Notices): a refusal's two soft wooden ticks, a reward's two chimes,
 	-- and the banner's three chimes over a swell
 	NoticeError = { id = "rbxassetid://88770489922620", volume = 0.3, spatial = false },
-	NoticeReward = { id = "rbxassetid://92287795162801", volume = 0.3, spatial = false },
-	NoticeBanner = { id = "rbxassetid://138460409961936", volume = 0.4, spatial = false },
+	NoticeReward = { id = "rbxassetid://128450852333088", volume = 0.3, spatial = false },
+	NoticeBanner = { id = "rbxassetid://82992648114553", volume = 0.4, spatial = false },
 }
 
 return ROLES

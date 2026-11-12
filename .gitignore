@@ -9,3 +9,5 @@ sourcemap.json
 
 IslandsMachines/
 RobloxPets/
+# Sound analysis spectrograms (tools/sounds/analyze.py)
+/tools/sounds/analysis/

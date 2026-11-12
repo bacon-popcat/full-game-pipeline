@@ -38,14 +38,25 @@ rebuilds the WAVs exactly; `python tools/sounds/upload.py <file> "<name>" "<desc
 one. The new Harvest replaces the ElevenLabs pluck (140384005911871); put that id back in
 `Sounds.luau` to return to it. None of these was chosen by ear.
 
+Every synthesized tone eases out over its last 40 ms (`fade_out`): a chime still ringing at about
+-22 dB used to stop dead, which is heard as a click. NoticeReward, NoticeBanner, ResearchDone,
+HarvestRare, TreeFall and Chop were re-uploaded with that fix; Craft, NoticeError and Harvest
+changed by less than -52 dBFS and keep their earlier uploads.
+
+`python tools/sounds/analyze.py [Role ...]` measures the WAVs so they can be tuned by numbers:
+length, peak, loudness, brightness, each note's start time and pitch, and a spectrogram PNG per
+sound in `tools/sounds/analysis/` (not in git). Rerun it after changing a recipe: the note times
+and pitches should match the recipe, and the spectrogram should show no vertical smear where a
+sound ends (a click).
+
 | Role | File | Asset id | Sound |
 |---|---|---|---|
 | Harvest | Garden_Harvest.wav | 121632984070614 | leaves rustling (scattered noise grains), a dry green stem snap, a soft soil thump with crumbs pattering down, and the leaves settling; no tones, 0.6 s. Replaced the phase 7 rustle-pop-sparkle (85383832508508) to sound more like nature |
-| HarvestRare | Garden_HarvestRare.wav | 126550585056131 | three soft chimes rising (G6, B6, D7), layered over Harvest for a mutated crop, 1 s |
-| Chop | Garden_Chop.wav | 136761976782388 | a soft low wooden thock with a little crack, 0.4 s |
-| TreeFall | Garden_TreeFall.wav | 118623246906163 | a low creak, a leafy whoosh and a soft thud, 1.7 s |
+| HarvestRare | Garden_HarvestRare.wav | 90954647450235 | three soft chimes rising (G6, B6, D7), layered over Harvest for a mutated crop, 1 s |
+| Chop | Garden_Chop.wav | 110876799577978 | a soft low wooden thock with a little crack, 0.4 s |
+| TreeFall | Garden_TreeFall.wav | 97110688548965 | a low creak, a leafy whoosh and a soft thud, 1.7 s |
 | Craft | Garden_Craft.wav | 104446383390823 | two quick wooden taps and a click, 0.5 s |
-| ResearchDone | Garden_ResearchDone.wav | 82850696869958 | a rising two-note chime (E5, B5) over a warm fifth that swells and fades, 1.9 s |
+| ResearchDone | Garden_ResearchDone.wav | 117847291795847 | a rising two-note chime (E5, B5) over a warm fifth that swells and fades, 1.9 s |
 | NoticeError | Garden_NoticeError.wav | 88770489922620 | two soft low wooden ticks, falling, for a refusal notice, 0.3 s |
-| NoticeReward | Garden_NoticeReward.wav | 92287795162801 | two soft chimes rising a third (C6, E6), for a reward, quest or rare notice, 0.7 s |
-| NoticeBanner | Garden_NoticeBanner.wav | 138460409961936 | three chimes rising (G5, C6, E6) over a short warm swell, for a banner notice, 1.5 s |
+| NoticeReward | Garden_NoticeReward.wav | 128450852333088 | two soft chimes rising a third (C6, E6), for a reward, quest or rare notice, 0.7 s |
+| NoticeBanner | Garden_NoticeBanner.wav | 82992648114553 | three chimes rising (G5, C6, E6) over a short warm swell, for a banner notice, 1.5 s |

@@ -48,8 +48,18 @@ def envelope(n, attack, decay):
     return out
 
 
+def fade_out(samples, seconds=0.04):
+    """Ease the last `seconds` to silence (a half-cosine), so a tone that is still ringing when
+    it ends does not stop dead: a cut at about -22 dB is heard as a click."""
+    n = min(len(samples) // 2, int(seconds * RATE))
+    for i in range(n):
+        samples[-1 - i] *= 0.5 - 0.5 * math.cos(math.pi * i / n)
+    return samples
+
+
 def tone(freq, seconds, decay, attack=0.004, partials=((1, 1.0),), detune=0.0):
-    """A struck tone: decaying sine partials (ratio, gain), each a little quicker the higher it is."""
+    """A struck tone: decaying sine partials (ratio, gain), each a little quicker the higher it
+    is, eased out at the end (fade_out)."""
     n = int(seconds * RATE)
     out = [0.0] * n
     for ratio, gain in partials:
@@ -58,7 +68,7 @@ def tone(freq, seconds, decay, attack=0.004, partials=((1, 1.0),), detune=0.0):
         phase = random.random() * math.tau
         for i in range(n):
             out[i] += gain * env[i] * math.sin(phase + math.tau * f * i / RATE)
-    return out
+    return fade_out(out)
 
 
 def noise(seconds):
@@ -196,7 +206,7 @@ def research_done():
         for i in range(n):
             t = i / RATE
             pad[i] += math.sin(math.tau * freq * t) * min(1, t / 0.35) * math.exp(-t / 0.7)
-    mix(out, pad, 0, 0.16)
+    mix(out, fade_out(pad), 0, 0.16)
     mix(out, bell(659.25, 1.2, 0.45), 0.02, 0.6)
     mix(out, bell(987.77, 1.4, 0.55), 0.2, 0.6)
     return finish(out, 0.2)
@@ -224,7 +234,7 @@ def notice_banner():
         for i in range(n):
             t = i / RATE
             pad[i] += math.sin(math.tau * freq * t) * min(1, t / 0.25) * math.exp(-t / 0.5)
-    mix(out, pad, 0, 0.14)
+    mix(out, fade_out(pad), 0, 0.14)
     for at, freq in ((0.0, 783.99), (0.11, 1046.5), (0.22, 1318.5)):
         mix(out, bell(freq, 1.1, 0.4), at, 0.5)
     return finish(out, 0.2)
