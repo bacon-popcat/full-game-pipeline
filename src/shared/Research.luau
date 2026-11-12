@@ -268,7 +268,7 @@ local PROJECTS: { Project } = {
 		coins = 3000,
 		items = {},
 		seconds = 300,
-		needs = { "Learn1" },
+		needs = { "Haggle1" },
 		effects = { seedStock = 1 },
 	},
 	{
@@ -364,7 +364,7 @@ local PROJECTS: { Project } = {
 		coins = 6000,
 		items = {},
 		seconds = 480,
-		needs = { "Learn1" },
+		needs = { "Haggle1" },
 		effects = { offlineShare = 0.05, offlineCap = 60 },
 	},
 	{
@@ -376,7 +376,7 @@ local PROJECTS: { Project } = {
 		coins = 8000,
 		items = { CopperWire = 4 },
 		seconds = 600,
-		needs = { "Belts1" },
+		needs = { "Reapers1" },
 		effects = { sprinklerRadius = 1 },
 	},
 	{

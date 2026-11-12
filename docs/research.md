@@ -24,12 +24,17 @@ stay valid however the links change, because needs are checked only when a proje
 | Seed Saver I-II | Farming, 16 and 34 | `seedSaver` +0.1: a planted seed is kept 10%, then 20%, of the time | off Rich Soil II |
 | Lucky Swing I-III | Tools, 10, 21, 37 | `luckyDrop` +0.1: a chop or mine gives its whole drop twice | off Sharp Axe I |
 | Sharp Axe III, Strong Pickaxe III | Tools, 30 and 33 | +1 Wood, +1 of a rock's main drop | ends their lines |
-| Night Shift I-III | Economy, 11, 21, 41 | `offlineShare` +0.05 and `offlineCap` +60 minutes (welcome.md § Offline coins) | off Quick Learner I |
+| Night Shift I-III | Economy, 11, 21, 41 | `offlineShare` +0.05 and `offlineCap` +60 minutes (welcome.md § Offline coins) | off Haggling I |
 | Contracts I-II | Economy, 12 and 36 | `rewardBonus` +0.15: daily quest and order coins (XP unchanged) | in the Seed Contacts line: Seeds1 -> Contract1 -> Seeds2 -> Contract2 |
 | Lab Notebook I-II | Economy, 14 and 38 | `researchQueue` +1 (§ The queue) | in the Efficient Study line: Study1 -> Notebook1 -> Study2 -> Notebook2 -> Study3 |
 | The five Masteries | each tree, 40-50 | ranked (§ Mastery) | off each tree's last project |
 
 Seeds2, Study2 and Study3 now need the projects slotted in before them; finished saves keep them.
+
+No project branches more than three ways (2026-11-12), so a tree opens out ring by ring rather
+than all at its root: Seed Contacts I and Night Shift I need Haggling I (the trade bonuses, off
+the sales line), and Wide Sprinklers I needs Swift Reapers I (beside the farm machines), not the
+trees' first projects.
 
 ## Mastery
 
@@ -209,10 +214,12 @@ its middle with nothing selected, at 0.72 zoom.
   that carries the category's tag.
 - **Layout along a fan.** A project's ring is how many projects lead to it in its category, 180 px
   apart; it hangs off its latest need. Children that continue its line (Yield1 -> Yield2), or a
-  need's only child, run straight on; the other lines fan out evenly either side of the middle,
-  18 degrees apart, closer when a fan has more lines than fit in 54 degrees (`FAN_SPREAD`), so
-  five-line fans (Farming, Economy) stay inside their fifth. Measured: no two tiles closer than
-  102 px, and 137 px across fans.
+  need's only child, run straight on. Lanes are numbered across the fan with every branch's
+  lanes together, so no two lines cross, and the line a project continues sits in the middle of
+  its branches (half the others before it, half after). The lanes spread evenly about the fan's
+  middle, 18 degrees apart, closer when they would span more than 54 degrees (`FAN_SPREAD`), so
+  each fan stays inside its fifth. Measured with every project shown: no two tiles closer than
+  103 px, and 138 px across fans.
 - **Tiles.** Cloned from `Assets.UI.Research.Node`, a clear button holding `Shape`, a rounded
   square turned 45 degrees into a diamond (filled dark in the category's colour, brighter once
   finished) with its ring, the item picture upright on top and the name under it. A tile that
@@ -225,10 +232,12 @@ its middle with nothing selected, at 0.72 zoom.
   one setting off every 0.3 s, at most 12 at once. Master Gardener's needs in other categories
   draw no line.
 - **What shows.** A tile is shown when it is a fan's first project, done, running, or needs a
-  finished project in its own category. One step further, a project whose need is shown appears
-  undiscovered: a dark diamond with "?", no name, picture or cost, on a fainter line. Its info
-  says which project to research to discover it, and its button reads "Undiscovered". Nothing
-  further out is drawn.
+  finished project in its own category. Past each shown tile that isn't locked by level, the
+  nearest (lowest level) project it leads to appears undiscovered, one per tile: a dark diamond
+  with "?", no name, picture or cost, on a fainter line. Its info says which project to research
+  to discover it, and its button reads "Undiscovered". Nothing shows past a locked tile, so a
+  level-1 garden sees only the five first projects, and a tile's other branches appear when it
+  is finished, each grown in as the unlock glow reaches it. Nothing further out is drawn.
 - **States.** A shown tile's ring says its state: its category's colour when done, yellow can
   start, red locked (its item and name faded), blue running (with a progress bar), lilac queued,
   gold and pulsing ready to complete (every finished project waiting, not only the running
@@ -333,6 +342,12 @@ Script to grant coins, XP and items and to load research states:
   (now in the text), and a queued Mastery showed the next rank's price beside Remove.
 - `Welcome.offlineCoins` at 1,000 a minute for 12 hours: 120,000 coins without research,
   264,000 with all three Night Shifts.
+
+The tidier tree was looked at on 2026-11-12, again in a throwaway garden in slot 2 (deleted
+after): a level-1 garden showed only the five first projects and no "?"; at level 4 each opened
+first project had a single "?"; at level 15 with everything to level 14 finished, and with every
+project finished, each fan opened in separate lanes with no lines crossing. Not checked: a
+finished project's hidden branches growing in under the glow.
 
 Not yet seen in play: a Lucky Swing double drop, a seed kept by hand or by a Seed Planter, a
 stronger watering can splash, boosted quest and order payouts, and a real offline return with

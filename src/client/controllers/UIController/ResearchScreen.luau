@@ -10,14 +10,16 @@
 -- round it, and each category (CATEGORIES) is a fan in its own fifth of the circle, Farming at the
 -- top. A project's ring is how many projects lead to it in its category (faint guide rings mark
 -- them); it hangs off its latest need, children continuing its line (Yield1 -> Yield2) run
--- straight on, and the other branches fan out evenly either side of the fan's middle. Each fan's
--- first project sits on its middle line, joined to the hub by a stem carrying the category's tag.
+-- straight on with its other branches either side, each branch in lanes of its own so no lines
+-- cross, spread evenly across the fan. Each fan's first project sits on its middle line, joined
+-- to the hub by a stem carrying the category's tag.
 -- Tiles are round, cloned from Assets.UI.Research.Node; each need in the same category is joined
 -- to it by a curved line of Assets.UI.Research.Link pieces, lit green once the need is done, with
 -- motes of sap drifting outward along the lit ones.
 --
 -- What shows: each fan's first project, anything done or running, and whatever a finished
--- project leads to. One step further, what those lead to shows as an undiscovered "?" tile. A
+-- project leads to. One step further, what an unlocked one of those leads to shows as an
+-- undiscovered "?" tile (nothing shows past a tile still locked by level). A
 -- tile's ring says its state: green done, yellow can start (with a breathing halo), red locked,
 -- blue running (with a bar), gold and pulsing ready to complete. Open and locked tiles show a
 -- short coin-cost badge, red when the wallet falls short.
@@ -411,6 +413,9 @@ local function layout(category: string): { [string]: Vector2 }
 			return order[a.id] < order[b.id]
 		end)
 	end
+	-- Lines are numbered across the fan, each branch's lines all together, so no two lines cross.
+	-- The line a project continues (its first child) sits in the middle of its branches: half of
+	-- the others before it, half after.
 	local rows: { [string]: number } = {}
 	local nextRow = 0
 	local function place(project: Research.Project)
@@ -420,8 +425,13 @@ local function layout(category: string): { [string]: Vector2 }
 			nextRow += 1
 			return
 		end
-		for _, child in list do
-			place(child)
+		local before = (#list - 1) // 2
+		for index = 2, before + 1 do
+			place(list[index])
+		end
+		place(list[1])
+		for index = before + 2, #list do
+			place(list[index])
 		end
 		rows[project.id] = rows[list[1].id]
 	end
@@ -433,14 +443,6 @@ local function layout(category: string): { [string]: Vector2 }
 		cells[project.id] = Vector2.new(depth[project.id], rows[project.id])
 	end
 	return cells
-end
-
--- Line 0 is the fan's main line; the rest alternate sides, nearest first.
-local function sideOf(row: number): number
-	if row == 0 then
-		return 0
-	end
-	return (row + 1) // 2 * (if row % 2 == 1 then 1 else -1)
 end
 
 local function polar(angle: number, radius: number): Vector2
@@ -1008,22 +1010,37 @@ function ResearchScreen.init(hud: ScreenGui)
 		actionLabel.Text = label
 	end
 
-	-- Every tile's kind: in reach, one step past it, or neither. A tile the unlock glow has yet
-	-- to reach stays undiscovered, and so hides what lies past it.
+	-- Every tile's kind: in reach, undiscovered, or neither. Each tile in reach that isn't locked
+	-- shows one undiscovered "?" past it, the nearest (lowest level) of what it leads to, as a hint
+	-- that there is more; nothing shows past a tile still locked by level, so the tree grows as the
+	-- player does. A tile the unlock glow has yet to reach stays hidden until it arrives.
 	local function kinds(done: { [string]: boolean }): { [string]: Kind }
 		local result: { [string]: Kind } = {}
 		for id, node in nodes do
 			result[id] = if not revealing[id] and inReach(node.project, done) then "Shown" else "Hidden"
 		end
+		local nearest: { [string]: Research.Project } = {}
 		for id, node in nodes do
 			if result[id] == "Hidden" then
-				for _, need in treeNeeds(node.project) do
-					if result[need] == "Shown" then
-						result[id] = "Mystery"
-						break
+				local project = node.project
+				for _, need in treeNeeds(project) do
+					local best = nearest[need]
+					if
+						result[need] == "Shown"
+						and stateOf(nodes[need].project) ~= "Locked"
+						and (
+							not best
+							or project.level < best.level
+							or (project.level == best.level and project.id < best.id)
+						)
+					then
+						nearest[need] = project
 					end
 				end
 			end
+		end
+		for _, project in nearest do
+			result[project.id] = "Mystery"
 		end
 		return result
 	end
@@ -1416,24 +1433,16 @@ function ResearchScreen.init(hud: ScreenGui)
 		for index, category in CATEGORIES do
 			local middle = math.rad(-90 + (index - 1) * 360 / #CATEGORIES)
 			local cells = layout(category.name)
-			local sides: { [number]: number } = {}
-			local count, total = 0, 0
+			-- the lines spread evenly either side of the fan's middle, closer when there are many,
+			-- so the fan stays inside its fifth
+			local low, high = math.huge, -math.huge
 			for _, cell in cells do
-				if not sides[cell.Y] then
-					sides[cell.Y] = sideOf(cell.Y)
-					count += 1
-					total += sides[cell.Y]
-				end
+				low, high = math.min(low, cell.Y), math.max(high, cell.Y)
 			end
-			local mean = if count > 0 then total / count else 0
-			-- a fan with many lines draws them closer, so it stays inside its fifth
-			local low, high = 0, 0
-			for _, side in sides do
-				low, high = math.min(low, side), math.max(high, side)
-			end
+			local centre = (low + high) / 2
 			local step = if high > low then math.min(FAN_STEP, FAN_SPREAD / (high - low)) else FAN_STEP
 			for id, cell in cells do
-				local angle = if cell.X == 0 then middle else middle + math.rad((sides[cell.Y] - mean) * step)
+				local angle = if cell.X == 0 then middle else middle + math.rad((cell.Y - centre) * step)
 				spots[id] = polar(angle, FIRST_RING + cell.X * RING_GAP)
 				rings = math.max(rings, cell.X)
 			end
