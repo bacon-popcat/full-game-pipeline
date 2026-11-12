@@ -911,6 +911,9 @@ local function envFor(block: Block): Machine.Env
 			local cell = plantCellFor(block, itemId)
 			return cell ~= nil and WorldService.plant(cell, itemId)
 		end
+		env.keepsSeed = function()
+			return WorldService.keepsSeed(ownerOf(block))
+		end
 	end
 	if def.sells then
 		env.sell = function(itemId)

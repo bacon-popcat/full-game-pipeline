@@ -488,12 +488,12 @@ many machines as it takes. No mutations, weather or research.
 
 The new chains sit in the range the pies already set: a Blueberry Pie patch earns more than a
 Pumpkin Pie or Apple Jam Tart patch, on far more Ovens and wheat. What the audit shows about
-the late game is older than these products. Every coin sink in the game (research 5,268,400
-and garden sections 1,027,500) comes to 6,295,900 coins. One raw Starfruit patch pays for all
-of it in 2.1 hours, one raw Grape patch in 5.8, and even a Strawberry Pie patch in 6. The
-brake is seeds (a Mythic seed is 2% of restocks), not prices. So the late game runs out of
-things to buy, with or without the mid-game products, and needs a coin sink that keeps going;
-retention.md records that as open.
+the late game is older than these products. Every one-off coin sink in the game (research
+8,629,400, counting each Mastery's first rank once, and garden sections 1,027,500) comes to
+9,656,900 coins. One raw Starfruit patch pays for all of it in 3.2 hours and one raw Grape
+patch in 8.8. The brake is seeds (a Mythic seed is 2% of restocks), not prices. The sink that
+keeps going is the five Mastery projects (research.md § Mastery): each rank costs 1.25 times the
+last, so the twentieth rank of Farming Mastery alone is 21,000,000 coins.
 
 ### Orders and daily quests
 

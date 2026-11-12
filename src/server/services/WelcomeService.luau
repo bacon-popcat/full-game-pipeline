@@ -15,6 +15,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Research = require(ReplicatedStorage.Shared.Research)
 local Welcome = require(ReplicatedStorage.Shared.Welcome)
 local World = require(ReplicatedStorage.Shared.World)
+local Bonuses = require(ServerScriptService.Libraries.Bonuses)
 local GardenEvents = require(ServerScriptService.Libraries.GardenEvents)
 local BuildService = require(script.Parent.BuildService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -49,15 +50,18 @@ local random = Random.new()
 local started = false
 local WelcomeService = {}
 
--- The research project whose timer has run out and waits for Complete, by name.
+-- The first research project whose timer has run out and waits for Complete, by name.
 local function readyResearch(player: Player): string?
 	local research = ResearchService.snapshot(player)
-	local active = if research then research.active else nil
-	local project = if active then Research.get(active.id) else nil
-	if active and project and Research.isReady(active.startedAt + active.seconds, os.time()) then
-		return project.name
+	if not research then
+		return nil
 	end
-	return nil
+	Research.advance(research, os.time())
+	local active = research.active
+	local id = research.ready[1]
+		or if active and Research.isReady(active.startedAt + active.seconds, os.time()) then active.id else nil
+	local project = if id then Research.get(id) else nil
+	return if project then project.name else nil
 end
 
 -- `greet` asks the client to show the card; only the load sync does.
@@ -122,7 +126,12 @@ local function collect(player: Player, action: unknown): ()
 	if gift and seed then
 		local count = gift.count or 1
 		InventoryService.give(player, seed, count)
-		Remotes.Notify:FireClient(player, `Daily gift! {Inventory.getItem(seed).name} x{count}`, "Rare", { item = seed })
+		Remotes.Notify:FireClient(
+			player,
+			`Daily gift! {Inventory.getItem(seed).name} x{count}`,
+			"Rare",
+			{ item = seed }
+		)
 	end
 	sync(player, state, false)
 end
@@ -147,7 +156,12 @@ function WelcomeService.load(player: Player, value: unknown, index: number): ()
 	if away >= Welcome.AWAY_MIN and saved.binRate > 0 then
 		for _, block in BuildService.snapshot(player, index) do
 			if block.itemId == BIN then
-				saved.coinsOwed += Welcome.offlineCoins(saved.binRate, away)
+				saved.coinsOwed += Welcome.offlineCoins(
+					saved.binRate,
+					away,
+					Bonuses.get(player, "offlineShare"),
+					Bonuses.get(player, "offlineCap")
+				)
 				break
 			end
 		end

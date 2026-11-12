@@ -37,7 +37,10 @@ welcome-back card has icon rows, a gift panel with a seven-day track and motion 
 `Shared/TextColors` colours coins, XP, times, levels, rarities, item names and numbers in the
 Objective, notices, Quests, Achievements, block hints and save cards. The game's sound cues are Roblox-style
 (bright blips, bubble pops, arpeggios and sparkles, synthesized; assets/sounds/README.md), while
-Water, Chop and TreeFall stay material.
+Water, Chop and TreeFall stay material. Research now has 76 projects with seven new bonuses
+(Deep Watering, Seed Saver, Lucky Swing, Night Shift, Contracts, Lab Notebook), a queue behind the
+running project, and a repeatable Mastery per tree whose ranks are the late-game coin sink
+(research.md § Mastery, § The queue).
 
 ## Domain docs
 

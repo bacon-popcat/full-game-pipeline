@@ -16,25 +16,84 @@ checks its owner's finished research (factory.md § Processors). Their tiles sho
 (`ResearchScreen` ICONS), having no recipe output to show. `Shared/Research` asserts the shape at load. Finished saves
 stay valid however the links change, because needs are checked only when a project starts.
 
+76 projects in all. The lines added on 2026-11-11, with their new bonuses:
+
+| Line | Tree, levels | Each tier | Placed |
+|---|---|---|---|
+| Deep Watering I-II | Farming, 7 and 31 | `waterPower` +0.05: a watering can splash takes 25%, then 30%, of what's left of a stage | off Green Thumb I |
+| Seed Saver I-II | Farming, 16 and 34 | `seedSaver` +0.1: a planted seed is kept 10%, then 20%, of the time | off Rich Soil II |
+| Lucky Swing I-III | Tools, 10, 21, 37 | `luckyDrop` +0.1: a chop or mine gives its whole drop twice | off Sharp Axe I |
+| Sharp Axe III, Strong Pickaxe III | Tools, 30 and 33 | +1 Wood, +1 of a rock's main drop | ends their lines |
+| Night Shift I-III | Economy, 11, 21, 41 | `offlineShare` +0.05 and `offlineCap` +60 minutes (welcome.md § Offline coins) | off Quick Learner I |
+| Contracts I-II | Economy, 12 and 36 | `rewardBonus` +0.15: daily quest and order coins (XP unchanged) | in the Seed Contacts line: Seeds1 -> Contract1 -> Seeds2 -> Contract2 |
+| Lab Notebook I-II | Economy, 14 and 38 | `researchQueue` +1 (§ The queue) | in the Efficient Study line: Study1 -> Notebook1 -> Study2 -> Notebook2 -> Study3 |
+| The five Masteries | each tree, 40-50 | ranked (§ Mastery) | off each tree's last project |
+
+Seeds2, Study2 and Study3 now need the projects slotted in before them; finished saves keep them.
+
+## Mastery
+
+A `ranked` project is never done. Completing it adds a rank (`ranks[id]`), and every rank adds
+its effects again. Rank r costs `coins * 1.25^(r-1)` to two significant figures (300,000,
+380,000, 470,000...) and the same items, and takes `seconds * min(2, 1 + 0.1 * (r-1))`
+(`Research.price`). Nothing may need a ranked project (asserted). The same Mastery may be lined
+up more than once; each costs the rank it buys (`Research.nextRank`: finished ranks + those lined
++ 1), and cancelling one refunds the highest lined rank, so what stays lined stays paid for.
+
+| Project | Tree, level, needs | Each rank | First rank |
+|---|---|---|---|
+| Farming Mastery | Farming 46, Rich Soil V | cropYield +0.02 | 300,000 coins, 10 Pumpkin, 1 h |
+| Automation Mastery | Automation 42, Faster Belts V | machineSpeed +0.02 | 300,000, 4 Circuit, 1 h |
+| Economy Mastery | Economy 50, Master Gardener | sellPrice +0.01 | 600,000, 1 h |
+| Tools Mastery | Tools 42, Lucky Swing III | luckyDrop +0.01 | 250,000, 10 Iron Bar, 1 h |
+| Crafting Mastery | Crafting 40, Heavy Processor Plans | researchSpeed +0.03 | 250,000, 4 Circuit, 1 h |
+
+`luckyDrop` and `waterPower` are clamped to 1 where they are used; research speed divides time,
+so endless ranks only approach instant. `Bonuses.has` is true for a ranked project with a rank.
+
+## The queue
+
+One project runs (`active`). Others can be lined up behind it in `queue`, each paid in full
+when lined up, its duration fixed then (with the research-speed bonus of that moment), with the
+Unix second it was lined up (`at`). `Research.advance` moves the line: while the running
+project's timer has run out and something is queued, the finished one goes to `ready` and the
+next starts where it ended, or at its `at` if later (so time spent waiting for Complete before
+it was lined up is not credited). Projects in `ready` wait for Complete like a lone finished
+project; only completing applies a bonus.
+
+The line's room is `Research.ROOM` (1) plus `researchQueue`, and queued and ready projects share
+it (`Research.fits`): with the running slot taken, another may join only while `#queue + #ready`
+is under the room. So a player who never completes cannot stack projects up, and a full line
+says to complete one. With nothing running, a project always starts. A queued project's needs
+count once they are done or lined (`Research.blocker`'s `lined`), so Rich Soil II can queue
+behind Rich Soil I.
+
+Cancelling the running project (not once ready) or a queued one refunds it; any queued project
+whose needs are then neither done nor lined is taken out and refunded with it, all or nothing
+against the inventory. When the running one goes the next queued starts now. Complete takes an
+id or, without one, the first ready project, else the running one once its timer has run out.
+
 ## Flow
 
 ```text
 DataService: assign plot -> ResearchService.load -> restore ground, blocks, crops
     -> inventory/economy/garden/onboarding -> DataReady
-Research Start -> readiness/cooldown/id/level/prerequisites/items/coins -> pay -> active -> sync
-Research Cancel -> timer still running -> all refund items fit -> refund coins/items -> clear active -> sync
-one-second loop, DataReady only -> timer just ran out -> Notify "ready" once a session -> sync
-Research Complete -> timer ran out -> done -> Bonuses + BeltSpeed -> GardenEvents.ResearchDone
-    -> Notify -> sync
+Research Start -> readiness/cooldown/id -> advance -> level/needs (done or lined)/room
+    -> rank price: items/coins -> pay -> active, or queued behind it -> sync
+Research Cancel (id?) -> queued, or running and not ready -> it and queued projects left without
+    their needs -> all refund items fit -> refund -> next starts -> sync
+one-second loop, DataReady only -> advance -> more finished than told -> Notify "ready" -> sync
+Research Complete (id?) -> advance -> a ready one, else the running one past its timer
+    -> done (or a rank) -> Bonuses + BeltSpeed -> GardenEvents.ResearchDone -> Notify -> sync
 DataService: snapshot research with balances -> clear research before releasing the plot
 ```
 
-One project runs at a time on fractional Unix seconds. When its timer runs out it is not done:
-it stays active (and saved) until the player presses Complete, which is when its bonus applies
+One project runs at a time on fractional Unix seconds, with others queued behind it (§ The
+queue). When its timer runs out it is not done: it stays active (and saved), or moves to
+`ready` when the next starts, until the player presses Complete, which is when its bonus applies
 and the completion effects play. `Research.isReady` is the rule; the server accepts a Complete up
 to `Research.READY_EARLY` (0.5 s) before the deadline, so a press as a client's countdown ends is
-never refused. A ready project cannot be cancelled, and starting another one says to complete it
-first. Duration is fixed when it starts,
+never refused. A ready project cannot be cancelled. Duration is fixed when it is lined up,
 using the current research-speed bonus. Starting and cancelling validate before changing
 anything and do not yield between checks and mutation. Requests share a per-player cooldown;
 each one, including a refusal or malformed payload, gets a toast and authoritative snapshot.
@@ -52,26 +111,33 @@ completion, then removes it before release.
 `Shared/Remotes` owns payload contracts; `default.project.json` authors the events.
 
 - `Research`, client to server: `("Start" | "Cancel" | "Complete", id?)`. Start requires a known
-  id; Complete finishes the running project once its timer has run out.
-- `ResearchSync`, server to client: `{done = {id, ...}, active = {id, endsAt, seconds}?,
-  bonuses = {[stat] = number}}`. Sent on load, start, cancel, complete, when a timer runs out,
-  and every refusal. `active` stays past `endsAt` until completed.
+  id and starts or queues it; Cancel takes a queued id, else the running project; Complete takes
+  a finished id, else the first finished one.
+- `ResearchSync`, server to client: `{done = {id, ...}, ranks = {[id] = n}, active = {id,
+  endsAt, seconds}?, queue = {{id, seconds}, ...}, ready = {id, ...}, room, bonuses = {[stat] =
+  number}}`. Sent on load, start, cancel, complete, when the line moves or a timer runs out,
+  and every refusal. `active` stays past `endsAt` until completed or the next one starts.
   Finished ids follow catalogue order. The deadline converts saved Unix seconds to
   `workspace:GetServerTimeNow()`, so device clocks do not affect the countdown.
 - `Notify` explains successful actions and refusals and announces completion.
 
 ## Saving
 
-The profile's `research` defaults to `{done = {}, active = nil}`. Done is an id-to-boolean
-map; active holds `{id, startedAt, seconds}`. Snapshots copy both tables. Research loads
-immediately after plot assignment, before machines and crops, so restored crops' offline
-mutation rolls see finished bonuses. Load never announces garden actions or finishes a
-project: a project that ran out offline waits for its Complete, and the one-second loop tells
-the arriving player it is ready once DataReady is true.
+The profile's `research` defaults to `{done = {}, ranks = {}, active = nil, queue = {},
+ready = {}}`; older saves without the new fields load as empty. Done is an id-to-boolean map of
+unranked projects; ranks maps ranked ids to whole ranks; active holds `{id, startedAt,
+seconds}`, each queue entry `{id, seconds, at}`, ready a list of ids. Snapshots copy every
+table. Research loads immediately after plot assignment, before machines and crops, so restored
+crops' offline mutation rolls see finished bonuses. Load moves the line along for the time away
+(`Research.advance`) but never announces garden actions or finishes a project: what ran out
+offline waits for its Complete, and the one-second loop tells the arriving player once DataReady
+is true.
 
-Unknown finished ids, malformed entries and unknown/malformed active projects are dropped
-with warnings. Active timestamps and durations must be finite, the timestamp nonnegative
-and the duration a positive whole second; an already-finished active id is dropped too.
+Unknown finished ids, ranked ids in done, bad ranks, malformed entries and unknown/malformed
+active, queued or ready projects are dropped with warnings. Timestamps and durations must be
+finite, timestamps nonnegative and durations positive whole seconds; an unranked id already
+finished or already in the line is dropped too, and a queue left with nothing running starts
+its first entry.
 These errors never fail a profile load. Quit, session loss and failed-load cleanup clear
 bonuses and the plot multiplier. XP and Shipping Bin fractional carries are session-only
 and reset with the profile. See [plots.md](plots.md) for the full lifecycle.
@@ -92,8 +158,14 @@ All numbers and additive tier totals stay in `Shared/Research`.
 | sellPrice | `GardenService.sell` floors the boosted whole transaction; `FactoryService.paySale` carries fractional coins per player and bases sale XP on paid coins |
 | xpGain | `EconomyService.addXp` multiplies all earned XP and carries its fraction per player |
 | seedStock | `GardenService.restock` adds to positive rolls only; load validation allows boosted saved stock |
-| researchSpeed | `ResearchService.start` calls `Research.duration` once |
+| researchSpeed | `ResearchService.start` calls `Research.duration` once, on the rank's seconds |
 | chopYield / mineYield | `WorldService.onInteract` adds the acting player's bonus to the node's named boost item before checking room |
+| luckyDrop | `WorldService.onInteract` then rolls it: a hit doubles every drop if both fit (else one), with a "Lucky swing!" notice |
+| waterPower | `WorldService.water` adds it to `WATER_SHARE` (0.2) |
+| seedSaver | `WorldService.keepsSeed` rolls it: `BuildService` gives a hand-planted seed back (if it fits, with a notice); `Machine.stepPlanter` skips taking the seed when the planter's `env.keepsSeed` hits |
+| offlineShare / offlineCap | `WelcomeService.load` passes them to `Welcome.offlineCoins` (research loads first) |
+| rewardBonus | `ProgressService` `boosted`: quest and order coins, paid and shown in ProgressSync |
+| researchQueue | `ResearchService` room (§ The queue) |
 
 Unripe digging and uprooting keep their original yields. Full inventories and machine outputs
 leave the crop or node intact. Research alone does not make Farmland wet: GroundService's
@@ -138,7 +210,9 @@ its middle with nothing selected, at 0.72 zoom.
 - **Layout along a fan.** A project's ring is how many projects lead to it in its category, 180 px
   apart; it hangs off its latest need. Children that continue its line (Yield1 -> Yield2), or a
   need's only child, run straight on; the other lines fan out evenly either side of the middle,
-  18 degrees apart.
+  18 degrees apart, closer when a fan has more lines than fit in 54 degrees (`FAN_SPREAD`), so
+  five-line fans (Farming, Economy) stay inside their fifth. Measured: no two tiles closer than
+  102 px, and 137 px across fans.
 - **Tiles.** Cloned from `Assets.UI.Research.Node`, a clear button holding `Shape`, a rounded
   square turned 45 degrees into a diamond (filled dark in the category's colour, brighter once
   finished) with its ring, the item picture upright on top and the name under it. A tile that
@@ -156,27 +230,36 @@ its middle with nothing selected, at 0.72 zoom.
   says which project to research to discover it, and its button reads "Undiscovered". Nothing
   further out is drawn.
 - **States.** A shown tile's ring says its state: its category's colour when done, yellow can
-  start, red locked (its item and name faded), blue running (with a progress bar), gold and
-  pulsing ready to complete.
+  start, red locked (its item and name faded), blue running (with a progress bar), lilac queued,
+  gold and pulsing ready to complete (every finished project waiting, not only the running
+  one). A Mastery tile is never done: its name carries its rank ("Farming Mastery 3") and its
+  fill brightens once it has one.
 - **Cost badge.** Open and locked tiles show the optional `Node.Cost` label: plain coins below
-  1,000, then K/M with one decimal and no trailing .0. Red when unaffordable, otherwise its
-  authored text colour; updates with the wallet. Hidden for running, ready and done projects.
+  1,000, then K/M with one decimal and no trailing .0, for the next rank of a Mastery. Red when
+  unaffordable, otherwise its authored text colour; updates with the wallet. A queued tile shows
+  its place instead, "Next" or "#2", in lilac. Hidden for running, ready and done projects.
 - **Info.** Pressing a tile selects it: the canvas glides it 210 px left of the middle and
   `Research.Info` (400 px wide) stands beside it, on its right or, without room, its left, level
   with it and clear of the close button and the strip. It shows the name (in its state's colour),
   description, level and state, cost (red when you can't afford it), then under "Requirements" a
   card per required item, cloned from `Assets.UI.Research.Requirement`: the item's picture in a box
   with "x20 Wheat" under it, its outline and words green once you carry that many. Then the time
-  behind an hourglass ("2:00", "1:30:00"; for the running project, the time left), any blocker,
-  and an Action button: Research, Complete, Running, Busy, Locked, Need coins, Need items or Done.
+  behind an hourglass ("2:00", "1:30:00"; for the running project, the time left; for a queued
+  one, its fixed time), any blocker, and an Action button: Research (nothing running), Queue
+  (something running), Complete, Cancel (the running project), Remove (a queued one), Queue
+  full, Locked, Need coins, Need items, Undiscovered or Done. A Mastery's info adds "Ranks so
+  far: 3. Next: rank 4." and prices that rank; while a rank of it runs it can be queued again.
   Done hides the requirements and the time. Cards are rebuilt only when the project changes.
   Without the Requirement template the items are listed as words. Hovering (or gamepad-selecting)
   another tile shows the same in `Research.Tooltip`, without the button.
 - **Putting the info away.** A press on empty space (not a tile, the hub, the info or the strip)
   that never becomes a drag deselects, centring the tile. Pressing the hub glides home.
-- **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill) with Cancel;
-  once its timer runs out it reads "<name> is ready!" and `Complete` (gold, pulsing) replaces
-  Cancel.
+- **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill) with Cancel,
+  then how many wait ("1 ready") and what is queued next ("Next: Rich Soil II +1"). Once its
+  timer runs out, or while an earlier project waits, `Complete` (gold, pulsing) replaces Cancel
+  and completes the first finished project; while it covers Time, the countdown moves into the
+  text ("Researching Rich Soil II (4:10)"). With nothing running it reads "2 projects ready to
+  complete!".
 - **Panning and zoom.** Dragging the background pans the canvas; the mouse wheel zooms it
   (`Canvas.UIScale`, 0.4 to 1.4). Two fingers pinch to zoom without also panning. While open,
   the gamepad's right stick pans smoothly (0.2 dead zone); ButtonL2/ButtonR2 zoom out/in.
@@ -185,7 +268,7 @@ its middle with nothing selected, at 0.72 zoom.
 A press waits for the next sync. A tile's icon is an item standing for its line (Belts a belt,
 Rich Soil a carrot, a crafting project its recipe's output).
 
-**Completing.** When a sync adds a finished project while the window is open, the view glides to
+**Completing.** When a sync adds a finished project or a Mastery rank while the window is open, the view glides to
 take in it and everything it leads to, and puts the info away. The tile bursts: it pops, a gold
 flash and a green ring spread from it, and sparks fly out. After 0.35 s a glow (a white-hot head
 in a pulsing halo of the category's colour) runs down every line out of it, drawing the line from
@@ -228,6 +311,32 @@ script, so nothing was saved: Sharp Axe I turning Strong Pickaxe I and Sharp Axe
 tiles with a new "?" past the pickaxe, Crate Making revealing Carpentry, and Carpentry's three
 glows. Earlier (category tabs): a ready project's gold state and Complete, an early Complete
 refused, and a start and cancel with its exact refund.
+
+Played through on 2026-11-11 (queue, Mastery, new bonuses), in a fresh garden in save slot 2
+(deleted after), driven through the Research remote and the window, with a temporary server
+Script to grant coins, XP and items and to load research states:
+
+- Quick Learner I started, Faster Belts I queued behind it ("Next" badge, "Next: Faster Belts
+  I" in the strip), a third project refused as the queue was full, and removing the queued one
+  refunded 300 coins. When Quick Learner I ran out, Faster Belts I started by itself, one "is
+  ready!" notice came, and Quick Learner I pulsed gold with Complete in the strip. Starting
+  another then said to complete a finished project to make room; Complete finished it (+10% XP).
+- Cancelling Sharp Axe I with Strong Pickaxe I queued behind it refunded both (1,000 coins).
+- With every unranked project done: offlineShare 0.15, offlineCap 180, rewardBonus 0.3,
+  waterPower 0.1, seedSaver 0.2, luckyDrop 0.3, researchQueue 2, machineSpeed 0.32 with one
+  Automation Mastery rank. Two Mastery ranks lined up with their timers past completed as ranks
+  2 and 3 (machineSpeed 0.36); ranks 4 and 5 and two other Masteries filled the room of 3.
+- After Stop and Play the queue, ranks and finished projects loaded back from the save.
+- In the window: Farming Mastery 3's info priced rank 4 (590,000 coins, 10 Pumpkin, 53:48 at
+  +45% research speed) with Queue; pressing it queued the rank as "#2". Complete in the strip
+  burst the finished Mastery tile. Two flaws found and fixed: Complete covered the countdown
+  (now in the text), and a queued Mastery showed the next rank's price beside Remove.
+- `Welcome.offlineCoins` at 1,000 a minute for 12 hours: 120,000 coins without research,
+  264,000 with all three Night Shifts.
+
+Not yet seen in play: a Lucky Swing double drop, a seed kept by hand or by a Seed Planter, a
+stronger watering can splash, boosted quest and order payouts, and a real offline return with
+Night Shift; each is a one-line hook (§ Effect hooks). The window on a phone or with a gamepad.
 
 ## Studio playtest
 

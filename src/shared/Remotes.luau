@@ -26,16 +26,19 @@ return {
 	-- slot 1..Progress.QUEST_SLOTS or ORDER_SLOTS. The server checks DataReady, a cooldown, saved
 	-- progress and the inventory; a well-formed request is answered with a ProgressSync.
 	Progress = get("Progress"),
-	-- server -> client: ({ done: { string }, active: { id: string, endsAt: number, seconds: number }?,
-	-- bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().
-	-- active stays until completed, past endsAt (Research.isReady). Sent on load, start, cancel,
-	-- complete, when a timer runs out, and for every refused research request.
+	-- server -> client: Research.Snapshot ({ done: { string }, ranks: { [string]: number },
+	-- active: { id, endsAt, seconds }?, queue: { { id, seconds } }, ready: { string }, room:
+	-- number, bonuses: { [Research.Stat]: number } }); endsAt uses workspace:GetServerTimeNow().
+	-- active stays past endsAt (Research.isReady) until completed or the next queued one starts,
+	-- when it moves to ready. Sent on load, start, cancel, complete, when the line moves or a timer
+	-- runs out, and for every refused research request.
 	ResearchSync = get("ResearchSync"),
 	-- client -> server: (action: "Start" | "Cancel" | "Complete", id: string?); Start names a
-	-- Shared/Research project. The server rechecks DataReady, cooldown, level, prerequisites, items
-	-- and coins; Cancel refunds only when all items fit and the timer is still running; Complete
-	-- finishes the running project once its timer has run out. Every request answers with Notify
-	-- and ResearchSync.
+	-- Shared/Research project to start, or queue behind the running one. The server rechecks
+	-- DataReady, cooldown, level, needs (done or lined up), the queue's room, items and coins;
+	-- Cancel takes a queued id or the running project (not once ready) and refunds only when all
+	-- items fit; Complete takes a finished id, else the first finished project. Every request
+	-- answers with Notify and ResearchSync.
 	Research = get("Research"),
 	-- server -> client: ({ restockAt: number, stock: { [seedId: string]: number } });
 	-- restockAt is the next Unix restock boundary. Sent on load, prompt, restock and purchase response.

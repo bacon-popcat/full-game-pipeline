@@ -428,7 +428,7 @@ GardenFoundation_v1 and a sanitizer; a bad entry is skipped with a warning (plot
   within the range the pies already set. It also shows the late game ran out of sinks before
   these products existed: all 6.3 million coins of research and sections are one raw Starfruit
   patch's income for two hours. The values stay on the rule. A late coin sink that keeps going
-  is the open item, and it is not part of this plan's phases.
+  was the open item; the research Mastery ranks (research.md § Mastery) are that sink.
 - **Not built**: machine-panel text listing a machine's locked recipes, and animations of the
   borrowed templates beyond what their sources already do.
 - **Playtested** on a fresh garden in an empty save slot (deleted after): a Roaster, Kettle,

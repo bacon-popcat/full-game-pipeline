@@ -106,7 +106,7 @@ local PROFILE_TEMPLATE: Data = {
 	discovered = {},
 	indexed = {},
 	onboarding = 1,
-	research = { done = {}, active = nil },
+	research = { done = {}, ranks = {}, active = nil, queue = {}, ready = {} },
 	progress = Progress.empty(),
 	benchTier = 1,
 	receipts = {},

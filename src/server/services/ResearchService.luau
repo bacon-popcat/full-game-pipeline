@@ -1,8 +1,10 @@
--- ResearchService: owns one paid, wall-clock project per loaded profile. Requests validate
--- before spending or refunding without yielding. A project whose timer has run out waits,
--- saved as active, until its player completes it; completing alone applies its bonus and
--- announces ResearchDone. The one-second loop only tells the player, once a session, that it
--- is ready.
+-- ResearchService: owns each loaded profile's research line: one paid, wall-clock project
+-- running, more lined up behind it (paid when lined up) and finished ones waiting for their
+-- Complete (rules: Shared/Research). Requests validate before spending or refunding without
+-- yielding. When the running project's timer runs out the next queued one starts; a finished
+-- project waits, saved, until its player completes it, and completing alone applies its bonus
+-- (a rank, for a ranked project) and announces ResearchDone. The one-second loop moves the line
+-- along and tells the player when something more is ready.
 -- DataService loads before machines/crops and releases before the plot. Invalid saved entries
 -- are skipped with a warning, so a retired project can never prevent a garden from loading.
 
@@ -24,8 +26,8 @@ local PlotService = require(script.Parent.PlotService)
 local COOLDOWN = 0.3
 local states: { [Player]: Research.Saved } = {}
 local lastAction: { [Player]: number } = {}
--- The running project each player has already been told is ready, so the loop says it once.
-local announced: { [Player]: string } = {}
+-- How many finished projects each player has been told about, so the loop says each once.
+local announced: { [Player]: number } = {}
 local ResearchService = {}
 
 local function wallTime(): number
@@ -36,19 +38,41 @@ local function finite(value: any): boolean
 	return typeof(value) == "number" and value == value and math.abs(value) < math.huge
 end
 
+local function wholeSeconds(value: any): boolean
+	return finite(value) and value >= 1 and value % 1 == 0
+end
+
 local function plotOf(player: Player): Model?
 	local index = PlotService.get(player)
 	return if index then Plot.model(index) else nil
 end
 
 -- Whether a running project's timer has run out (with Research.READY_EARLY to spare).
-local function isReady(active: Research.Active): boolean
-	return Research.isReady(active.startedAt + active.seconds, wallTime() + Research.READY_EARLY)
+local function isReady(active: Research.Active, early: number?): boolean
+	return Research.isReady(active.startedAt + active.seconds, wallTime() + (early or 0))
+end
+
+local function linedOf(state: Research.Saved): { [string]: number }
+	return Research.lined(if state.active then state.active.id else nil, state.queue, state.ready)
+end
+
+local function roomOf(player: Player): number
+	return Research.ROOM + Bonuses.get(player, "researchQueue")
+end
+
+-- Finished projects waiting for Complete, the running one included once its timer runs out.
+local function readyCount(state: Research.Saved): number
+	return #state.ready + (if state.active and isReady(state.active) then 1 else 0)
+end
+
+-- "Rich Soil II", or "Farming Mastery 4" for a ranked project's rank.
+local function title(project: Research.Project, rank: number?): string
+	return if project.ranked and rank then `{project.name} {rank}` else project.name
 end
 
 local function publish(player: Player, state: Research.Saved)
-	local stats = Research.bonuses(state.done)
-	Bonuses.set(player, state.done, stats)
+	local stats = Research.bonuses(state.done, state.ranks)
+	Bonuses.set(player, state.done, stats, state.ranks)
 	local plot = plotOf(player)
 	if plot then
 		plot:SetAttribute("BeltSpeed", 1 + (stats.beltSpeed or 0))
@@ -64,8 +88,13 @@ local function sync(player: Player)
 		end
 	end
 	local active = if state then state.active else nil
+	local queue = {}
+	for _, entry in if state then state.queue else {} do
+		table.insert(queue, { id = entry.id, seconds = entry.seconds })
+	end
 	local snapshot: Research.Snapshot = {
 		done = done,
+		ranks = if state then table.clone(state.ranks) else {},
 		active = if active
 			then {
 				id = active.id,
@@ -73,49 +102,108 @@ local function sync(player: Player)
 				seconds = active.seconds,
 			}
 			else nil,
-		bonuses = Research.bonuses(if state then state.done else {}),
+		queue = queue,
+		ready = if state then table.clone(state.ready) else {},
+		room = roomOf(player),
+		bonuses = Research.bonuses(if state then state.done else {}, if state then state.ranks else nil),
 	}
 	Remotes.ResearchSync:FireClient(player, snapshot)
 end
 
-function ResearchService.load(player: Player, saved: any)
-	local state: Research.Saved = { done = {}, active = nil }
+-- Reads a saved research table, dropping (with a warning) anything that no longer checks out.
+local function sanitize(player: Player, saved: any): Research.Saved
+	local state: Research.Saved = { done = {}, ranks = {}, active = nil, queue = {}, ready = {} }
+	local function drop(what: string)
+		warn(`ResearchService: dropped {what} for {player.UserId}`)
+	end
 	if typeof(saved) ~= "table" then
-		warn(`ResearchService: reset invalid research for {player.UserId}`)
-	else
-		if typeof(saved.done) == "table" then
-			for id, done in saved.done do
-				if typeof(id) == "string" and Research.get(id) and typeof(done) == "boolean" then
-					if done then
-						state.done[id] = true
-					end
-				else
-					warn(`ResearchService: dropped invalid finished project for {player.UserId}`)
+		drop("invalid research")
+		return state
+	end
+	if typeof(saved.done) == "table" then
+		for id, done in saved.done do
+			local project = if typeof(id) == "string" then Research.get(id) else nil
+			if project and not project.ranked and typeof(done) == "boolean" then
+				if done then
+					state.done[id] = true
 				end
-			end
-		else
-			warn(`ResearchService: reset invalid finished projects for {player.UserId}`)
-		end
-		local active = saved.active
-		if active ~= nil then
-			if
-				typeof(active) == "table"
-				and typeof(active.id) == "string"
-				and Research.get(active.id)
-				and not state.done[active.id]
-				and finite(active.startedAt)
-				and active.startedAt >= 0
-				and finite(active.seconds)
-				and active.seconds >= 1
-				and active.seconds % 1 == 0
-				and finite(active.startedAt + active.seconds)
-			then
-				state.active = { id = active.id, startedAt = active.startedAt, seconds = active.seconds }
 			else
-				warn(`ResearchService: dropped invalid active project for {player.UserId}`)
+				drop("an invalid finished project")
+			end
+		end
+	else
+		drop("invalid finished projects")
+	end
+	if typeof(saved.ranks) == "table" then
+		for id, rank in saved.ranks do
+			local project = if typeof(id) == "string" then Research.get(id) else nil
+			if project and project.ranked and wholeSeconds(rank) then
+				state.ranks[id] = rank
+			else
+				drop("an invalid rank")
 			end
 		end
 	end
+	-- An unranked project may be in the line only once, and not once done.
+	local seen: { [string]: boolean } = {}
+	local function lineable(id: any): boolean
+		local project = if typeof(id) == "string" then Research.get(id) else nil
+		if not project or (not project.ranked and (state.done[id] or seen[id])) then
+			return false
+		end
+		seen[id] = true
+		return true
+	end
+	if typeof(saved.ready) == "table" then
+		for _, id in saved.ready do
+			if lineable(id) then
+				table.insert(state.ready, id)
+			else
+				drop("an invalid finished-and-waiting project")
+			end
+		end
+	end
+	local active = saved.active
+	if active ~= nil then
+		if
+			typeof(active) == "table"
+			and lineable(active.id)
+			and finite(active.startedAt)
+			and active.startedAt >= 0
+			and wholeSeconds(active.seconds)
+			and finite(active.startedAt + active.seconds)
+		then
+			state.active = { id = active.id, startedAt = active.startedAt, seconds = active.seconds }
+		else
+			drop("an invalid active project")
+		end
+	end
+	if typeof(saved.queue) == "table" then
+		for _, entry in saved.queue do
+			if
+				typeof(entry) == "table"
+				and lineable(entry.id)
+				and wholeSeconds(entry.seconds)
+				and finite(entry.at)
+				and entry.at >= 0
+			then
+				table.insert(state.queue, { id = entry.id, seconds = entry.seconds, at = entry.at })
+			else
+				drop("an invalid queued project")
+			end
+		end
+	end
+	if not state.active and #state.queue > 0 then
+		local nextUp = table.remove(state.queue, 1) :: Research.Queued
+		state.active = { id = nextUp.id, startedAt = nextUp.at, seconds = nextUp.seconds }
+	end
+	return state
+end
+
+function ResearchService.load(player: Player, saved: any)
+	local state = sanitize(player, saved)
+	-- Time away moves the line along; nothing finishes until its Complete.
+	Research.advance(state, wallTime())
 	states[player] = state
 	lastAction[player] = nil
 	announced[player] = nil
@@ -125,12 +213,20 @@ end
 
 function ResearchService.snapshot(player: Player): Research.Saved?
 	local state = states[player]
-	return if state
-		then {
-			done = table.clone(state.done),
-			active = if state.active then table.clone(state.active) else nil,
-		}
-		else nil
+	if not state then
+		return nil
+	end
+	local queue = {}
+	for _, entry in state.queue do
+		table.insert(queue, table.clone(entry))
+	end
+	return {
+		done = table.clone(state.done),
+		ranks = table.clone(state.ranks),
+		active = if state.active then table.clone(state.active) else nil,
+		queue = queue,
+		ready = table.clone(state.ready),
+	}
 end
 
 function ResearchService.release(player: Player)
@@ -155,73 +251,196 @@ local function start(player: Player, state: Research.Saved, id: unknown): (strin
 	if not economy or not slots then
 		return "Your garden is still loading."
 	end
-	local reason = Research.blocker(project, state.done, economy.level, if state.active then state.active.id else nil)
-	if reason and state.active and isReady(state.active) then
-		local running = Research.get(state.active.id)
-		return `Complete {if running then running.name else "your research"} first.`
+	local now = wallTime()
+	Research.advance(state, now)
+	local lined = linedOf(state)
+	local full = not Research.fits(state.active ~= nil, #state.queue + #state.ready, roomOf(player))
+	local reason = Research.blocker(project, state.done, economy.level, lined, full)
+	if reason and full and readyCount(state) > 0 then
+		return "Your research queue is full. Complete a finished project to make room."
 	elseif reason then
 		return reason
 	end
+	local rank = Research.nextRank(project, state.ranks, lined)
+	local price = Research.price(project, rank)
 	local held: { [string]: number } = {}
 	for _, stack in slots do
 		if stack then
 			held[stack.itemId] = (held[stack.itemId] or 0) + stack.count
 		end
 	end
-	for itemId, count in project.items do
+	for itemId, count in price.items do
 		if (held[itemId] or 0) < count then
 			return `You need {count} {Inventory.getItem(itemId).name}.`
 		end
 	end
-	if not EconomyService.trySpend(player, project.coins) then
-		return `You need {project.coins} coins.`
+	if not EconomyService.trySpend(player, price.coins) then
+		return `You need {price.coins} coins.`
 	end
-	for itemId, count in project.items do
+	for itemId, count in price.items do
 		InventoryService.take(player, itemId, count)
 	end
-	local seconds = Research.duration(project, Bonuses.get(player, "researchSpeed"))
-	state.active = { id = project.id, startedAt = wallTime(), seconds = seconds }
-	return string.format("Researching %s (%d:%02d).", project.name, seconds // 60, seconds % 60), "Success"
+	local seconds = Research.duration(price.seconds, Bonuses.get(player, "researchSpeed"))
+	local name = title(project, rank)
+	local running = state.active
+	if not running then
+		state.active = { id = project.id, startedAt = now, seconds = seconds }
+	else
+		local entry: Research.Queued = { id = project.id, seconds = seconds, at = now }
+		table.insert(state.queue, entry)
+		Research.advance(state, now)
+		if table.find(state.queue, entry) then
+			local ahead = Research.get(running.id)
+			return `Queued {name}. It starts after {if ahead then ahead.name else "the running project"}.`, "Success"
+		end
+	end
+	return string.format("Researching %s (%d:%02d).", name, seconds // 60, seconds % 60), "Success"
 end
 
-local function cancel(player: Player, state: Research.Saved): (string, Notices.Kind?)
-	local active = state.active
-	if not active then
-		return "No research is running."
-	elseif isReady(active) then
-		return "This research is done. Complete it instead."
+-- Takes a queued project (`queueIndex`), or the running one when nil, out of a copy of the line,
+-- then every queued project that no longer has its needs, and starts the next. Returns the copy,
+-- what it all refunds and how many projects were taken out.
+local function withdraw(
+	state: Research.Saved,
+	queueIndex: number?
+): (Research.Saved, number, { [string]: number }, number)
+	local copy: Research.Saved = {
+		done = state.done,
+		ranks = state.ranks,
+		active = state.active,
+		queue = table.clone(state.queue),
+		ready = state.ready,
+	}
+	local coins, items, removed = 0, {}, 0
+	-- A ranked project refunds its highest lined rank, so what stays lined stays paid for.
+	local function refund(id: string)
+		local project = Research.get(id)
+		assert(project, "ResearchService: a lined project must exist")
+		local lined = Research.lined(if copy.active then copy.active.id else nil, copy.queue, copy.ready)
+		local price = Research.price(project, (copy.ranks[id] or 0) + (lined[id] or 1))
+		coins += price.coins
+		for itemId, count in price.items do
+			items[itemId] = (items[itemId] or 0) + count
+		end
+		removed += 1
 	end
-	local project = Research.get(active.id)
-	assert(project, "ResearchService: active project must exist")
-	if not InventoryService.canGiveAll(player, project.items) then
+	if queueIndex then
+		refund(copy.queue[queueIndex].id)
+		table.remove(copy.queue, queueIndex)
+	else
+		local active = copy.active
+		assert(active, "ResearchService: withdraw needs a running project")
+		refund(active.id)
+		copy.active = nil
+	end
+	repeat
+		local dropped = false
+		local lined = Research.lined(if copy.active then copy.active.id else nil, copy.queue, copy.ready)
+		for index, entry in copy.queue do
+			local project = Research.get(entry.id)
+			assert(project, "ResearchService: a queued project must exist")
+			for _, need in project.needs do
+				if not copy.done[need] and not lined[need] then
+					refund(entry.id)
+					table.remove(copy.queue, index)
+					dropped = true
+					break
+				end
+			end
+			if dropped then
+				break
+			end
+		end
+	until not dropped
+	if not copy.active and #copy.queue > 0 then
+		local nextUp = table.remove(copy.queue, 1) :: Research.Queued
+		copy.active = { id = nextUp.id, startedAt = math.max(wallTime(), nextUp.at), seconds = nextUp.seconds }
+	end
+	return copy, coins, items, removed
+end
+
+-- Cancels a queued project by id (its last place in the line), or the running one.
+local function cancel(player: Player, state: Research.Saved, id: unknown): (string, Notices.Kind?)
+	Research.advance(state, wallTime())
+	local queueIndex: number? = nil
+	if typeof(id) == "string" then
+		for index = #state.queue, 1, -1 do
+			if state.queue[index].id == id then
+				queueIndex = index
+				break
+			end
+		end
+	end
+	local active = state.active
+	if not queueIndex then
+		if not active or (typeof(id) == "string" and active.id ~= id) then
+			return "That research isn't running or queued."
+		elseif isReady(active, Research.READY_EARLY) then
+			return "This research is done. Complete it instead."
+		end
+	end
+	local copy, coins, items, removed = withdraw(state, queueIndex)
+	if not InventoryService.canGiveAll(player, items) then
 		return "Make room in your inventory for the research refund."
 	end
-	if not EconomyService.add(player, project.coins) then
+	if not EconomyService.add(player, coins) then
 		return "Your garden is still loading."
 	end
-	for itemId, count in project.items do
+	for itemId, count in items do
 		InventoryService.give(player, itemId, count)
 	end
-	state.active = nil
-	return `Research cancelled. Refunded {project.coins} coins.`, "Success"
+	state.active = copy.active
+	state.queue = copy.queue
+	local also = if removed > 1
+		then ` ({removed - 1} queued project{if removed > 2 then "s" else ""} that needed it too)`
+		else ""
+	return `Research cancelled{also}. Refunded {coins} coins.`, "Success"
 end
 
--- Finishes a project whose timer has run out: its bonus applies and ResearchDone fires.
-local function complete(player: Player, state: Research.Saved): (string, Notices.Kind?)
+-- Finishes a project whose timer has run out (by id, else the first waiting): its bonus or rank
+-- applies and ResearchDone fires.
+local function complete(player: Player, state: Research.Saved, id: unknown): (string, Notices.Kind?)
+	Research.advance(state, wallTime())
 	local active = state.active
-	if not active then
-		return "No research is running."
-	elseif not isReady(active) then
-		return "That research isn't finished yet."
+	local activeReady = active ~= nil and isReady(active, Research.READY_EARLY)
+	local index: number? = nil
+	local fromActive = false
+	if typeof(id) == "string" then
+		index = table.find(state.ready, id)
+		fromActive = not index and activeReady and active ~= nil and active.id == id
+	else
+		index = if #state.ready > 0 then 1 else nil
+		fromActive = not index and activeReady
 	end
-	local project = Research.get(active.id)
-	assert(project, "ResearchService: active project must exist")
-	state.done[active.id] = true
-	state.active = nil
-	announced[player] = nil
+	local finishedId: string
+	if index then
+		finishedId = table.remove(state.ready, index) :: string
+	elseif fromActive and active then
+		finishedId = active.id
+		state.active = nil
+		if #state.queue > 0 then
+			-- Only within READY_EARLY of its end can a queue still stand behind it.
+			local nextUp = table.remove(state.queue, 1) :: Research.Queued
+			state.active = { id = nextUp.id, startedAt = math.max(wallTime(), nextUp.at), seconds = nextUp.seconds }
+		end
+	elseif active then
+		return "That research isn't finished yet."
+	else
+		return "No research is ready."
+	end
+	local project = Research.get(finishedId)
+	assert(project, "ResearchService: a finished project must exist")
+	local rank: number? = nil
+	if project.ranked then
+		rank = (state.ranks[finishedId] or 0) + 1
+		state.ranks[finishedId] = rank
+	else
+		state.done[finishedId] = true
+	end
+	announced[player] = readyCount(state)
 	publish(player, state)
-	GardenEvents.ResearchDone:Fire(player, active.id)
-	return `Research complete! {project.name}`, "Reward"
+	GardenEvents.ResearchDone:Fire(player, finishedId)
+	return `Research complete! {title(project, rank)}`, "Reward"
 end
 
 local function onResearch(player: Player, action: unknown, id: unknown)
@@ -238,9 +457,9 @@ local function onResearch(player: Player, action: unknown, id: unknown)
 		if action == "Start" then
 			message, kind = start(player, state, id)
 		elseif action == "Cancel" then
-			message, kind = cancel(player, state)
+			message, kind = cancel(player, state, id)
 		elseif action == "Complete" then
-			message, kind = complete(player, state)
+			message, kind = complete(player, state, id)
 		else
 			message = "Choose Start, Cancel or Complete."
 		end
@@ -250,20 +469,27 @@ local function onResearch(player: Player, action: unknown, id: unknown)
 	sync(player)
 end
 
--- Tells the player, once, that their running project's timer has run out.
-local function announce(player: Player, state: Research.Saved)
-	local active = state.active
-	if
-		not active
-		or announced[player] == active.id
-		or not Research.isReady(active.startedAt + active.seconds, wallTime())
-	then
+-- Moves the line along and tells the player when another project is ready, once each.
+local function tick(player: Player, state: Research.Saved)
+	local moved = Research.advance(state, wallTime())
+	local count = readyCount(state)
+	local told = announced[player] or 0
+	if count <= told then
+		announced[player] = count
+		if moved then
+			sync(player)
+		end
 		return
 	end
-	announced[player] = active.id
-	local project = Research.get(active.id)
-	assert(project, "ResearchService: active project must exist")
-	Remotes.Notify:FireClient(player, `{project.name} is ready! Open Research to complete it.`, "Quest", { open = "Research" })
+	announced[player] = count
+	local active = state.active
+	local newest = if active and isReady(active) then active.id else state.ready[#state.ready]
+	local project = Research.get(newest)
+	assert(project, "ResearchService: a finished project must exist")
+	local message = if count - told > 1
+		then `{count - told} research projects are ready! Open Research to complete them.`
+		else `{project.name} is ready! Open Research to complete it.`
+	Remotes.Notify:FireClient(player, message, "Quest", { open = "Research" })
 	sync(player)
 end
 
@@ -273,7 +499,7 @@ function ResearchService.init()
 		task.wait(1)
 		for player, state in states do
 			if player.Parent == Players and player:GetAttribute("DataReady") == true then
-				announce(player, state)
+				tick(player, state)
 			end
 		end
 	end

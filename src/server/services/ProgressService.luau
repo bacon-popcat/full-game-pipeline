@@ -73,6 +73,11 @@ end
 local started = false
 local ProgressService = {}
 
+-- Contracts research: daily quests and orders pay more coins (their XP stays the same).
+local function boosted(player: Player, reward: Progress.Reward): Progress.Reward
+	return { coins = math.floor(reward.coins * (1 + Bonuses.get(player, "rewardBonus")) + 1e-9), xp = reward.xp }
+end
+
 local function questProgress(state: State, entry: Progress.Daily, quest: Progress.Quest): (number, number)
 	local goal = Progress.questGoal(quest, entry.level)
 	return math.clamp(state.saved.stats[quest.stat] - entry.start, 0, goal), goal
@@ -97,17 +102,18 @@ local function sync(player: Player, state: State): ()
 			goal = goal,
 			done = amount >= goal,
 			claimed = entry.claimed,
-			reward = Progress.questReward(entry.level),
+			reward = boosted(player, Progress.questReward(entry.level)),
 		})
 	end
 	local orders: { any } = {}
 	for _, entry in state.saved.orders do
 		local item = if entry.item then Inventory.find(entry.item) else nil
 		if entry.item and entry.count and item and item.value then
-			table.insert(
-				orders,
-				{ item = entry.item, count = entry.count, reward = Progress.orderReward(item.value, entry.count) }
-			)
+			table.insert(orders, {
+				item = entry.item,
+				count = entry.count,
+				reward = boosted(player, Progress.orderReward(item.value, entry.count)),
+			})
 		else
 			table.insert(orders, { waitUntil = (entry.waitUntil or 0) + offset })
 		end
@@ -290,7 +296,7 @@ local function claimDaily(player: Player, state: State, slot: number, auto: bool
 	-- Mark before paying; a reward's own events cannot pay it again.
 	entry.claimed = true
 	state.done[entry.id] = true
-	local reward = Progress.questReward(entry.level)
+	local reward = boosted(player, Progress.questReward(entry.level))
 	EconomyService.add(player, reward.coins)
 	EconomyService.addXp(player, reward.xp)
 	count(player, state, "questsCompleted", 1)
@@ -298,7 +304,12 @@ local function claimDaily(player: Player, state: State, slot: number, auto: bool
 	if seed then
 		daily.bonus = true
 		InventoryService.give(player, seed, 1)
-		Remotes.Notify:FireClient(player, `All three done! Bonus {Inventory.getItem(seed).name}`, "Rare", { item = seed })
+		Remotes.Notify:FireClient(
+			player,
+			`All three done! Bonus {Inventory.getItem(seed).name}`,
+			"Rare",
+			{ item = seed }
+		)
 	end
 	return true
 end
@@ -460,7 +471,7 @@ local function deliver(player: Player, state: State, slot: number): ()
 	-- Checked above; nothing yields from here to the last line.
 	local taken = InventoryService.take(player, itemId, asked)
 	assert(taken == asked, "ProgressService: the inventory changed during a delivery")
-	local reward = Progress.orderReward(item.value, asked)
+	local reward = boosted(player, Progress.orderReward(item.value, asked))
 	state.saved.orders[slot] = { waitUntil = 0 }
 	EconomyService.add(player, reward.coins)
 	EconomyService.addXp(player, reward.xp)
@@ -468,7 +479,12 @@ local function deliver(player: Player, state: State, slot: number): ()
 	Remotes.Notify:FireClient(player, `Order filled! +{reward.coins} coins`, "Reward")
 	if seed then
 		InventoryService.give(player, seed, 1)
-		Remotes.Notify:FireClient(player, `Bonus {Inventory.getItem(seed).name} for your fifth order!`, "Rare", { item = seed })
+		Remotes.Notify:FireClient(
+			player,
+			`Bonus {Inventory.getItem(seed).name} for your fifth order!`,
+			"Rare",
+			{ item = seed }
+		)
 	end
 	GardenEvents.OrderFilled:Fire(player, itemId, asked)
 	state.saved.orders[slot] = drawOrder(player, state, slot)

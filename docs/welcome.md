@@ -38,7 +38,9 @@ coins a minute, once at least three are in; a shorter visit keeps the rate it lo
 median, so a stockpile fed to the bins just before leaving does not raise it.
 
 On load, a garden away ten minutes or more, with a rate and a Shipping Bin placed, is owed
-`OFFLINE_SHARE * binRate * min(minutes away, OFFLINE_CAP_MINUTES)` coins. It is an estimate:
+`share * binRate * min(minutes away, cap)` coins, where the share is `OFFLINE_SHARE` (a
+quarter) and the cap `OFFLINE_CAP_MINUTES` (eight hours), each raised by the Night Shift
+research (`offlineShare`, `offlineCap`: up to 0.40 and eleven hours). It is an estimate:
 no belt or machine is simulated, nothing is taken from the garden, and crops still grow offline
 as they always did. Offline coins give no XP and are not sales.
 

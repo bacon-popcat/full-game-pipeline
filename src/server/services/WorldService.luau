@@ -630,6 +630,12 @@ function WorldService.plant(cell: Vector3, itemId: string): boolean
 	return true
 end
 
+-- Seed Saver research: whether a seed `player` just planted (by hand or with their Seed
+-- Planter) is kept instead of used up.
+function WorldService.keepsSeed(player: Player?): boolean
+	return random:NextNumber() < Bonuses.get(player, "seedSaver")
+end
+
 -- A multi harvest keeps the plant; a machine also keeps a single crop by restarting it.
 function WorldService.reap(node: Node): boolean
 	local def = World.getNode(node.nodeType)
@@ -682,7 +688,8 @@ local function splash(node: Node)
 	end)
 end
 
--- A watering can splash: a fifth off what's left of a growing crop's stage.
+-- A watering can splash: a fifth off what's left of a growing crop's stage, more with Deep
+-- Watering research (waterPower).
 local function water(player: Player, node: Node)
 	local def = World.getNode(node.nodeType)
 	local crop = if def.crop then World.CROPS[def.crop] else nil
@@ -693,7 +700,8 @@ local function water(player: Player, node: Node)
 	lastWatered[player] = now
 	bankGrowth(node)
 	local at = timing(node, crop)
-	node.growthBonus += math.max(0, at.nextAt - at.elapsed) * WATER_SHARE
+	local share = math.min(1, WATER_SHARE + Bonuses.get(player, "waterPower"))
+	node.growthBonus += math.max(0, at.nextAt - at.elapsed) * share
 	splash(node)
 	GardenEvents.Watered:Fire(player, node.cell)
 	grow(node)
@@ -753,8 +761,24 @@ local function onInteract(player: Player, target: unknown, action: unknown)
 			local boost = def.boost
 			drops[boost.item] = (drops[boost.item] or 0) + Bonuses.get(player, boost.stat)
 		end
+		-- Lucky Swing research: a chance of the whole drop twice. Without room for both, just one.
+		local lucky = random:NextNumber() < Bonuses.get(player, "luckyDrop")
+		if lucky then
+			local doubled = {}
+			for itemId, count in drops do
+				doubled[itemId] = count * 2
+			end
+			if InventoryService.canGiveAll(player, doubled) then
+				drops = doubled
+			else
+				lucky = false
+			end
+		end
 		if not InventoryService.canGiveAll(player, drops) then
 			return
+		end
+		if lucky then
+			Remotes.Notify:FireClient(player, "Lucky swing! Double drops.", "Success")
 		end
 		local look = node.model:GetAttribute("Look")
 		local pivot = node.model:GetPivot()

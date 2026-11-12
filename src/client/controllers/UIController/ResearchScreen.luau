@@ -78,6 +78,17 @@ local ICONS: { [string]: string } = {
 	Master = "Starfruit+Golden",
 	-- The Recipe Books unlock bakes, not crafting recipes, so they have no recipe to show.
 	RecipeBook = "PumpkinPie",
+	Water = "WateringCan",
+	Saver = "SeedPlanter",
+	Lucky = "IronOre",
+	Night = "Chest",
+	Contract = "StrawberryJam",
+	Notebook = "Gear",
+	FarmMastery = "Pumpkin+Golden",
+	AutoMastery = "ConveyorBelt",
+	EconMastery = "ShippingBin",
+	ToolMastery = "Pickaxe",
+	CraftMastery = "Workbench",
 }
 -- The fans round the hub, clockwise from the top, each in its own colour: its tag, its tiles'
 -- fill, a finished tile's ring, its lit lines, the unlock glow and the sap.
@@ -95,6 +106,8 @@ end
 -- Pixels from the hub's middle to the first ring and between rings, and degrees between the
 -- lines of a fan.
 local FIRST_RING, RING_GAP, FAN_STEP = 260, 180, 18
+-- The most degrees a fan's outermost lines may span; a fan with many lines draws them closer.
+local FAN_SPREAD = 54
 -- How dark a tile's fill is against its category's colour: still to research, and finished.
 local FILL_DARK, FILL_DONE = 0.8, 0.55
 -- The hub's diameter, and its two orbits' diameters, dots and turning speeds (degrees a second).
@@ -109,6 +122,7 @@ local COLORS = {
 	Running = Color3.fromRGB(120, 180, 240),
 	Open = Color3.fromRGB(240, 210, 90),
 	Locked = Color3.fromRGB(196, 78, 78),
+	Queued = Color3.fromRGB(176, 156, 245),
 }
 local HOT = Color3.fromRGB(255, 246, 222)
 -- An undiscovered tile's ring, and how much fainter the line to it is than a known one.
@@ -159,7 +173,7 @@ local GLOW_DELAY, GLOW_SPEED, GLOW_SHORTEST, GLOW_LONGEST = 0.35, 420, 0.3, 0.75
 local REVEAL_SPARKS, REVEAL_REACH = 10, 80
 local REVEAL_COLORS = { COLORS.Open, HOT, COLORS.Done }
 
-type State = "Done" | "Ready" | "Running" | "Open" | "Locked"
+type State = "Done" | "Ready" | "Running" | "Queued" | "Open" | "Locked"
 -- Shown in full, undiscovered ("?"), or not drawn.
 type Kind = "Shown" | "Mystery" | "Hidden"
 type Node = {
@@ -274,13 +288,41 @@ end
 
 local function stateOf(project: Research.Project): State
 	local done = ResearchClient.done()
-	local active = ResearchClient.get().active
-	if done[project.id] then
+	local snapshot = ResearchClient.get()
+	local active = snapshot.active
+	if not project.ranked and done[project.id] then
 		return "Done"
 	elseif active and active.id == project.id then
 		return if activeReady() then "Ready" else "Running"
+	elseif table.find(snapshot.ready, project.id) then
+		return "Ready"
+	elseif (ResearchClient.lined()[project.id] or 0) > 0 then
+		return "Queued"
 	end
-	return if Research.blocker(project, done, EconomyClient.get().level, nil) then "Locked" else "Open"
+	local blocked = Research.blocker(project, done, EconomyClient.get().level, ResearchClient.lined())
+	return if blocked then "Locked" else "Open"
+end
+
+-- What lining `project` up now costs, and the rank it buys (1 for unranked projects).
+local function priceOf(project: Research.Project): (Research.Price, number)
+	local rank = Research.nextRank(project, ResearchClient.get().ranks, ResearchClient.lined())
+	return Research.price(project, rank), rank
+end
+
+-- Whether the line has no room for another project.
+local function lineFull(): boolean
+	local snapshot = ResearchClient.get()
+	return not Research.fits(snapshot.active ~= nil, #snapshot.queue + #snapshot.ready, snapshot.room)
+end
+
+-- A project's place in the queue (1 is next), or nil.
+local function queuePlace(id: string): number?
+	for index, entry in ResearchClient.get().queue do
+		if entry.id == id then
+			return index
+		end
+	end
+	return nil
 end
 
 -- The needs of `project` inside its own category (the ones its lines come from).
@@ -298,8 +340,7 @@ end
 -- Whether a project is in reach, given the finished ids: a fan's first project, a finished or
 -- running one, or one a finished project in its category leads to.
 local function inReach(project: Research.Project, done: { [string]: boolean }): boolean
-	local active = ResearchClient.get().active
-	if done[project.id] or (active and active.id == project.id) then
+	if done[project.id] or ResearchClient.lined()[project.id] or ResearchClient.rank(project.id) > 0 then
 		return true
 	end
 	local needs = treeNeeds(project)
@@ -602,6 +643,8 @@ function ResearchScreen.init(hud: ScreenGui)
 	local selected: string? = nil
 	local hovered: string? = nil
 	local pending = false
+	-- What the Action button sends for the selected project ("Start", "Cancel", "Complete").
+	local actionKind: string? = nil
 	local shown = false
 	-- Projects whose tile waits for the unlock glow to reach it, and lines it is running down.
 	local revealing: { [string]: boolean } = {}
@@ -629,6 +672,7 @@ function ResearchScreen.init(hud: ScreenGui)
 	info.frame.Active = true
 	-- The finished ids at the last sync, so a newly completed one can burst.
 	local lastDone: { [string]: boolean }? = nil
+	local lastRanks: { [string]: number }? = nil
 	-- The canvas point the screen centres on, where it is going and where it is, and its zoom.
 	local focus, shownFocus = Vector2.zero, Vector2.zero
 	local scale = zoom.Scale
@@ -844,29 +888,43 @@ function ResearchScreen.init(hud: ScreenGui)
 		local economy = EconomyClient.get()
 		local snapshot = ResearchClient.get()
 		local done = ResearchClient.done()
-		local activeId = if snapshot.active then snapshot.active.id else nil
-		local blocked = Research.blocker(project, done, economy.level, activeId)
+		local blocked = Research.blocker(project, done, economy.level, ResearchClient.lined(), lineFull())
 		local items, hasItems = itemsOf(project)
 		local state = stateOf(project)
-		local cards = showCards(panel, project, state ~= "Done" and state ~= "Running" and state ~= "Ready")
-		panel.name.Text = project.name
+		local price, rank = priceOf(project)
+		-- A ranked project can be lined up again while a rank of it runs (its button then says
+		-- Queue); a queued or finished one's button is Remove or Complete, so no price shows.
+		local buying = state == "Open"
+			or state == "Locked"
+			or (project.ranked == true and state == "Running" and blocked == nil)
+		local cards = showCards(panel, project, buying)
+		local ranks = ResearchClient.rank(project.id)
+		panel.name.Text = if project.ranked and ranks > 0 then `{project.name} {ranks}` else project.name
 		panel.name.TextColor3 = COLORS[state]
-		panel.description.Text = project.description
+		panel.description.Text = if project.ranked
+			then `{project.description}\nRanks so far: {ranks}. Next: rank {rank}.`
+			else project.description
 		panel.level.Text = `Lv. {project.level}  -  {if state == "Done"
 			then "Researched"
 			elseif state == "Ready" then "Ready to complete"
 			elseif state == "Running" then "Researching"
+			elseif state == "Queued" then `Queued ({if queuePlace(project.id) == 1
+				then "next"
+				else `#{queuePlace(project.id) or 1}`})`
 			elseif state == "Locked" then "Locked"
 			else "Can research"}`
 		panel.level.TextColor3 = if economy.level < project.level then COLORS.Locked else levelColor
-		panel.cost.Visible = state == "Open" or state == "Locked"
-		panel.cost.Text = `{Hud.number(project.coins)} coins`
-		panel.cost.TextColor3 = if economy.coins >= project.coins then costColor else COLORS.Locked
+		panel.cost.Visible = buying
+		panel.cost.Text = `{Hud.number(price.coins)} coins`
+		panel.cost.TextColor3 = if economy.coins >= price.coins then costColor else COLORS.Locked
 		local lines = {}
-		local seconds = Research.duration(project, snapshot.bonuses.researchSpeed or 0)
+		local seconds = Research.duration(price.seconds, snapshot.bonuses.researchSpeed or 0)
+		local place = queuePlace(project.id)
 		if state == "Running" then
 			local active = snapshot.active
 			seconds = if active then math.max(0, active.endsAt - workspace:GetServerTimeNow()) else 0
+		elseif state == "Queued" and place then
+			seconds = snapshot.queue[place].seconds
 		end
 		if panel.time then
 			panel.time.Visible = state ~= "Done" and state ~= "Ready"
@@ -878,6 +936,8 @@ function ResearchScreen.init(hud: ScreenGui)
 			if not panel.time then
 				table.insert(lines, `{Hud.time(seconds)} left`)
 			end
+		elseif state == "Queued" then
+			table.insert(lines, "Paid for. It starts when the projects ahead of it finish.")
 		elseif state ~= "Done" then
 			if not panel.time then
 				table.insert(lines, `Takes {duration(seconds)}`)
@@ -885,8 +945,10 @@ function ResearchScreen.init(hud: ScreenGui)
 			if items ~= "" and not cards then
 				table.insert(lines, `Needs {items}{if hasItems then "" else " (you don't have them)"}`)
 			end
-			if blocked and blocked ~= "Another project is running" then
+			if blocked then
 				table.insert(lines, blocked)
+			elseif snapshot.active then
+				table.insert(lines, "Joins the queue and starts when the projects ahead of it finish.")
 			end
 		end
 		panel.needs.Text = table.concat(lines, "\n")
@@ -901,16 +963,40 @@ function ResearchScreen.init(hud: ScreenGui)
 		local economy = EconomyClient.get()
 		local snapshot = ResearchClient.get()
 		local done = ResearchClient.done()
-		local activeId = if snapshot.active then snapshot.active.id else nil
-		local blocked = Research.blocker(project, done, economy.level, activeId)
+		local full = lineFull()
+		-- What stops it apart from a full line, which has its own label.
+		local blocked = Research.blocker(project, done, economy.level, ResearchClient.lined())
 		local _, hasItems = itemsOf(project)
-		local enoughCoins = economy.coins >= project.coins
-		local ready = activeId == project.id and activeReady()
+		local enoughCoins = economy.coins >= priceOf(project).coins
+		local state = stateOf(project)
 		local node = nodes[project.id]
 		local mystery = node ~= nil and node.kind == "Mystery"
-		local enabled = not pending
-			and not mystery
-			and (ready or (blocked == nil and enoughCoins and hasItems and activeId ~= project.id))
+		local label: string
+		actionKind = nil
+		if pending then
+			label = "..."
+		elseif mystery then
+			label = "Undiscovered"
+		elseif state == "Done" then
+			label = "Done"
+		elseif state == "Ready" then
+			label, actionKind = "Complete", "Complete"
+		elseif state == "Queued" then
+			label, actionKind = "Remove", "Cancel"
+		elseif state == "Running" and not project.ranked then
+			label, actionKind = "Cancel", "Cancel"
+		elseif blocked then
+			label = if state == "Running" then "Running" else "Locked"
+		elseif full then
+			label = "Queue full"
+		elseif not enoughCoins then
+			label = "Need coins"
+		elseif not hasItems then
+			label = "Need items"
+		else
+			label, actionKind = if snapshot.active then "Queue" else "Research", "Start"
+		end
+		local enabled = actionKind ~= nil
 		action.Active = enabled
 		action.Selectable = enabled
 		action.BackgroundTransparency = if enabled
@@ -919,17 +1005,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		actionLabel.TextTransparency = if enabled
 			then actionLook.text
 			else actionLook.text + (1 - actionLook.text) * 0.5
-		actionLabel.Text = if pending
-			then "..."
-			elseif mystery then "Undiscovered"
-			elseif done[project.id] then "Done"
-			elseif ready then "Complete"
-			elseif activeId == project.id then "Running"
-			elseif blocked == "Another project is running" then "Busy"
-			elseif blocked then "Locked"
-			elseif not enoughCoins then "Need coins"
-			elseif not hasItems then "Need items"
-			else "Research"
+		actionLabel.Text = label
 	end
 
 	-- Every tile's kind: in reach, one step past it, or neither. A tile the unlock glow has yet
@@ -986,25 +1062,39 @@ function ResearchScreen.init(hud: ScreenGui)
 				node.stroke.Color = if mystery then MYSTERY elseif state == "Done" then node.tint else COLORS[state]
 				node.stroke.Thickness = if mystery then 2 else strokeThickness
 			end
+			local ranks = ResearchClient.rank(id)
+			local filled = state == "Done" or ranks > 0
 			node.shape.BackgroundColor3 = if mystery
 				then nodeColor:Lerp(Color3.new(0, 0, 0), 0.4)
-				else node.tint:Lerp(Color3.new(0, 0, 0), if state == "Done" then FILL_DONE else FILL_DARK)
+				else node.tint:Lerp(Color3.new(0, 0, 0), if filled then FILL_DONE else FILL_DARK)
 			node.icon.Visible = not mystery
 			node.icon.ImageTransparency = if state == "Locked" then LOCKED_FADE else 0
 			node.name.Visible = not mystery
+			node.name.Text = if node.project.ranked and ranks > 0
+				then `{node.project.name} {ranks}`
+				else node.project.name
 			node.name.TextTransparency = if state == "Locked" then LOCKED_FADE else 0
 			if node.mystery then
 				node.mystery.Visible = mystery
 			end
 			if node.cost then
-				node.cost.Visible = not mystery and (state == "Open" or state == "Locked")
-				node.cost.Text = shortCost(node.project.coins)
+				-- the coin cost while it can be bought; its place while queued
+				local place = if state == "Queued" then queuePlace(id) else nil
+				local price = priceOf(node.project).coins
+				node.cost.Visible = not mystery and (state == "Open" or state == "Locked" or place ~= nil)
+				node.cost.Text = if place then (if place == 1 then "Next" else `#{place}`) else shortCost(price)
 				if nodeCostColor then
-					node.cost.TextColor3 = if coins < node.project.coins then COLORS.Locked else nodeCostColor
+					node.cost.TextColor3 = if place
+						then COLORS.Queued
+						elseif coins < price then COLORS.Locked
+						else nodeCostColor
 				end
 			end
 			if node.progress then
 				node.progress.Visible = not mystery and (state == "Running" or state == "Ready")
+				if node.fill and state == "Ready" then
+					node.fill.Size = UDim2.fromScale(1, 1)
+				end
 			end
 			node.halo.Visible = not mystery and (state == "Open" or state == "Ready")
 			node.haloStroke.Color = if state == "Ready" then COLORS.Ready else COLORS.Open
@@ -1045,10 +1135,11 @@ function ResearchScreen.init(hud: ScreenGui)
 			fillPanel(tooltip, hoveredProject)
 		end
 		renderAction()
-		local active = ResearchClient.get().active
-		local ready = activeReady()
-		cancel.Visible = active ~= nil and not ready
-		cancel.Active = active ~= nil and not pending
+		local snapshot = ResearchClient.get()
+		local active = snapshot.active
+		local ready = activeReady() or #snapshot.ready > 0
+		cancel.Visible = active ~= nil and not activeReady() and #snapshot.ready == 0
+		cancel.Active = cancel.Visible and not pending
 		completeButton.Visible = ready
 		completeButton.Active = ready and not pending
 		if stopFade then
@@ -1335,8 +1426,14 @@ function ResearchScreen.init(hud: ScreenGui)
 				end
 			end
 			local mean = if count > 0 then total / count else 0
+			-- a fan with many lines draws them closer, so it stays inside its fifth
+			local low, high = 0, 0
+			for _, side in sides do
+				low, high = math.min(low, side), math.max(high, side)
+			end
+			local step = if high > low then math.min(FAN_STEP, FAN_SPREAD / (high - low)) else FAN_STEP
 			for id, cell in cells do
-				local angle = if cell.X == 0 then middle else middle + math.rad((sides[cell.Y] - mean) * FAN_STEP)
+				local angle = if cell.X == 0 then middle else middle + math.rad((sides[cell.Y] - mean) * step)
 				spots[id] = polar(angle, FIRST_RING + cell.X * RING_GAP)
 				rings = math.max(rings, cell.X)
 			end
@@ -1874,20 +1971,44 @@ function ResearchScreen.init(hud: ScreenGui)
 				end
 			end
 		end
-		local active = ResearchClient.get().active
+		local snapshot = ResearchClient.get()
+		local active = snapshot.active
 		local project = if active then Research.get(active.id) else nil
 		local ready = activeReady()
 		if ready ~= wasReady then
 			wasReady = ready
 			render()
 		end
+		local waiting = #snapshot.ready + (if ready then 1 else 0)
 		local pulse = 0.5 + 0.5 * math.sin(now * 4)
 		if completeStroke then
-			completeStroke.Thickness = completeThickness + if ready then pulse * 2 else 0
+			completeStroke.Thickness = completeThickness + if waiting > 0 then pulse * 2 else 0
 		end
+		-- finished tiles pulse gold until completed
+		for _, node in nodes do
+			if node.state == "Ready" and node.stroke and node.kind == "Shown" then
+				node.stroke.Color = COLORS.Ready:Lerp(Color3.new(1, 1, 1), pulse * 0.45)
+				node.stroke.Thickness = strokeThickness + pulse * 2
+			end
+		end
+		-- After the running project: what waits for Complete and what is queued next.
+		local extras = {}
+		if #snapshot.ready > 0 then
+			table.insert(extras, `{#snapshot.ready} ready`)
+		end
+		local nextUp = snapshot.queue[1]
+		local nextProject = if nextUp then Research.get(nextUp.id) else nil
+		if nextProject then
+			table.insert(
+				extras,
+				`Next: {nextProject.name}{if #snapshot.queue > 1 then ` +{#snapshot.queue - 1}` else ""}`
+			)
+		end
+		local tail = if #extras > 0 then "  ·  " .. table.concat(extras, "  ·  ") else ""
 		if not active or not project then
-			activeText.Text = if ResearchClient.isSynced()
-				then "Pick an upgrade to research. It keeps going while you're away."
+			activeText.Text = if waiting > 0
+				then `{waiting} project{if waiting > 1 then "s" else ""} ready to complete!`
+				elseif ResearchClient.isSynced() then "Pick an upgrade to research. It keeps going while you're away."
 				else "Loading your research..."
 			activeTime.Text = ""
 			fill.Size = UDim2.fromScale(0, 1)
@@ -1895,18 +2016,20 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 		local left = math.max(0, active.endsAt - workspace:GetServerTimeNow())
 		local progress = math.clamp(1 - left / active.seconds, 0, 1)
-		activeText.Text = if ready then `{project.name} is ready!` else `Researching {project.name}`
-		activeTime.Text = if ready then "" else Hud.time(left)
+		-- Complete stands where the countdown is while an earlier project waits, so the time
+		-- moves into the line.
+		local covered = not ready and #snapshot.ready > 0
+		activeText.Text = (
+			if ready
+				then `{project.name} is ready!`
+				elseif covered then `Researching {project.name} ({Hud.time(left)})`
+				else `Researching {project.name}`
+		) .. tail
+		activeTime.Text = if ready or covered then "" else Hud.time(left)
 		fill.Size = UDim2.fromScale(progress, 1)
 		local node = nodes[active.id]
-		if node then
-			if node.fill then
-				node.fill.Size = UDim2.fromScale(progress, 1)
-			end
-			if node.stroke and ready then
-				node.stroke.Color = COLORS.Ready:Lerp(Color3.new(1, 1, 1), pulse * 0.45)
-				node.stroke.Thickness = strokeThickness + pulse * 2
-			end
+		if node and node.fill then
+			node.fill.Size = UDim2.fromScale(progress, 1)
 		end
 		if selected == active.id and not ready then
 			fillPanel(info, project)
@@ -1929,8 +2052,8 @@ function ResearchScreen.init(hud: ScreenGui)
 	end
 	trove:Add(UI.bindButton(action, {
 		onActivate = function()
-			if action.Active and not pending and selected then
-				send(if activeReady() then "Complete" else "Start", selected)
+			if action.Active and not pending and selected and actionKind then
+				send(actionKind, selected)
 			end
 		end,
 	}))
@@ -2078,6 +2201,7 @@ function ResearchScreen.init(hud: ScreenGui)
 	trove:Connect(ResearchClient.changed, function()
 		pending = false
 		local done = ResearchClient.done()
+		local ranks = ResearchClient.get().ranks
 		local completed: string? = nil
 		local before = lastDone
 		if before then
@@ -2086,8 +2210,14 @@ function ResearchScreen.init(hud: ScreenGui)
 					completed = id
 				end
 			end
+			for id, rank in ranks do
+				if lastRanks and rank > (lastRanks[id] or 0) then
+					completed = id
+				end
+			end
 		end
 		lastDone = table.clone(done)
+		lastRanks = table.clone(ranks)
 		if shown and completed and before then
 			celebrate(completed, before)
 		else

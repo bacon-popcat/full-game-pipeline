@@ -156,6 +156,10 @@ local function onPlace(player: Player, origin: unknown, rotation: unknown, again
 	if World.PLANTS[itemId] then
 		if WorldService.plant(origin, itemId) then
 			GardenEvents.Planted:Fire(player, origin, itemId)
+			if WorldService.keepsSeed(player) and InventoryService.canGive(player, itemId, 1) then
+				InventoryService.give(player, itemId, 1)
+				Remotes.Notify:FireClient(player, "Seed Saver kept your seed.", "Success", { item = itemId })
+			end
 		else
 			InventoryService.give(player, itemId, 1)
 		end

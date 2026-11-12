@@ -72,12 +72,15 @@ function Welcome.giftCoins(gift: Gift, level: number): number
 	return if gift.coins then gift.coins * Economy.scale(level) else 0
 end
 
--- Coins for `seconds` away at `rate` bin coins a minute; nothing under AWAY_MIN.
-function Welcome.offlineCoins(rate: number, seconds: number): number
+-- Coins for `seconds` away at `rate` bin coins a minute; nothing under AWAY_MIN. Research
+-- (Night Shift) adds `extraShare` to the share and `extraMinutes` to the cap.
+function Welcome.offlineCoins(rate: number, seconds: number, extraShare: number?, extraMinutes: number?): number
 	if seconds < Welcome.AWAY_MIN or rate <= 0 then
 		return 0
 	end
-	return math.floor(Welcome.OFFLINE_SHARE * rate * math.min(seconds / 60, Welcome.OFFLINE_CAP_MINUTES))
+	local share = Welcome.OFFLINE_SHARE + (extraShare or 0)
+	local cap = Welcome.OFFLINE_CAP_MINUTES + (extraMinutes or 0)
+	return math.floor(share * rate * math.min(seconds / 60, cap))
 end
 
 -- The median of finished buckets, as coins a minute; nil while too few are in.

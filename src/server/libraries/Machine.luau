@@ -68,6 +68,8 @@ export type Env = {
 	-- Planters: whether an item could be planted in a free cell of its patch, and planting it there.
 	canPlant: ((itemId: string) -> boolean)?,
 	plant: ((itemId: string) -> boolean)?,
+	-- Planters: whether the seed just planted is kept (the owner's Seed Saver research).
+	keepsSeed: (() -> boolean)?,
 	-- Sellers: pays the owner for one sold item.
 	sell: ((itemId: string) -> ())?,
 	-- Recipe machines: a batch just finished and made this item (called once per kind of output).
@@ -500,7 +502,7 @@ local function stepPlanter(state: State, dt: number, env: Env)
 	job.elapsed += dt
 	if job.elapsed >= job.time then
 		state.job = nil
-		if plant(chosen) then
+		if plant(chosen) and not (env.keepsSeed and env.keepsSeed()) then
 			take(state, chosen, 1)
 		end
 	end
