@@ -45,6 +45,10 @@
       }
     },
 
+    "ReplicatedFirst": {
+      "$path": "src/first"
+    },
+
     "ServerScriptService": {
       "Initialize": {
         "$path": "src/server/initialize"

@@ -20,6 +20,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Factory = require(ReplicatedStorage.Shared.Factory)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local World = require(ReplicatedStorage.Shared.World)
 
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
@@ -210,7 +211,8 @@ function BlockInfo.init(hud: ScreenGui)
 			local value = frame:FindFirstChild("Value")
 			if key and key:IsA("TextLabel") and value and value:IsA("TextLabel") then
 				key.Text = row.key
-				value.Text = row.value
+				value.RichText = true
+				value.Text = TextColors.highlight(row.value)
 			end
 			frame.Visible = true
 		end
@@ -226,6 +228,7 @@ function BlockInfo.init(hud: ScreenGui)
 			table.insert(windows, window)
 		end
 	end
+	hint.RichText = true
 	local elapsed = REFRESH_EVERY
 	RunService.RenderStepped:Connect(function(dt)
 		elapsed += dt
@@ -243,7 +246,7 @@ function BlockInfo.init(hud: ScreenGui)
 				status.Text = info.status or ""
 				status.TextColor3 = if info.working then working else idle
 				setRows(info.rows)
-				hint.Text = info.hint
+				hint.Text = TextColors.highlight(info.hint)
 				hint.Visible = info.hint ~= ""
 			end
 		end

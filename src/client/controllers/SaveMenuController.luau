@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = script.Parent.Parent.Libraries
 local Hud = require(Libraries.Hud)
@@ -103,7 +104,8 @@ function SaveMenuController.init()
 		local waiting = pending ~= nil or #slots == 0
 		for index, card in cards do
 			local slot = slots[index]
-			card.Details.Text = if slot then describe(slot) else ""
+			card.Details.RichText = true
+			card.Details.Text = if slot then TextColors.highlight(describe(slot)) else ""
 			card.Play.Text = if slot and slot.empty then "New garden" else "Play"
 			card.Play.Active = not waiting
 			card.Play.AutoButtonColor = not waiting

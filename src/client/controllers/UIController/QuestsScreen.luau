@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Progress = require(ReplicatedStorage.Shared.Progress)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Hud = require(Libraries.Hud)
@@ -60,14 +61,7 @@ type Tab = { button: TextButton, label: TextLabel?, stroke: UIStroke, fill: Colo
 local QuestsScreen = {}
 
 local function rewardText(reward: Progress.Reward): string
-	local parts = {}
-	if reward.coins > 0 then
-		table.insert(parts, `+{Hud.number(reward.coins)} coins`)
-	end
-	if reward.xp > 0 then
-		table.insert(parts, `{Hud.number(reward.xp)} XP`)
-	end
-	return table.concat(parts, "  ·  ")
+	return TextColors.reward(reward.coins, reward.xp, Hud.number)
 end
 
 local function countOf(itemId: string): number
@@ -171,6 +165,8 @@ function QuestsScreen.init(hud: ScreenGui)
 		end
 		assert(text:IsA("TextLabel") and reward:IsA("TextLabel") and count:IsA("TextLabel"), "Quest row labels")
 		assert(fill:IsA("Frame"), "Quest row fill")
+		text.RichText = true
+		reward.RichText = true
 		frame.Name = `Quest{slot}`
 		frame.LayoutOrder = slot
 		frame.Parent = tabs.Daily.list
@@ -208,6 +204,9 @@ function QuestsScreen.init(hud: ScreenGui)
 		assert(icon:IsA("ViewportFrame") and track:IsA("Frame") and fill:IsA("Frame"), "Order row parts")
 		assert(text:IsA("TextLabel") and reward:IsA("TextLabel"), "Order row labels")
 		assert(count:IsA("TextLabel") and wait:IsA("TextLabel"), "Order row labels")
+		text.RichText = true
+		reward.RichText = true
+		wait.RichText = true
 		frame.Name = `Order{slot}`
 		frame.LayoutOrder = slot
 		frame.Parent = tabs.Orders.list
@@ -255,7 +254,7 @@ function QuestsScreen.init(hud: ScreenGui)
 			end
 			if row and view then
 				local ready = view.done and not view.claimed
-				row.text.Text = view.text
+				row.text.Text = TextColors.highlight(view.text)
 				row.reward.Text = rewardText(view.reward)
 				row.count.Text = `{Hud.number(view.progress)} / {Hud.number(view.goal)}`
 				row.fill.Size = UDim2.fromScale(if view.goal > 0 then math.min(1, view.progress / view.goal) else 1, 1)
@@ -296,7 +295,7 @@ function QuestsScreen.init(hud: ScreenGui)
 				local have = math.min(countOf(item.id), asked)
 				local ready = have >= asked
 				ItemIcon.show(row.icon, item.id)
-				row.text.Text = `{item.name} x{Hud.number(asked)}`
+				row.text.Text = TextColors.highlight(`{item.name} x{Hud.number(asked)}`)
 				row.reward.Text = rewardText(view.reward)
 				row.count.Text = `{Hud.number(have)} / {Hud.number(asked)}`
 				row.fill.Size = UDim2.fromScale(have / asked, 1)
@@ -309,7 +308,7 @@ function QuestsScreen.init(hud: ScreenGui)
 				setEnabled(row.skip, pendingSince == nil, "Skip")
 			else
 				ItemIcon.show(row.icon, nil)
-				row.wait.Text = `The next order arrives in {Hud.time((view.waitUntil or 0) - now)}`
+				row.wait.Text = `The next order arrives in {TextColors.paint(Hud.time((view.waitUntil or 0) - now), TextColors.TIME)}`
 			end
 		end
 	end

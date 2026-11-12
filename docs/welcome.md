@@ -54,13 +54,18 @@ EconomyService and gives the seed, without yielding, and answers with a `Welcome
 
 `WelcomeSync` carries `greet` (only the load sync asks for the card), the seconds away, how many
 crops are ripe (`WorldService.ripeCount`), a research project waiting for Complete, the coins
-owed and the gift owed. `UIController/WelcomeScreen` opens `HUD.Welcome` about 1.5 seconds
-after DataReady when greeted: when a gift or coins are owed, or the garden was away ten minutes
-or more. `Body` holds one line each (`Away`, `Crops`, `Research`, `Coins`, `Gift`), shown only
-when it has something to say, and `Collect`, which reads Close when nothing is owed. Returning
-to the save menu forgets the greeting. `tools/hud/welcome_hud.luau` authors the card in the
-place file as a gold clone of the Quests window's shell; run it after progress_hud and
-quests_hud.
+owed and the gift owed. `UIController/WelcomeScreen` opens `HUD.Welcome` about 2.2 seconds
+after DataReady when greeted (after the loading screen has faded): when a gift or coins are owed,
+or the garden was away ten minutes or more. `Body` holds `Away` (a line), `Rows` (`Crops`,
+`Research`, `Coins`: a notice-kind icon, a coloured stripe and a rich-text line), `Gift` (the
+day's reward over a `Track` of seven day pips: past days dim, today bright and pulsing, days to
+come outlined in their gift's colour) and `Collect`, which reads Close when nothing is owed. Each
+part shows only when it has something to say, and the card's height follows what is shown.
+Opening plays the motion: the rows and gift pop in one after another and coin amounts count up;
+while open the header's sunburst turns and a shine sweeps the gift and the button. Colours come
+from `Shared/TextColors`. Returning to the save menu forgets the greeting.
+`tools/hud/welcome_hud.luau` authors the card in the place file as a gold clone of the Quests
+window's shell; run it after progress_hud, quests_hud and notice_hud.
 
 ## Saving
 

@@ -27,6 +27,7 @@ local TweenService = game:GetService("TweenService")
 local GuiService = game:GetService("GuiService")
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Notices = require(ReplicatedStorage.Shared.Notices)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Hud = require(Libraries.Hud)
@@ -225,7 +226,9 @@ function Toasts.init(hud: ScreenGui)
 		local color = Notices.color(kind)
 		text.AutomaticSize = Enum.AutomaticSize.None
 		text.TextWrapped = true
-		text.Text = message
+		-- The kind's colour stays the sentence's; amounts and item names in it take their own.
+		text.RichText = true
+		text.Text = TextColors.highlight(message)
 		fit(text, widest, hud)
 		text.TextColor3 = color
 		local border = card:FindFirstChild("Border")
@@ -378,7 +381,7 @@ function Toasts.init(hud: ScreenGui)
 		if entry.amount and amount then
 			entry.amount += amount
 			message = Notices.withAmount(entry.template, entry.amount)
-			entry.card.text.Text = message
+			entry.card.text.Text = TextColors.highlight(message)
 			fit(entry.card.text, entry.card.widest, hud)
 		end
 		if entry.count then

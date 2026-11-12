@@ -12,6 +12,7 @@ local TweenService = game:GetService("TweenService")
 local Economy = require(ReplicatedStorage.Shared.Economy)
 local Onboarding = require(ReplicatedStorage.Shared.Onboarding)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Unlocks = require(ReplicatedStorage.Shared.Unlocks)
 local EconomyClient = require(Players.LocalPlayer.PlayerScripts.Libraries.EconomyClient)
 local Hud = require(Players.LocalPlayer.PlayerScripts.Libraries.Hud)
@@ -47,6 +48,9 @@ function Objective.init(hud: ScreenGui): ()
 		return
 	end
 	local stepTitle = title.Text
+	-- Item names, numbers and amounts in the step read in their own colours (Shared/TextColors).
+	text.RichText = true
+	progress.RichText = true
 	local textTransparency = text.TextTransparency
 	local progressTransparency = progress.TextTransparency
 	local checkTransparency = if check:IsA("ImageLabel") then check.ImageTransparency else check.BackgroundTransparency
@@ -76,8 +80,8 @@ function Objective.init(hud: ScreenGui): ()
 			return
 		end
 		title.Text = NEXT_UNLOCK
-		text.Text = `Level {level}: {Unlocks.describe(opened)}`
-		progress.Text = `{Hud.number(Economy.toReach(wallet.xp, level))} XP to go`
+		text.Text = TextColors.highlight(`Level {level}: {Unlocks.describe(opened)}`)
+		progress.Text = TextColors.highlight(`{Hud.number(Economy.toReach(wallet.xp, level))} XP to go`)
 		panel.Visible = true
 	end
 
@@ -91,11 +95,11 @@ function Objective.init(hud: ScreenGui): ()
 			return
 		end
 		title.Text = stepTitle
-		text.Text = state.text
+		text.Text = TextColors.highlight(state.text)
 		-- The authored label has room for one short phrase, so progress replaces the step count.
-		progress.Text = if state.detail and state.detail ~= ""
+		progress.Text = TextColors.highlight(if state.detail and state.detail ~= ""
 			then state.detail
-			else `Step {state.step} of {state.total}`
+			else `Step {state.step} of {state.total}`)
 		panel.Visible = true
 	end
 

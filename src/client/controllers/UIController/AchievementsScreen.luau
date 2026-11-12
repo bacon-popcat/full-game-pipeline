@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Progress = require(ReplicatedStorage.Shared.Progress)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Hud = require(Libraries.Hud)
@@ -38,14 +39,7 @@ local function amount(stat: Progress.Stat?, value: number): string
 end
 
 local function rewardText(reward: Progress.Reward): string
-	local parts = {}
-	if reward.coins > 0 then
-		table.insert(parts, `+{Hud.number(reward.coins)} coins`)
-	end
-	if reward.xp > 0 then
-		table.insert(parts, `{Hud.number(reward.xp)} XP`)
-	end
-	return table.concat(parts, "  ·  ")
+	return TextColors.reward(reward.coins, reward.xp, Hud.number)
 end
 
 local function paintMedal(medal: Frame, color: Color3)
@@ -87,7 +81,9 @@ function AchievementsScreen.init(hud: ScreenGui)
 		frame.Name = achievement.id
 		frame.LayoutOrder = order
 		name.Text = achievement.name
-		description.Text = achievement.description
+		description.RichText = true
+		reward.RichText = true
+		description.Text = TextColors.highlight(achievement.description)
 		reward.Text = rewardText(achievement.reward)
 		local bars = {}
 		local brackets = frame:FindFirstChild("Brackets")

@@ -121,6 +121,13 @@ The HUD is authored by hand in `StarterGui.HUD`, which is **not** in
 - Look nodes up through `libraries/Hud` (`Hud.find`), which warns once and lets that screen
   return, rather than dot-indexing and throwing.
 
+The one exception is `src/first/LoadingScreen.client.luau`: it runs from ReplicatedFirst before
+StarterGui and `ReplicatedStorage.Assets` have arrived, so it draws its own ScreenGui in code.
+
+Colour a word by what it means through `Shared/TextColors` (`paint` for a known piece,
+`highlight` for a whole sentence, on a label with RichText on), never a local Color3: gold is
+always coins, mint always XP.
+
 `libraries/UI.luau` owns the button layer (`UI.bindButton`, `UI.resolveButton`). Use it
 rather than hand-rolling hover/press. `libraries/Screens` decides which window is open.
 

@@ -1,6 +1,6 @@
 # Full game pipeline
 
-A calm Roblox farming game in the spirit of Grow a Garden, with factory automation: each
+**Seedworks** (the name lives in `ReplicatedFirst.Brand`, `src/first/Brand.luau`): a calm Roblox farming game in the spirit of Grow a Garden, with factory automation: each
 player grows crops on their own garden plot, sells them, and buys machines that plant,
 harvest, process and sell for them, with mining and crafting as a second progression.
 
@@ -31,7 +31,12 @@ Crafting); blocks have logical display names (the Workbench is the Assembler); a
 Shop is gone, its stall and tab now the Robux Shop's coin packs (economy.md), opened from a Menu
 row. Stacks have no limit (inventory.md), and a Shipping Bin's sales float up from it as "+coins". A hand-filled Chest,
 the Auto Collector (the old Storage Chest, belt-fed, pulling in loose drops near it) and the
-Auto Crafter (repeats a picked crafting recipe) are in factory.md.
+Auto Crafter (repeats a picked crafting recipe) are in factory.md. The game is named Seedworks: a
+ReplicatedFirst loading screen (`src/first/LoadingScreen.client.luau`) shows the name over a night
+field that turns to dawn as it loads, until the garden opens or the save menu waits. The
+welcome-back card has icon rows, a gift panel with a seven-day track and motion (welcome.md), and
+`Shared/TextColors` colours coins, XP, times, levels, rarities, item names and numbers in the
+Objective, notices, Quests, Achievements, block hints and save cards.
 
 ## Domain docs
 
@@ -54,7 +59,8 @@ Auto Crafter (repeats a picked crafting recipe) are in factory.md.
 
 | Path | Holds |
 |---|---|
-| `src/shared` | Code both sides run: content tables (`World`, `Inventory/Items`, `Factory/Blocks`, `Factory/Products`, `Economy/Shops`, `Research`, `Crafting`, `World/Map`), shared rules (`Build`, `Plot`, `Inventory`), `Remotes` |
+| `src/first` | ReplicatedFirst: `Brand` (name, tagline, title colours, loading tips) and the code-built `LoadingScreen` |
+| `src/shared` | Code both sides run: content tables (`World`, `Inventory/Items`, `Factory/Blocks`, `Factory/Products`, `Economy/Shops`, `Research`, `Crafting`, `World/Map`), shared rules (`Build`, `Plot`, `Inventory`), `Remotes`, the text palette (`TextColors`) |
 | `src/server/services`, `src/client/controllers` | Feature modules, started by `ModuleLoader` from each side's `initialize` script |
 | `src/server/libraries`, `src/client/libraries` | Helpers, not auto-started |
 | `default.project.json` | The Rojo tree, including every RemoteEvent |
