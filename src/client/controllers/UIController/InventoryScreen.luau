@@ -47,6 +47,7 @@ local ItemIcon = require(Libraries.ItemIcon)
 local UI = require(Libraries.UI)
 local PopupMotion = require(Libraries.PopupMotion)
 local Screens = require(Libraries.Screens)
+local UISound = require(Libraries.UISound)
 
 type Cell = {
 	button: TextButton,
@@ -521,6 +522,8 @@ local function onHotbarAction(_: string, state: Enum.UserInputState, input: Inpu
 	else
 		return Enum.ContextActionResult.Pass
 	end
+	-- a key or bumper changed the held slot: the same pop a click on the slot makes
+	UISound.click()
 	return Enum.ContextActionResult.Sink
 end
 

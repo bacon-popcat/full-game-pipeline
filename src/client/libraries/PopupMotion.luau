@@ -2,11 +2,13 @@
 -- closure disables input immediately; cancelled exits cannot hide a reopened window. A modal
 -- window also shows the focus backdrop (Backdrop) while it is open, and plays WindowReveal inside
 -- itself as it opens (outline flash, brackets snapping in, accent, divider sweep and glint,
--- springy content cascade), settled at once on every close so a quick reopen starts clean.
+-- springy content cascade), settled at once on every close so a quick reopen starts clean. A
+-- modal window also sounds as it opens and closes (UISound).
 local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
 local Backdrop = require(script.Parent.Backdrop)
 local WindowReveal = require(script.Parent.WindowReveal)
+local UISound = require(script.Parent.UISound)
 local PopupMotion = {}
 local ENTER = TweenInfo.new(0.34, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 -- The scale a window pops in from, and the pixels its Body slides up.
@@ -66,6 +68,7 @@ function PopupMotion.bind(frame: GuiObject, modal: boolean?): ((boolean) -> (), 
 		opened = show
 		if modal then
 			Backdrop.set(frame, show)
+			UISound.window(show)
 		end
 		cancel()
 		if settleReveal then

@@ -16,6 +16,11 @@ blips up), LevelUp (an arpeggio up to a ringing chord with sparkles), ResearchDo
 over a swell), Chop (a soft wooden thock), TreeFall (a creak, a leafy whoosh and a soft thud), and
 the notice roles: NoticeError (a low "nuh-uh", two blips falling), NoticeReward (a three-note bling)
 and NoticeBanner (a five-note run over a chord swell, for the top banner).
+
+The interface roles are the smallest of the family, bubble pops with barely a note in them, since
+they play far more often than anything else: UIHover (a tiny high tick), UIClick (a pop with a
+faint blip), UIOpen (a pop rising under a breath of air, with a soft ping), UIClose (the same pop
+falling, no ping) and UIDeny (two dull low taps, for a button that is not available).
 """
 import math
 import random
@@ -349,6 +354,52 @@ def notice_banner():
     return finish(out, 0.2)
 
 
+def ui_hover():
+    """The pointer arriving on a button: a tiny high tick, hardly a pitch."""
+    out = silence(0.06)
+    mix(out, pop(1250, 1650, 0.04, 0.011), 0, 1.0)
+    return finish(out, 0.015)
+
+
+def ui_click():
+    """A button pressed: a bubble pop with a faint G6 blip on top."""
+    out = silence(0.13)
+    mix(out, pop(620, 1080, 0.06, 0.02), 0, 1.0)
+    mix(out, blip(G6, 0.09, 0.022), 0.012, 0.16)
+    return finish(out, 0.03)
+
+
+def air(seconds, low, high):
+    """A breath of air: band-passed noise that swells and falls away."""
+    n = int(seconds * RATE)
+    return [s * math.sin(math.pi * i / n) ** 2 for i, s in enumerate(bandpass(noise(seconds), low, high))]
+
+
+def ui_open():
+    """A window opening: a pop rising under a breath of air, landing on a soft E6 ping."""
+    out = silence(0.34)
+    mix(out, air(0.16, 900, 4500), 0, 0.3)
+    mix(out, pop(380, 880, 0.13, 0.05), 0.01, 1.0)
+    mix(out, ping(E6, 0.22, 0.06), 0.1, 0.22)
+    return finish(out, 0.05)
+
+
+def ui_close():
+    """A window closing: the opening pop falling instead, with no ping."""
+    out = silence(0.2)
+    mix(out, air(0.12, 700, 3500), 0, 0.25)
+    mix(out, pop(820, 400, 0.11, 0.04), 0.005, 1.0)
+    return finish(out, 0.04)
+
+
+def ui_deny():
+    """A button that is not available: two dull low taps on E4."""
+    out = silence(0.2)
+    mix(out, blip(E4, 0.06, 0.025), 0, 0.7)
+    mix(out, blip(E4, 0.08, 0.03), 0.075, 0.6)
+    return finish(lowpass(out, 1800), 0.03)
+
+
 def chop():
     out = silence(0.4)
     mix(out, wood(190, 0.3, 0.07), 0, 1.0)
@@ -395,6 +446,11 @@ ROLES = {
     "NoticeError": notice_error,
     "NoticeReward": notice_reward,
     "NoticeBanner": notice_banner,
+    "UIHover": ui_hover,
+    "UIClick": ui_click,
+    "UIOpen": ui_open,
+    "UIClose": ui_close,
+    "UIDeny": ui_deny,
 }
 
 

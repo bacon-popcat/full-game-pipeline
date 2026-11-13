@@ -15,6 +15,7 @@ local Hud = require(script.Parent.Hud)
 local Screens = require(script.Parent.Screens)
 local UI = require(script.Parent.UI)
 local PopupMotion = require(script.Parent.PopupMotion)
+local UISound = require(script.Parent.UISound)
 local HubWindow = {}
 export type Window = { open: (stall: string?) -> (), close: () -> (), isOpen: () -> boolean, frame: Frame }
 
@@ -22,7 +23,8 @@ export type Window = { open: (stall: string?) -> (), close: () -> (), isOpen: ()
 -- (or which the screen asked for), before `render`. A window is modal (Backdrop dims and blurs
 -- the world behind it) unless `modal` is false, as for a full-screen view of its own. `animate`,
 -- when given, replaces PopupMotion's pop: it is called with true on open and false on close, and
--- owns the frame's Visible and Interactable from then on.
+-- owns the frame's Visible and Interactable from then on; the window still sounds (UISound),
+-- which PopupMotion otherwise does for a modal one.
 function HubWindow.bind(
 	hud: ScreenGui,
 	name: string,
@@ -47,7 +49,12 @@ function HubWindow.bind(
 	end
 	local trove = Trove.new()
 	local animateWindow = animate
-	if not animateWindow then
+	if animate then
+		animateWindow = function(show: boolean)
+			UISound.window(show)
+			animate(show)
+		end
+	else
 		local popup, cleanup = PopupMotion.bind(frame, modal ~= false)
 		animateWindow = popup
 		trove:Add(cleanup)

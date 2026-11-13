@@ -34,6 +34,23 @@ it replaced: a brighter cue gets a lower volume.
 | NoticeReward | Garden_NoticeReward.wav | 115224806235121 | a three-note bling up C6 E6 G6 with a few sparkles, 0.7 s | 128450852333088 |
 | NoticeBanner | Garden_NoticeBanner.wav | 103094767156685 | a five-note run up C5 to E6 over a chord swell, with sparkles, 1.5 s | 82992648114553 |
 
+## Interface sounds
+
+Same family and tool, but smaller: bubble pops with barely a note in them, at the lowest volumes in
+`Sounds.luau`, because they play far more often than anything else. `client/libraries/UISound`
+decides when each plays (and drops quick repeats); the shared layers call it, so screens do not:
+`UI.bindButton` (hover or gamepad focus, press, a press on a button that is not available),
+`PopupMotion`'s modal windows and `HubWindow`'s own-animated one, Research (open, close; a window
+closing because another opens in its place is silent), and the hotbar's keys.
+
+| Role | File | Asset id | Sound |
+|---|---|---|---|
+| UIHover | Garden_UIHover.wav | 131744800074021 | a tiny high tick, 1250 to 1650 Hz, 0.04 s |
+| UIClick | Garden_UIClick.wav | 124062174863160 | a bubble pop up with a faint G6 blip, 0.1 s |
+| UIOpen | Garden_UIOpen.wav | 91011286793855 | a pop rising under a breath of air, landing on a soft E6 ping, 0.3 s |
+| UIClose | Garden_UIClose.wav | 72266303509782 | the same pop falling, no ping, 0.12 s |
+| UIDeny | Garden_UIDeny.wav | 135241996192619 | two dull low taps on E4, 0.17 s |
+
 ## World sounds
 
 These stay material, not game-like. Water is an ElevenLabs take (`eleven_text_to_sound_v2`):

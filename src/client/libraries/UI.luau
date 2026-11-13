@@ -22,6 +22,8 @@
 -- button's ScreenGui is disabled (HudVisibility hides the HUD under the pointer, and no
 -- MouseLeave follows).
 -- An optional authored Tooltip child shares hover/focus state with the button feedback.
+-- Sound rides the same moments (UISound): a tick as the pointer or gamepad focus arrives, a pop
+-- on Activated, and two dull taps on a click that went to `onRefused`.
 
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,6 +31,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Trove = require(ReplicatedStorage.Packages.Trove)
+local UISound = require(script.Parent.UISound)
 
 export type ButtonOptions = {
 	-- What scales; defaults to the node passed to bindButton.
@@ -303,6 +306,7 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		end
 		if not hovered then
 			hop()
+			UISound.hover()
 		end
 		hovered = true
 		apply()
@@ -315,6 +319,7 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 	trove:Connect(button.SelectionGained, function()
 		if not focused and not hovered then
 			hop()
+			UISound.hover()
 		end
 		focused = true
 		apply()
@@ -336,6 +341,7 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		released = pressed or released
 		pressed = false
 		apply()
+		UISound.click()
 		if options.onActivate then
 			options.onActivate(input)
 		end
@@ -344,6 +350,7 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 	if refused then
 		trove:Connect(button.MouseButton1Click, function()
 			if not button.Active then
+				UISound.deny()
 				refused()
 			end
 		end)

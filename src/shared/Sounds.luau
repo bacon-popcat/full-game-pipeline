@@ -39,6 +39,14 @@ local ROLES: { [string]: Role } = {
 	NoticeError = { id = "rbxassetid://94091563133765", volume = 0.16, spatial = false },
 	NoticeReward = { id = "rbxassetid://115224806235121", volume = 0.4, spatial = false },
 	NoticeBanner = { id = "rbxassetid://103094767156685", volume = 0.45, spatial = false },
+	-- the interface (client/libraries/UISound decides when): the pointer reaching a button, a
+	-- press, a window opening and closing, and a press on a button that is not available. The
+	-- quietest roles here, since they play the most
+	UIHover = { id = "rbxassetid://131744800074021", volume = 0.07, spatial = false },
+	UIClick = { id = "rbxassetid://124062174863160", volume = 0.22, spatial = false },
+	UIOpen = { id = "rbxassetid://91011286793855", volume = 0.24, spatial = false },
+	UIClose = { id = "rbxassetid://72266303509782", volume = 0.16, spatial = false },
+	UIDeny = { id = "rbxassetid://135241996192619", volume = 0.16, spatial = false },
 }
 
 return ROLES
