@@ -2,12 +2,16 @@
 -- Assets.UI.Progress.Achievement row per Shared/Progress achievement, in its order: name, goal,
 -- progress towards it from this garden's stats and the reward. Unlocked rows turn gold and read
 -- "Unlocked". ProgressService decides every unlock and pays the reward; this only shows them.
+-- Bars ease to their value (BarMotion); a row unlocked since the window last drew it flashes and
+-- its medal throws gold sparks (Flair) as the window shows it.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Progress = require(ReplicatedStorage.Shared.Progress)
 local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local BarMotion = require(Libraries.BarMotion)
+local Flair = require(Libraries.Flair)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
 local ProgressClient = require(Libraries.ProgressClient)
@@ -107,6 +111,7 @@ function AchievementsScreen.init(hud: ScreenGui)
 		})
 	end
 
+	local doneSeen: { [Row]: boolean } = {}
 	local function render()
 		local snapshot = ProgressClient.get()
 		local unlocked = 0
@@ -118,10 +123,16 @@ function AchievementsScreen.init(hud: ScreenGui)
 			if done then
 				unlocked += 1
 			end
+			-- unlocked since the last render: the row flashes and the medal throws gold sparks
+			if doneSeen[row] == false and done then
+				Flair.pulse(row.frame)
+				Flair.burst(row.medal, GOLD, 16)
+			end
+			doneSeen[row] = done
 			row.count.Text = if done then "Unlocked" else `{amount(stat, value)} / {amount(stat, achievement.goal)}`
 			row.count.TextColor3 = if done then GOLD else MUTED
 			row.name.TextColor3 = if done then GOLD else WHITE
-			row.fill.Size = UDim2.fromScale(if done then 1 else value / achievement.goal, 1)
+			BarMotion.bar(row.fill, if done then 1 else value / achievement.goal)
 			paintMedal(row.medal, if done then GOLD else LOCKED)
 			for _, bar in row.bars do
 				bar.BackgroundColor3 = if done then GOLD else LOCKED

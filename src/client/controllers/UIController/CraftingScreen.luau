@@ -18,7 +18,9 @@
 --
 -- Crafting.blocker says what's missing from this player's inventory, research, level and crafting
 -- tier (the BenchTier attribute CraftingService sets); the server checks it all again and answers
--- with Notify.
+-- with Notify. A craft that goes through pulses the preview and throws sparks from the button; one
+-- refused, or a press on a button that can't craft, shakes the button and flashes Status red
+-- (Flair).
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,15 +30,18 @@ local Crafting = require(ReplicatedStorage.Shared.Crafting)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Research = require(ReplicatedStorage.Shared.Research)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local Controls = require(Libraries.Controls)
 local EconomyClient = require(Libraries.EconomyClient)
+local Flair = require(Libraries.Flair)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local ResearchClient = require(Libraries.ResearchClient)
+local TabSlide = require(Libraries.TabSlide)
 local Turntable = require(Libraries.Turntable)
 local UI = require(Libraries.UI)
 
@@ -193,6 +198,11 @@ function CraftingScreen.init(hud: ScreenGui)
 	local trove = Trove.new()
 	local turntable = Turntable.bind(nodes.preview)
 	trove:Add(turntable.destroy)
+	-- The picked category's highlight, sliding between them, in the window's accent colour.
+	local accent = Hud.find(hud, "Crafting.Accent", "Frame")
+	local pickCategory, cleanupCategory =
+		TabSlide.bind(if accent and accent:IsA("Frame") then accent.BackgroundColor3 else Color3.new(1, 1, 1))
+	trove:Add(cleanupCategory)
 	local cards: { Card } = {}
 	local categoryButtons: { [string]: TextButton } = {}
 	local categoryLook = {
@@ -222,6 +232,22 @@ function CraftingScreen.init(hud: ScreenGui)
 	local hovered: Crafting.Recipe? = nil
 	local times = 1
 	local pendingSince: number? = nil
+	-- The button whose craft the server has yet to answer: the inventory changing means it was
+	-- made; an Error notice means it was refused.
+	local crafting: GuiObject? = nil
+	local function settleCraft(made: boolean)
+		local button = crafting
+		crafting = nil
+		if not button then
+			return
+		end
+		if made then
+			Flair.pulse(nodes.preview)
+			Flair.burst(button, TextColors.GOOD, 14)
+		else
+			Flair.refuse(button, nodes.status)
+		end
+	end
 	local ingredientRows: { Frame } = {}
 	local upgradeRows: { Frame } = {}
 	local upgradeOpen = false
@@ -380,6 +406,9 @@ function CraftingScreen.init(hud: ScreenGui)
 			if stroke then
 				stroke.Color = if selected then categoryLook.strokeSelected else categoryLook.stroke
 			end
+			if selected then
+				pickCategory(tabButton)
+			end
 		end
 	end
 
@@ -388,6 +417,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		return Crafting.get(`BenchTier{craftingTier() + 1}`)
 	end
 
+	local stopUpgradeBeat: (() -> ())? = nil
 	local function paintUpgrade()
 		local recipe = nextUpgrade()
 		local open = upgradeOpen and recipe ~= nil
@@ -400,6 +430,14 @@ function CraftingScreen.init(hud: ScreenGui)
 		nodes.upgrade.Selectable = recipe ~= nil
 		if stroke then
 			stroke.Transparency = if ready then 0 elseif recipe then 0.45 else 0.8
+		end
+		-- an upgrade within reach beats until it is opened or bought
+		local beckon = ready and not open
+		if beckon and not stopUpgradeBeat then
+			stopUpgradeBeat = Flair.attention(nodes.upgradeLabel)
+		elseif not beckon and stopUpgradeBeat then
+			stopUpgradeBeat()
+			stopUpgradeBeat = nil
 		end
 		if not recipe or not open then
 			return
@@ -600,8 +638,14 @@ function CraftingScreen.init(hud: ScreenGui)
 			local recipe = nextUpgrade()
 			if recipe and nodes.confirm.Active and not pendingSince then
 				pendingSince = os.clock()
+				crafting = nodes.confirm
 				render()
 				Remotes.Craft:FireServer(recipe.id, 1)
+			end
+		end,
+		onRefused = function()
+			if nextUpgrade() and not pendingSince then
+				Flair.refuse(nodes.confirm)
 			end
 		end,
 	}))
@@ -610,8 +654,14 @@ function CraftingScreen.init(hud: ScreenGui)
 			local recipe = picked
 			if recipe and nodes.craft.Active and not pendingSince then
 				pendingSince = os.clock()
+				crafting = nodes.craft
 				render()
 				Remotes.Craft:FireServer(recipe.id, times)
+			end
+		end,
+		onRefused = function()
+			if picked and not pendingSince then
+				Flair.refuse(nodes.craft, nodes.status)
 			end
 		end,
 	}))
@@ -728,13 +778,17 @@ function CraftingScreen.init(hud: ScreenGui)
 		end
 	end)
 	trove:Connect(InventoryClient.changed, function()
+		settleCraft(true)
 		pendingSince = nil
 		if window.isOpen() then
 			render()
 		end
 	end)
 	-- Every craft is answered with a notice, which also ends the wait on a refusal.
-	trove:Connect(Remotes.Notify.OnClientEvent, function()
+	trove:Connect(Remotes.Notify.OnClientEvent, function(_: unknown, kind: unknown)
+		if kind == "Error" then
+			settleCraft(false)
+		end
 		if pendingSince then
 			pendingSince = nil
 			render()
@@ -749,6 +803,7 @@ function CraftingScreen.init(hud: ScreenGui)
 		elapsed = 0
 		if pendingSince and os.clock() - pendingSince > PENDING_FOR then
 			pendingSince = nil
+			crafting = nil
 			render()
 		end
 	end)

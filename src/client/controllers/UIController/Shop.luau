@@ -5,7 +5,9 @@
 -- level locks, laid out as a grid of tall cards (Assets.UI.Shop.Row) tinted by rarity or
 -- category. Machines are never sold here: they are crafted (CraftingScreen). The Robux packs have
 -- their own window (RobuxScreen). No prices come from the UI; the server checks every purchase
--- and answers with Notify.
+-- and answers with Notify. That answer settles the press: a bought card pulses and throws sparks;
+-- a refused one (or a press on a Buy that can't buy) shakes its button and flashes its price red
+-- (Flair).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -13,14 +15,17 @@ local Content = require(ReplicatedStorage.Shared.Economy.Content)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Shops = require(ReplicatedStorage.Shared.Economy.Shops)
+local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local World = require(ReplicatedStorage.Shared.World)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
 local EconomyClient = require(Libraries.EconomyClient)
+local Flair = require(Libraries.Flair)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
+local TabSlide = require(Libraries.TabSlide)
 local UI = require(Libraries.UI)
 -- `stock` is nil for a shop that never runs out; `level` locks the offer below it.
 export type Offer = {
@@ -38,6 +43,7 @@ type Row = {
 	stock: TextLabel,
 	buy: TextButton,
 	label: TextLabel,
+	price: TextLabel,
 	transparency: number,
 	textTransparency: number,
 }
@@ -49,6 +55,8 @@ local titleLabel: TextLabel? = nil
 local rowTemplate: Frame? = nil
 local buyOffer: (string, number) -> () = function(_: string, _: number) end
 local pending = false
+-- The card whose purchase the server has yet to answer.
+local buying: Row? = nil
 
 local function countOf(itemId: string): number
 	local count = 0
@@ -98,6 +106,7 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 	end
 	rowTrove:Clean()
 	table.clear(rows)
+	buying = nil
 	titleLabel.Text = title
 	buyOffer = purchase
 	pending = false
@@ -149,27 +158,35 @@ function Shop.configure(title: string, offers: { Offer }, purchase: (string, num
 		frame.LayoutOrder = index
 		frame.Visible = true
 		frame.Parent = list
-		table.insert(rows, {
+		local row: Row = {
 			offer = offer,
 			frame = frame,
 			stock = stock,
 			buy = buy,
 			label = label,
+			price = price,
 			transparency = buy.BackgroundTransparency,
 			textTransparency = label.TextTransparency,
-		})
+		}
+		table.insert(rows, row)
 		rowTrove:Add(frame)
 		rowTrove:Add(function()
 			ItemIcon.clear(icon)
 		end)
 		rowTrove:Add(UI.bindButton(buy, {
 			onActivate = function()
-				if not buy.Active or pending then
+				if pending or not buy.Active then
 					return
 				end
 				pending = true
+				buying = row
 				render()
 				buyOffer(offer.itemId, 1)
+			end,
+			onRefused = function()
+				if not pending then
+					Flair.refuse(buy, price)
+				end
 			end,
 		}))
 	end
@@ -200,6 +217,12 @@ function Shop.init(hud: ScreenGui)
 	local current = "SeedShop"
 	local tabs: { [string]: TextButton } = {}
 	local tabLooks: { [TextButton]: { transparency: number, color: Color3 } } = {}
+	-- The picked stall's highlight, sliding between the tabs, in the shop's green (its first tab's
+	-- authored text colour).
+	local firstTab = Hud.find(hud, "Shop.Body.Tabs.SeedShop", "TextButton")
+	local pickTab, cleanupTab =
+		TabSlide.bind(if firstTab and firstTab:IsA("TextButton") then firstTab.TextColor3 else Color3.new(1, 1, 1))
+	trove:Add(cleanupTab)
 	local seedOffers: { Offer } = {}
 	local seedById: { [string]: Offer } = {}
 	for _, crop in World.CROPS do
@@ -223,6 +246,9 @@ function Shop.init(hud: ScreenGui)
 			local selected = name == stall
 			tab.BackgroundTransparency = if selected then look.transparency else 0.6
 			tab.TextColor3 = if selected then look.color else look.color:Lerp(Color3.new(0.5, 0.5, 0.5), 0.5)
+			if selected then
+				pickTab(tab)
+			end
 		end
 		local shop = Shops.SHOPS[stall]
 		local offers: { Offer } = if shop then {} else seedOffers
@@ -282,7 +308,17 @@ function Shop.init(hud: ScreenGui)
 		render()
 	end)
 	-- Every purchase is answered with a toast, which also ends the wait.
-	trove:Connect(Remotes.Notify.OnClientEvent, function()
+	trove:Connect(Remotes.Notify.OnClientEvent, function(_: unknown, kind: unknown)
+		local row = buying
+		buying = nil
+		if row and row.frame.Parent then
+			if kind == "Error" then
+				Flair.refuse(row.buy, row.price)
+			else
+				Flair.pulse(row.frame)
+				Flair.burst(row.buy, TextColors.COINS, 12)
+			end
+		end
 		if pending then
 			pending = false
 			render()

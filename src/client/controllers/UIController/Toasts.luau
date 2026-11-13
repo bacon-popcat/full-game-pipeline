@@ -15,8 +15,10 @@
 --   HUD.Banner          the banner's holder, top centre.
 --   Assets.UI.Toast.Toast   a slot: an empty Frame whose height this module eases, holding `Card`.
 --   Assets.UI.Toast.Banner  the banner's `Card`, which also has a `Title`.
---   Assets.UI.Toast.Icons   one Frame per kind, drawn in white; its parts take the kind's colour
---                           except those named "Cut".
+--   Assets.UI.Toast.Icons   one icon per kind, named for it: an ImageLabel of the kind's white glyph
+--                           (Shared/Icons, put there by tools/hud/polish_hud.luau) tinted with the
+--                           kind's colour, or an older Frame drawn in white whose parts take the
+--                           colour except those named "Cut".
 -- A Card is a button with a `Border` stroke, a UIScale, and `Icon`, `Item` (a ViewportFrame, shown
 -- instead of Icon for a notice about an item), `Text`, `Go` (shown when a click opens something)
 -- and, in the stack, `Count`. Cards are authored at the reference screen's pixels and wrap long
@@ -96,7 +98,7 @@ local function collect(root: Instance): Faded
 		end
 		if node:IsA("TextLabel") or node:IsA("TextButton") then
 			table.insert(faded, { node = node, property = "TextTransparency", shown = node.TextTransparency })
-		elseif node:IsA("ViewportFrame") then
+		elseif node:IsA("ViewportFrame") or node:IsA("ImageLabel") then
 			table.insert(faded, { node = node, property = "ImageTransparency", shown = node.ImageTransparency })
 		elseif node:IsA("UIStroke") then
 			table.insert(faded, { node = node, property = "Transparency", shown = node.Transparency })
@@ -141,6 +143,9 @@ local function fit(text: TextLabel, widest: number, hud: ScreenGui)
 end
 
 local function paint(icon: Instance, color: Color3)
+	if icon:IsA("ImageLabel") then
+		icon.ImageColor3 = color
+	end
 	for _, part in icon:GetDescendants() do
 		if part.Name == "Cut" then
 			continue

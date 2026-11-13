@@ -11,6 +11,12 @@
 -- Body.Hint says when the daily quests change and how far the next bonus seed is.
 -- A press waits for the next ProgressSync (ProgressService answers every request), or
 -- PENDING_FOR seconds on a dropped answer. tools/hud/quests_hud.luau authors the nodes.
+--
+-- Motion (Flair, BarMotion, TabSlide): bars and counts ease to their new values and the picked
+-- tab's highlight slides; a Claim button that can be pressed beats until it is; a quest just
+-- claimed or an order just delivered flashes its row, pops its reward and throws coin sparks; a
+-- press on a Deliver that can't deliver shakes it. The side button's Badge beats while anything
+-- waits, and bumps as its count changes.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -19,11 +25,14 @@ local Progress = require(ReplicatedStorage.Shared.Progress)
 local TextColors = require(ReplicatedStorage.Shared.TextColors)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local BarMotion = require(Libraries.BarMotion)
+local Flair = require(Libraries.Flair)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local ProgressClient = require(Libraries.ProgressClient)
+local TabSlide = require(Libraries.TabSlide)
 local UI = require(Libraries.UI)
 
 local PENDING_FOR = 2
@@ -137,10 +146,23 @@ function QuestsScreen.init(hud: ScreenGui)
 		return
 	end
 	local trove = Trove.new()
+	-- The picked tab's highlight, sliding between the two.
+	local pickTab, cleanupTab = TabSlide.bind(SKY)
+	trove:Add(cleanupTab)
 	local questRows: { QuestRow } = {}
 	local orderRows: { OrderRow } = {}
 	local tab = "Daily"
 	local pendingSince: number? = nil
+	-- Each daily slot's claimed state at the last render, so a fresh claim can celebrate; each
+	-- ready Claim button's idle beat; the order slot a Deliver was pressed on, and its item then.
+	local claimedSeen: { [number]: boolean } = {}
+	local beats: { [number]: () -> () } = {}
+	local delivering: { slot: number, item: string? }? = nil
+	local function celebrate(frame: GuiObject, reward: GuiObject, from: GuiObject)
+		Flair.pulse(frame)
+		Flair.pulse(reward)
+		Flair.burst(from, TextColors.COINS, 16)
+	end
 
 	local function send(request: (slot: number) -> (), slot: number)
 		if not pendingSince then
@@ -217,7 +239,14 @@ function QuestsScreen.init(hud: ScreenGui)
 		trove:Add(UI.bindButton(deliver.button, {
 			onActivate = function()
 				if deliver.button.Active then
+					local order = ProgressClient.get().orders[slot]
+					delivering = { slot = slot, item = if order then order.item else nil }
 					send(ProgressClient.deliverOrder, slot)
+				end
+			end,
+			onRefused = function()
+				if pendingSince == nil then
+					Flair.refuse(deliver.button, deliver.label)
 				end
 			end,
 		}))
@@ -256,8 +285,11 @@ function QuestsScreen.init(hud: ScreenGui)
 				local ready = view.done and not view.claimed
 				row.text.Text = TextColors.highlight(view.text)
 				row.reward.Text = rewardText(view.reward)
-				row.count.Text = `{Hud.number(view.progress)} / {Hud.number(view.goal)}`
-				row.fill.Size = UDim2.fromScale(if view.goal > 0 then math.min(1, view.progress / view.goal) else 1, 1)
+				local goal = view.goal
+				BarMotion.count(row.count, view.progress, function(value: number): string
+					return `{Hud.number(value)} / {Hud.number(goal)}`
+				end)
+				BarMotion.bar(row.fill, if goal > 0 then math.min(1, view.progress / goal) else 1)
 				row.fill.BackgroundColor3 = if view.done then DONE else SKY
 				setEnabled(
 					row.claim,
@@ -268,6 +300,17 @@ function QuestsScreen.init(hud: ScreenGui)
 						elseif ready then "Claim"
 						else "In progress"
 				)
+				if claimedSeen[slot] == false and view.claimed then
+					celebrate(row.frame, row.reward, row.claim.button)
+				end
+				claimedSeen[slot] = view.claimed
+				local waiting = ready and pendingSince == nil
+				if waiting and not beats[slot] then
+					beats[slot] = Flair.attention(row.claim.label)
+				elseif not waiting and beats[slot] then
+					beats[slot]()
+					beats[slot] = nil
+				end
 			end
 		end
 	end
@@ -297,8 +340,10 @@ function QuestsScreen.init(hud: ScreenGui)
 				ItemIcon.show(row.icon, item.id)
 				row.text.Text = TextColors.highlight(`{item.name} x{Hud.number(asked)}`)
 				row.reward.Text = rewardText(view.reward)
-				row.count.Text = `{Hud.number(have)} / {Hud.number(asked)}`
-				row.fill.Size = UDim2.fromScale(have / asked, 1)
+				BarMotion.count(row.count, have, function(value: number): string
+					return `{Hud.number(value)} / {Hud.number(asked)}`
+				end)
+				BarMotion.bar(row.fill, have / asked)
 				row.fill.BackgroundColor3 = if ready then DONE else SKY
 				setEnabled(
 					row.deliver,
@@ -328,6 +373,16 @@ function QuestsScreen.init(hud: ScreenGui)
 
 	local function render()
 		local snapshot = ProgressClient.get()
+		-- an order delivered: its slot now holds another order, or waits for one
+		local delivered = delivering
+		if delivered and pendingSince == nil then
+			delivering = nil
+			local order = snapshot.orders[delivered.slot]
+			local row = orderRows[delivered.slot]
+			if row and (not order or order.item ~= delivered.item or order.count == nil) then
+				celebrate(row.frame, row.reward, row.deliver.button)
+			end
+		end
 		for name, each in tabs do
 			local selected = name == tab
 			each.list.Visible = selected
@@ -337,6 +392,7 @@ function QuestsScreen.init(hud: ScreenGui)
 				each.label.TextTransparency = if selected then 0 else 0.45
 			end
 		end
+		pickTab(tabs[tab].button)
 		renderHint(snapshot)
 		if tab == "Daily" then
 			renderDaily(snapshot)
@@ -366,11 +422,32 @@ function QuestsScreen.init(hud: ScreenGui)
 	local opener = Hud.find(hud, "SideButtons.Quests", "TextButton")
 	local badge = Hud.find(hud, "SideButtons.Quests.Badge", "Frame")
 	local badgeCount = Hud.find(hud, "SideButtons.Quests.Badge.Count", "TextLabel")
+	local badgeCountSeen: number? = nil
+	local stopBadgeBeat: (() -> ())? = nil
 	local function paintBadge()
 		local count = ProgressClient.claimable() + deliverable()
 		if badge and badge:IsA("GuiObject") then
 			badge.Visible = count > 0
+			-- it beats while anything waits, and bumps as the count changes
+			if count > 0 and badgeCountSeen and badgeCountSeen ~= count then
+				if stopBadgeBeat then
+					stopBadgeBeat()
+					stopBadgeBeat = nil
+				end
+				Flair.pulse(badge)
+				task.delay(0.5, function()
+					if badge.Visible and not stopBadgeBeat then
+						stopBadgeBeat = Flair.attention(badge)
+					end
+				end)
+			elseif count > 0 and not stopBadgeBeat then
+				stopBadgeBeat = Flair.attention(badge)
+			elseif count == 0 and stopBadgeBeat then
+				stopBadgeBeat()
+				stopBadgeBeat = nil
+			end
 		end
+		badgeCountSeen = count
 		if badgeCount and badgeCount:IsA("TextLabel") then
 			badgeCount.Text = if count > 9 then "9+" else tostring(count)
 		end

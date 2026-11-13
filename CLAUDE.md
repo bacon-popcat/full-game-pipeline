@@ -40,7 +40,16 @@ Objective, notices, Quests, Achievements, block hints and save cards. The game's
 Water, Chop and TreeFall stay material. Research now has 76 projects with seven new bonuses
 (Deep Watering, Seed Saver, Lucky Swing, Night Shift, Contracts, Lab Notebook), a queue behind the
 running project, and a repeatable Mastery per tree whose ranks are the late-game coin sink
-(research.md § Mastery, § The queue).
+(research.md § Mastery, § The queue). A UI polish pass made the motion showy:
+every modal window opens with an outline flash, snapping brackets, a divider sweep with a glint and
+a springy content cascade (`libraries/WindowReveal`); buttons spring, brighten and squash, and
+their image icons hop (`libraries/UI`); bars and counts ease (`BarMotion`); tab highlights slide
+(`TabSlide`); purchases, crafts, claims and unlocks pulse and throw sparks, refusals shake, and
+waiting things beat (`Flair`). The HUD's Frame-drawn icons are now one family of uploaded image
+glyphs (`Shared/Icons`, `tools/hud/icons.py`, assets/icons/README.md), and the Research tree sits
+on a parallax night field with nebulae, shooting stars and pulses from the hub (`ResearchSky`,
+research.md § Window). The authored side is `tools/hud/polish_hud.luau`; the pre-pass HUD,
+ResearchView and Assets.UI are backed up in the place's `ServerStorage.HUDBackup_2026-11-12`.
 
 ## Domain docs
 
@@ -68,10 +77,10 @@ running project, and a repeatable Mastery per tree whose ranks are the late-game
 | `src/server/services`, `src/client/controllers` | Feature modules, started by `ModuleLoader` from each side's `initialize` script |
 | `src/server/libraries`, `src/client/libraries` | Helpers, not auto-started |
 | `default.project.json` | The Rojo tree, including every RemoteEvent |
-| `assets/sounds`, `assets/music` | Generated audio and its uploaded asset ids (README in each) |
+| `assets/sounds`, `assets/music`, `assets/icons` | Generated audio and UI images and their uploaded asset ids (README in each) |
 | `tools/balance/model.py` | The balance model (economy.md § Balance) |
 | `tools/textures` | The ground textures' generator and the Studio script that puts them on the Grass and Dirt cubes |
-| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), the welcome-back card (`welcome_hud`, after those), the Visit card (`visit_hud`, after that), the Settings window's Gifting row (`settings_hud`), Crafting window (and its upgrade panel), Shop and Robux windows, the notice card, banner and kind icons (`notice_hud`, any time), prompt card, and the Crafting side button and Menu's Robux row (`sidebar_hud`, run last) in the place file |
+| `tools/hud` | The builders that author the Menu, progress windows, the Quests window's tabs and order row (`quests_hud`, run after `progress_hud`), the welcome-back card (`welcome_hud`, after those), the Visit card (`visit_hud`, after that), the Settings window's Gifting row (`settings_hud`), Crafting window (and its upgrade panel), Shop and Robux windows, the notice card, banner and kind icons (`notice_hud`, any time), prompt card, the Crafting side button and Menu's Robux row (`sidebar_hud`), and last the polish pass (`polish_hud`: image icons in place of drawn ones, the Research sky, divider sweeps, the tab highlight and Flair's pieces) in the place file; `icons.py` draws the icon images and textures |
 | `src/shared/VFX` | `VFXPlayer`, `Layers` and the effects (the `roblox-vfx` skill), copied from the VFX project's runtime |
 
 The place file, `StarterGui.HUD` and `StarterGui.SaveMenu`, `ReplicatedStorage.Assets` (block, item, world, prop and UI

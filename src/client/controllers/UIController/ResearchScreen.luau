@@ -4,10 +4,12 @@
 -- the running project's strip along the bottom. SideButtons.Research opens it from anywhere; the
 -- screen animates itself through HubWindow's `animate`: opening ripples out from the middle (the
 -- hub, then the rings, lines and tiles in order of distance), closing draws it back in, the
--- furthest first.
+-- furthest first. Behind the canvas, Research.Sky is a night field (ResearchSky): stars and motes
+-- that parallax with the pan and zoom and a glow leaning toward the fan in view, fading in first
+-- and out last with the ripple.
 --
--- The tree is five-fold: a glowing hub sits in the middle of Research.Canvas, two orbits turning
--- round it, and each category (CATEGORIES) is a fan in its own fifth of the circle, Farming at the
+-- The tree is five-fold: a glowing hub sits in the middle of Research.Canvas, its glow and halo
+-- breathing, rings of light spreading from it and two orbits turning round it, and each category (CATEGORIES) is a fan in its own fifth of the circle, Farming at the
 -- top. A project's ring is how many projects lead to it in its category (faint guide rings mark
 -- them); it hangs off its latest need, children continuing its line (Yield1 -> Yield2) run
 -- straight on with its other branches either side, each branch in lanes of its own so no lines
@@ -47,11 +49,13 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Crafting = require(ReplicatedStorage.Shared.Crafting)
+local Icons = require(ReplicatedStorage.Shared.Icons)
 local Inventory = require(ReplicatedStorage.Shared.Inventory)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Research = require(ReplicatedStorage.Shared.Research)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local BarMotion = require(Libraries.BarMotion)
 local EconomyClient = require(Libraries.EconomyClient)
 local Hud = require(Libraries.Hud)
 local HubWindow = require(Libraries.HubWindow)
@@ -59,6 +63,7 @@ local HudVisibility = require(Libraries.HudVisibility)
 local InventoryClient = require(Libraries.InventoryClient)
 local ItemIcon = require(Libraries.ItemIcon)
 local ResearchClient = require(Libraries.ResearchClient)
+local ResearchSky = require(Libraries.ResearchSky)
 local UI = require(Libraries.UI)
 
 -- The item each line of projects shows, by the id's leading word (Belts1 -> Belts); crafting
@@ -114,6 +119,11 @@ local FAN_SPREAD = 54
 local FILL_DARK, FILL_DONE = 0.8, 0.55
 -- The hub's diameter, and its two orbits' diameters, dots and turning speeds (degrees a second).
 local HUB_SIZE = 100
+-- The hub's inner glow and outer halo, as multiples of its diameter, and how much they breathe.
+local HUB_GLOW, HUB_HALO, HUB_BREATH = 1.5, 2.6, 0.1
+-- Rings of light spreading from the hub: how many are out at once, the seconds each takes, and
+-- the diameter each reaches (just past the first ring of tiles).
+local HUB_PULSES, PULSE_FOR, PULSE_REACH = 2, 3.2, 600
 local ORBIT_SIZE, ORBIT_DOTS, ORBIT_SPEED = 150, 24, 7
 local OUTER_SIZE, OUTER_MOTES, OUTER_SPEED = 196, 3, -11
 -- Pieces a curved line is drawn with.
@@ -638,6 +648,9 @@ function ResearchScreen.init(hud: ScreenGui)
 	local links: { Link } = {}
 	local hub: GuiButton? = nil
 	local hubStroke: UIStroke? = nil
+	-- The hub's two soft glows, which breathe out of step with each other while idle.
+	local hubGlows: { Frame } = {}
+	local hubPulses: { ImageLabel } = {}
 	local orbits: { { frame: GuiObject, speed: number } } = {}
 	-- What sits on the canvas besides tiles and lines (guide rings, the hub, its orbits, tags),
 	-- with how far from the middle each is, for the ripple.
@@ -685,6 +698,47 @@ function ResearchScreen.init(hud: ScreenGui)
 	local pinchDistance: number? = nil
 	local saps: { Frame } = {}
 	local sapClock = 0
+
+	-- The night field behind the tree (Research.Sky, ResearchSky), when authored; without it the
+	-- view keeps its flat backdrop. It fades with the ripple as the backdrop does (first in, last
+	-- out) but is left out of the ripple's own capture: `skyFade` is how far it shows.
+	local skyFrame = root:FindFirstChild("Sky")
+	local skyFade = 0
+	local startSky: (() -> ())?, stopSky: (() -> ())? = nil, nil
+	-- The sky leans toward the selected tile's category, else the fan nearest the view's middle,
+	-- else (round the hub) the hub's gold.
+	local function skyTint(): Color3
+		local project = if selected then Research.get(selected) else nil
+		if project then
+			return TINTS[project.category] or COLORS.Ready
+		end
+		if shownFocus.Magnitude < FIRST_RING * 0.6 then
+			return COLORS.Ready
+		end
+		local angle = math.deg(math.atan2(shownFocus.Y, shownFocus.X)) + 90
+		return CATEGORIES[math.round(angle / (360 / #CATEGORIES)) % #CATEGORIES + 1].color
+	end
+	do
+		local templates = nodeTemplate.Parent
+		local star = if templates then templates:FindFirstChild("Star") else nil
+		local mote = if templates then templates:FindFirstChild("Mote") else nil
+		if
+			skyFrame
+			and skyFrame:IsA("GuiObject")
+			and star
+			and star:IsA("GuiObject")
+			and mote
+			and mote:IsA("GuiObject")
+		then
+			local cleanupSky
+			startSky, stopSky, cleanupSky = ResearchSky.bind(skyFrame, star, mote, function()
+				return shownFocus, shownScale, skyTint(), skyFade
+			end)
+			trove:Add(cleanupSky)
+		else
+			skyFrame = nil
+		end
+	end
 
 	-- The ripple. Every transparency under the view is taken from where it stands and eased to
 	-- clear and back, each piece of the tree at its own moment by its distance from the middle:
@@ -744,7 +798,9 @@ function ResearchScreen.init(hud: ScreenGui)
 		end
 		add(root)
 		for _, descendant in root:GetDescendants() do
-			add(descendant)
+			if not skyFrame or (descendant ~= skyFrame and not descendant:IsDescendantOf(skyFrame)) then
+				add(descendant)
+			end
 		end
 		for _, node in nodes do
 			if node.scale and node.frame.Visible then
@@ -767,6 +823,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		return alpha * alpha
 	end
 	local function applyFade(elapsed: number)
+		skyFade = 1 - goneAt(-1, elapsed)
 		for _, entry in fadeEntries do
 			local target: any = entry.instance
 			if target.Parent then
@@ -1110,7 +1167,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			if node.progress then
 				node.progress.Visible = not mystery and (state == "Running" or state == "Ready")
 				if node.fill and state == "Ready" then
-					node.fill.Size = UDim2.fromScale(1, 1)
+					BarMotion.bar(node.fill, 1)
 				end
 			end
 			node.halo.Visible = not mystery and (state == "Open" or state == "Ready")
@@ -1292,7 +1349,7 @@ function ResearchScreen.init(hud: ScreenGui)
 		local glow = circle(
 			nodeLayer,
 			UDim2.fromOffset(0, 0),
-			UDim2.fromOffset(HUB_SIZE * 1.5, HUB_SIZE * 1.5),
+			UDim2.fromOffset(HUB_SIZE * HUB_GLOW, HUB_SIZE * HUB_GLOW),
 			COLORS.Ready,
 			0.9,
 			nodeTemplate.ZIndex
@@ -1300,6 +1357,34 @@ function ResearchScreen.init(hud: ScreenGui)
 		glow.Name = "HubGlow"
 		distanceOf[glow] = 0
 		treeTrove:Add(glow)
+		local halo = circle(
+			nodeLayer,
+			UDim2.fromOffset(0, 0),
+			UDim2.fromOffset(HUB_SIZE * HUB_HALO, HUB_SIZE * HUB_HALO),
+			COLORS.Ready,
+			0.96,
+			nodeTemplate.ZIndex
+		)
+		halo.Name = "HubHalo"
+		distanceOf[halo] = 0
+		treeTrove:Add(halo)
+		hubGlows = { glow, halo }
+		table.clear(hubPulses)
+		for index = 1, HUB_PULSES do
+			local pulse = Instance.new("ImageLabel")
+			pulse.Name = "HubPulse" .. index
+			pulse.BackgroundTransparency = 1
+			pulse.Image = Icons.TEXTURES.Ring
+			pulse.ImageColor3 = COLORS.Ready
+			pulse.ImageTransparency = 1
+			pulse.AnchorPoint = Vector2.new(0.5, 0.5)
+			pulse.Size = UDim2.fromOffset(HUB_SIZE, HUB_SIZE)
+			pulse.ZIndex = 0
+			pulse.Parent = linkLayer
+			distanceOf[pulse] = 0
+			treeTrove:Add(pulse)
+			table.insert(hubPulses, pulse)
+		end
 		local orbit = Instance.new("Frame")
 		orbit.Name = "Orbit"
 		orbit.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1873,8 +1958,19 @@ function ResearchScreen.init(hud: ScreenGui)
 			leave()
 		end
 		root.Interactable = show
+		-- The sky runs from the opening until the closing ripple has finished.
+		local function settleSky()
+			skyFade = if show then 1 else 0
+			if not show and stopSky then
+				stopSky()
+			end
+		end
 		if GuiService.ReducedMotionEnabled then
 			root.Visible = show
+			settleSky()
+			if show and startSky then
+				startSky()
+			end
 			return
 		end
 		root.Visible = true
@@ -1882,6 +1978,9 @@ function ResearchScreen.init(hud: ScreenGui)
 		capture()
 		fadeClock = 0
 		applyFade(0)
+		if show and startSky then
+			startSky()
+		end
 		local total = if show then 0.05 + APPEAR_SPREAD + APPEAR else BACKDROP_AFTER + VANISH
 		stopFade = animate(total, function(alpha)
 			fadeClock = alpha * total
@@ -1890,6 +1989,7 @@ function ResearchScreen.init(hud: ScreenGui)
 			stopFade = nil
 			restoreFade()
 			root.Visible = show
+			settleSky()
 			if shown then
 				render()
 			end
@@ -1962,6 +2062,20 @@ function ResearchScreen.init(hud: ScreenGui)
 			if hubStroke then
 				hubStroke.Transparency = 0.35 * breath
 			end
+			for index, glow in hubGlows do
+				-- the halo breathes against the inner glow, so the light seems to pulse outward
+				local swell = if index == 1 then breath else 1 - breath
+				local size = HUB_SIZE * (if index == 1 then HUB_GLOW else HUB_HALO) * (1 + HUB_BREATH * swell)
+				glow.Size = UDim2.fromOffset(size, size)
+				glow.BackgroundTransparency = if index == 1 then 0.92 - 0.05 * swell else 0.975 - 0.02 * swell
+			end
+			for index, pulse in hubPulses do
+				-- evenly spaced in time; each eases out and fades as it spreads
+				local age = (now / PULSE_FOR + (index - 1) / #hubPulses) % 1
+				local size = HUB_SIZE + (PULSE_REACH - HUB_SIZE) * (1 - (1 - age) ^ 2)
+				pulse.Size = UDim2.fromOffset(size, size)
+				pulse.ImageTransparency = 0.3 + 0.7 * age
+			end
 			for _, node in nodes do
 				if node.halo.Visible then
 					local fast = node.state == "Ready"
@@ -2020,7 +2134,7 @@ function ResearchScreen.init(hud: ScreenGui)
 				elseif ResearchClient.isSynced() then "Pick an upgrade to research. It keeps going while you're away."
 				else "Loading your research..."
 			activeTime.Text = ""
-			fill.Size = UDim2.fromScale(0, 1)
+			BarMotion.bar(fill, 0)
 			return
 		end
 		local left = math.max(0, active.endsAt - workspace:GetServerTimeNow())
@@ -2035,10 +2149,10 @@ function ResearchScreen.init(hud: ScreenGui)
 				else `Researching {project.name}`
 		) .. tail
 		activeTime.Text = if ready or covered then "" else Hud.time(left)
-		fill.Size = UDim2.fromScale(progress, 1)
+		BarMotion.bar(fill, progress)
 		local node = nodes[active.id]
 		if node and node.fill then
-			node.fill.Size = UDim2.fromScale(progress, 1)
+			BarMotion.bar(node.fill, progress)
 		end
 		if selected == active.id and not ready then
 			fillPanel(info, project)

@@ -129,7 +129,21 @@ them, their templates, the Menu and Quests side buttons and the Crafting window 
 file; its header says how to run it. It builds the Quests window with its old single list, so
 run `tools/hud/quests_hud.luau` after it for the tabs, the two lists and the Order row (it
 clones what progress_hud made, and is safe to rerun), then `tools/hud/sidebar_hud.luau` (and
-after `shop_hud.luau`) to add the Robux Shop row and the Crafting side button.
+after `shop_hud.luau`) to add the Robux Shop row and the Crafting side button, and last
+`tools/hud/polish_hud.luau`, which swaps the side buttons', Menu rows' and close buttons' drawn
+icons for images and adds the motion's nodes.
+
+Motion (economy.md § Authored HUD contract has the shared pieces): each window opens with
+WindowReveal's cascade, the Menu's rows sliding in from the left. In Quests the picked tab's
+highlight slides between the two, bars and "2 / 25" counts ease to new values, a Claim that can be
+pressed beats until it is, and a quest just claimed or an order just delivered pops its row and
+reward and throws coin sparks; a press on a Deliver that can't deliver shakes it and flashes its
+label red. The side button's Badge beats while anything waits and bumps when its count changes.
+Achievement bars ease too, and a row unlocked since the window last drew it flashes as the window
+shows it, its medal throwing gold sparks. Played through on 2026-11-12: the cascade, the tab
+slide, the eased bars, and Flair's pulse, sparks and badge beat driven by hand on a quest row;
+a real claim, delivery and unlock were not reachable without changing the save, so their
+triggers are untested.
 
 ## Studio playtest
 

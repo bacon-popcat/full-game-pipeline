@@ -22,7 +22,8 @@
 -- each ticking or unticking that mutation on that pick. One list is open at a time.
 --
 -- It closes on the interact key, the close button or gamepad B, and on its own when the
--- block is picked up or the player walks out of reach.
+-- block is picked up or the player walks out of reach. Its job bar eases to the Progress
+-- attribute (BarMotion), snapping back when a job starts again.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -40,6 +41,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Trove = require(ReplicatedStorage.Packages.Trove)
 
 local Libraries = Players.LocalPlayer.PlayerScripts.Libraries
+local BarMotion = require(Libraries.BarMotion)
 local BlockText = require(Libraries.BlockText)
 local Controls = require(Libraries.Controls)
 local InventoryClient = require(Libraries.InventoryClient)
@@ -755,7 +757,7 @@ local function render()
 	local progress = target:GetAttribute("Progress")
 	-- An Auto Crafter's recipe is on its server def only, so `crafts` stands in for `recipes`.
 	ui.progress.Visible = isMachine and (def.recipes ~= nil or def.produce ~= nil or def.crafts == true)
-	ui.fill.Size = UDim2.fromScale(if typeof(progress) == "number" then math.clamp(progress, 0, 1) else 0, 1)
+	BarMotion.bar(ui.fill, if typeof(progress) == "number" then progress else 0)
 	local shownRows = BlockText.rows(target, def, false)
 	setRows(shownRows)
 	renderStrips(target, if def.route == "Filter" then shownRows else nil)

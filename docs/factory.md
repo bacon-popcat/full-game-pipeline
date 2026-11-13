@@ -326,7 +326,14 @@ crafting tier, the level an upgrade needs and every input, then tries the trade 
 copy of the inventory (inputs out, output in, so the room the inputs free counts) and applies
 it whole without yielding, with a toast and `GardenEvents.Crafted` (a puff of wood shavings
 and the Craft sound). The window and its templates are authored in the place file, by `tools/hud/progress_hud.luau`
-and `shop_hud.luau`; the side button by `tools/hud/sidebar_hud.luau`.
+and `shop_hud.luau`; the side button by `tools/hud/sidebar_hud.luau`; its image icons and the
+motion's nodes by `tools/hud/polish_hud.luau`. Motion (`libraries/Flair`, `TabSlide`): the picked
+category's highlight slides between categories; a craft that goes through pulses the preview and
+throws green sparks from the button; one refused, or a press on Craft or Upgrade while it can't
+craft, shakes the button and flashes `Status` red; and an upgrade within reach makes the header's
+UPGRADE label beat until it is opened. Played through on 2026-11-12: the slide and a press on
+Craft for a Smelter with too little Stone; a successful craft was not tried, to leave the save as
+it was.
 
 Played through in Studio: opening it from the side button far from any bench, 1 Wood into 4 Wood
 Planks, the upgrade panel for Machine Works, and closing it with C.

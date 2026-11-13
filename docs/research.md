@@ -201,12 +201,32 @@ shrinking), the backdrop last. A CanvasGroup was tried and does not work here: S
 its children unfaded and unclipped, and ViewportFrames ignore `GroupTransparency`. Reduced motion
 shows and hides it at once.
 
+**The night field.** Behind the canvas, `Research.Sky` (`client/libraries/ResearchSky`, authored by
+`tools/hud/polish_hud.luau`) is the loading screen's night sky made livelier, back to front: three
+huge nebula clouds that drift, turn and breathe (one tinted like the glow, one violet, one teal);
+a radial glow leaning toward the colour of the fan nearest the view's middle, or the selected
+tile's category, or the hub's gold near home; 34 far and 22 mid stars that twinkle; 12 glowing
+seed motes rising; a shooting star every 1.6 to 4.2 s; and a vignette over it all. Each layer
+follows the canvas's pan and zoom at its own rate (nebulae 4%, far 8%, mid 22%, motes 45%), the
+stars wrapping round the screen. It is a fixed pool of about 80 nodes made once, none catching
+input; its own RenderStepped runs only from the opening until the closing ripple ends, and the
+ripple leaves it out, fading it instead with the backdrop's timing (first in, last out). On the
+Low lighting quality every other star, the motes and the shooting stars rest hidden and the
+nebulae stop turning; under reduced motion the field holds still but still follows the canvas.
+The images are `Shared/Icons` textures (`assets/icons/README.md`). Played through on 2026-11-12:
+opening and closing (and a close and reopen mid-ripple, which left the view shown, interactable
+and fully faded in), the tint following a pan toward Automation, the pulses, a shooting star,
+and the field at a 667 x 375 view; the Low quality thinning was not tried (it needs the saved
+setting changed).
+
 All the projects form one five-fold tree on `Research.Canvas`. The view always opens centred on
 its middle with nothing selected, at 0.72 zoom.
 
 - **Hub.** A round tile with the side button's flask and a soft gold glow, a ring of dots
   turning slowly round it and a fainter ring with three bright motes turning the other way. Its
-  border breathes. Faint guide rings mark each step out from it.
+  border breathes, its glow and a wider halo swell out of step with each other, and two rings of
+  light (the `Ring` texture) keep spreading from it to just past the first ring of tiles, one
+  every 1.6 s. Faint guide rings mark each step out from it.
 - **Fans.** Each category is a fan in its own fifth of the circle, clockwise from the top:
   Farming, Automation, Economy, Tools, Crafting. Each has a colour (green, sky blue, gold, coral,
   violet) carried by its tag, its tiles' fill, a finished tile's ring, its lit lines, the unlock
@@ -263,7 +283,8 @@ its middle with nothing selected, at 0.72 zoom.
   another tile shows the same in `Research.Tooltip`, without the button.
 - **Putting the info away.** A press on empty space (not a tile, the hub, the info or the strip)
   that never becomes a drag deselects, centring the tile. Pressing the hub glides home.
-- **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill) with Cancel,
+- **Active strip.** `Body.Active` shows the running project (Text, Time, Bar.Fill, eased by
+  `client/libraries/BarMotion` like the running tile's own bar) with Cancel,
   then how many wait ("1 ready") and what is queued next ("Next: Rich Soil II +1"). Once its
   timer runs out, or while an earlier project waits, `Complete` (gold, pulsing) replaces Cancel
   and completes the first finished project; while it covers Time, the countdown moves into the
@@ -296,8 +317,11 @@ StarterGui.ResearchView [ScreenGui]      ResetOnSpawn off, IgnoreGuiInset, Scree
                                          DisplayOrder 5
   Research [Frame]   full screen, black, Active; UIScale (the fade's settle); Header.Close
     Body.Active [Frame]  Text, Time [TextLabel]; Bar.Fill [Frame]; Cancel, Complete [TextButton]
-    Canvas [Frame]  UIScale; Links, Nodes [Frame] (rings, hub, orbits, tags, lines and tiles are
-                     drawn round 0,0 by the screen)
+    Sky [Frame]      ZIndex 0, under the canvas: Nebulae (Nebula1-3 [ImageLabel], Tinted
+                     attribute), Glow [ImageLabel], Far, Mid, Near [Frame] (the screen's clones),
+                     Streaks (Streak1-3 [ImageLabel]), Vignette [ImageLabel]
+    Canvas [Frame]  UIScale; Links, Nodes [Frame] (rings, hub, orbits, pulses, tags, lines and
+                     tiles are drawn round 0,0 by the screen)
     Info [Frame]     400 px, opaque, auto-height list: Name, Description, Level, Cost,
                      Requirements [TextLabel], Items [Frame, wrapping row], Time, Needs
                      [TextLabel]; Action [TextButton] with Label
@@ -306,9 +330,10 @@ ReplicatedStorage.Assets.UI.Research.Node [TextButton]  80 px, clear; Shape [Fra
                      45 degrees, UICorner, UIGradient, UIStroke: the state ring), UIScale, Icon
                      [ViewportFrame], Name, Cost, Mystery ("?") [TextLabel], Progress.Fill [Frame]
 ReplicatedStorage.Assets.UI.Research.Link [Frame]  one 3 px line piece; its colour is the unlit one
+ReplicatedStorage.Assets.UI.Research.Star [Frame], Mote [ImageLabel]  the sky's star and mote
 ReplicatedStorage.Assets.UI.Research.Requirement [Frame]  92 x 104: Box [Frame] with UIStroke
                      (the outline) and Icon [ViewportFrame]; Label [TextLabel] under it
-StarterGui.HUD.SideButtons.Research [TextButton]  a flask icon (cloned for the hub), Tooltip
+StarterGui.HUD.SideButtons.Research [TextButton]  a flask image Icon (cloned for the hub), Tooltip
 ```
 
 Played through in Studio: the ripple in and out, the five fans with their colours, tags and

@@ -5,10 +5,22 @@
 -- A clickable thing is a bare GuiButton or a Frame wrapping a `Trigger` button;
 -- `resolveButton` handles both. Feedback animates a UIScale on `target` (found, or added
 -- once); the resting scale is captured from that UIScale, so a scale authored in Studio
--- is kept. Activation is `Activated` only -- it already unifies mouse, touch and gamepad.
+-- is kept. Hover and focus spring it up and brighten the target's own UIStroke (thicker,
+-- more opaque); a press squashes it quickly and the release springs it back past its place.
+-- A button with an image `Icon` child (the side buttons, Menu rows, close buttons) also makes
+-- its icon hop once as the pointer arrives: it pops up and wobbles back to rest, on the
+-- Icon's own UIScale and Rotation. Activation is `Activated` only -- it already unifies
+-- mouse, touch and gamepad. Roblox fires no Activated on a button that is not Active, so a
+-- click or tap on one goes to the optional `onRefused` instead, for the screen to say why.
+--
+-- The stroke lift is relative and gives way: it remembers the stroke as it was when the hover
+-- began and puts that back on leave, unless the screen changed the stroke meanwhile (a tab
+-- picked, a card selected), whose value then stands.
 --
 -- Hover is ignored while the preferred input is touch: a tap fires MouseEnter with no
--- reliable MouseLeave, which would leave the button stuck enlarged.
+-- reliable MouseLeave, which would leave the button stuck enlarged. Hover also ends when the
+-- button's ScreenGui is disabled (HudVisibility hides the HUD under the pointer, and no
+-- MouseLeave follows).
 -- An optional authored Tooltip child shares hover/focus state with the button feedback.
 
 local GuiService = game:GetService("GuiService")
@@ -25,12 +37,25 @@ export type ButtonOptions = {
 	pressScale: number?,
 	-- Receives Activated's InputObject, for callers that treat devices differently.
 	onActivate: ((input: InputObject) -> ())?,
+	-- Called when the button is clicked or tapped while not Active (Roblox fires no Activated
+	-- then), so a screen can say why nothing happened.
+	onRefused: (() -> ())?,
 }
 
-local TWEEN_INFO = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local HOVER_INFO = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local LEAVE_INFO = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local PRESS_INFO = TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local RELEASE_INFO = TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local STROKE_INFO = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TOOLTIP_TWEEN_INFO = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local DEFAULT_HOVER_SCALE = 1.05
-local DEFAULT_PRESS_SCALE = 0.95
+-- The icon hop: how far it pops and tilts as the pointer arrives, and how it settles.
+local HOP_SCALE, HOP_TILT = 1.3, -16
+local HOP_INFO = TweenInfo.new(0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local WOBBLE_INFO = TweenInfo.new(0.6, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
+-- How much a hover lifts the stroke: thicker by this many pixels, and this share less clear.
+local STROKE_THICKER, STROKE_CLEARER = 1, 0.6
+local DEFAULT_HOVER_SCALE = 1.06
+local DEFAULT_PRESS_SCALE = 0.9
 
 local UI = {}
 
@@ -146,7 +171,21 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 	local hovered = false
 	local focused = false
 	local pressed = false
+	-- Whether the last change was a release, which springs back rather than easing.
+	local released = false
 	local tween: Tween? = nil
+	local stroke = target:FindFirstChildOfClass("UIStroke")
+	-- The stroke as it was when the lift began, and what the lift aimed at.
+	local strokeRest: { transparency: number, thickness: number }? = nil
+	local strokeLift: { transparency: number, thickness: number }? = nil
+	local strokeTween: Tween? = nil
+	-- Where a return still easing is headed, so a hover arriving meanwhile lifts from there.
+	local returning: { transparency: number, thickness: number }? = nil
+	local icon = node:FindFirstChild("Icon")
+	local iconScale = if icon and icon:IsA("ImageLabel") then icon:FindFirstChildOfClass("UIScale") else nil
+	local iconRest = if iconScale then iconScale.Scale else 1
+	local iconRotation = if icon and icon:IsA("GuiObject") then icon.Rotation else 0
+	local hops: { Tween } = {}
 	local tooltip = node:FindFirstChild("Tooltip")
 	local updateTooltip: ((boolean) -> ())? = nil
 	local cleanupTooltip: (() -> ())? = nil
@@ -154,10 +193,85 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		updateTooltip, cleanupTooltip = bindTooltip(tooltip)
 	end
 
+	local function lift(on: boolean)
+		if not stroke or on == (strokeRest ~= nil) then
+			return
+		end
+		-- a lift or return still easing is this layer's own, whatever value it has reached
+		local moving = strokeTween ~= nil and strokeTween.PlaybackState == Enum.PlaybackState.Playing
+		if strokeTween then
+			strokeTween:Cancel()
+			strokeTween = nil
+		end
+		if on then
+			local from = if moving and returning
+				then returning
+				else { transparency = stroke.Transparency, thickness = stroke.Thickness }
+			returning = nil
+			strokeRest = from
+			local goal = {
+				transparency = from.transparency * (1 - STROKE_CLEARER),
+				thickness = from.thickness + STROKE_THICKER,
+			}
+			strokeLift = goal
+			if GuiService.ReducedMotionEnabled then
+				stroke.Transparency, stroke.Thickness = goal.transparency, goal.thickness
+				return
+			end
+			strokeTween = TweenService:Create(stroke, STROKE_INFO, {
+				Transparency = goal.transparency,
+				Thickness = goal.thickness,
+			})
+			strokeTween:Play()
+		elseif strokeRest then
+			local before, aimed = strokeRest, strokeLift
+			strokeRest, strokeLift = nil, nil
+			-- the screen restyled the stroke while hovered: its value stands
+			if
+				not moving
+				and aimed
+				and (
+					math.abs(stroke.Transparency - aimed.transparency) > 0.02
+					or math.abs(stroke.Thickness - aimed.thickness) > 0.02
+				)
+			then
+				return
+			end
+			if GuiService.ReducedMotionEnabled then
+				stroke.Transparency, stroke.Thickness = before.transparency, before.thickness
+				return
+			end
+			returning = before
+			strokeTween = TweenService:Create(stroke, STROKE_INFO, {
+				Transparency = before.transparency,
+				Thickness = before.thickness,
+			})
+			strokeTween:Play()
+		end
+	end
+
+	local function hop()
+		if not iconScale or not icon or not icon:IsA("GuiObject") or GuiService.ReducedMotionEnabled then
+			return
+		end
+		for _, playing in hops do
+			playing:Cancel()
+		end
+		table.clear(hops)
+		iconScale.Scale = iconRest * HOP_SCALE
+		icon.Rotation = iconRotation + HOP_TILT
+		table.insert(hops, TweenService:Create(iconScale, HOP_INFO, { Scale = iconRest }))
+		table.insert(hops, TweenService:Create(icon, WOBBLE_INFO, { Rotation = iconRotation }))
+		for _, playing in hops do
+			playing:Play()
+		end
+	end
+
 	local function apply()
 		if updateTooltip then
 			updateTooltip((hovered or focused) and UserInputService.PreferredInput ~= Enum.PreferredInput.Touch)
 		end
+		lift(hovered or focused)
 		local factor = if pressed then pressScale elseif hovered or focused then hoverScale else 1
 		if tween then
 			tween:Cancel()
@@ -167,7 +281,13 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 			scale.Scale = rest * factor
 			return
 		end
-		local nextTween = TweenService:Create(scale, TWEEN_INFO, { Scale = rest * factor })
+		local info = if pressed
+			then PRESS_INFO
+			elseif released then RELEASE_INFO
+			elseif hovered or focused then HOVER_INFO
+			else LEAVE_INFO
+		released = false
+		local nextTween = TweenService:Create(scale, info, { Scale = rest * factor })
 		nextTween:Play()
 		tween = nextTween
 	end
@@ -181,6 +301,9 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		if UserInputService.PreferredInput == Enum.PreferredInput.Touch then
 			return
 		end
+		if not hovered then
+			hop()
+		end
 		hovered = true
 		apply()
 	end)
@@ -190,6 +313,9 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		apply()
 	end)
 	trove:Connect(button.SelectionGained, function()
+		if not focused and not hovered then
+			hop()
+		end
 		focused = true
 		apply()
 	end)
@@ -202,22 +328,47 @@ function UI.bindButton(node: GuiObject, options: ButtonOptions): () -> ()
 		apply()
 	end)
 	trove:Connect(button.MouseButton1Up, function()
+		released = pressed
 		pressed = false
 		apply()
 	end)
 	trove:Connect(button.Activated, function(input: InputObject)
+		released = pressed or released
 		pressed = false
 		apply()
 		if options.onActivate then
 			options.onActivate(input)
 		end
 	end)
+	local refused = options.onRefused
+	if refused then
+		trove:Connect(button.MouseButton1Click, function()
+			if not button.Active then
+				refused()
+			end
+		end)
+	end
+	local screen = button:FindFirstAncestorOfClass("ScreenGui")
+	if screen then
+		trove:Connect(screen:GetPropertyChangedSignal("Enabled"), function()
+			if not screen.Enabled and (hovered or pressed) then
+				hovered, pressed = false, false
+				apply()
+			end
+		end)
+	end
 	trove:Add(function()
 		if cleanupTooltip then
 			cleanupTooltip()
 		end
 		if tween then
 			tween:Cancel()
+		end
+		if strokeTween then
+			strokeTween:Cancel()
+		end
+		for _, playing in hops do
+			playing:Cancel()
 		end
 	end)
 

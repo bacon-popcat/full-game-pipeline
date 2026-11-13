@@ -175,13 +175,35 @@ scale transitions for Weather and BlockInfo. Each popup requires an authored UIS
 Closing disables interaction immediately; rapid reopen cancels the old exit. Reduced motion
 settles immediately, including when enabled during a transition. Notification templates also
 carry a UIScale for an entrance pop and a shrinking fade on expiry.
+Every modal window (ZIndex 30) also plays `libraries/WindowReveal` as it opens: its outline
+flashes and settles, its corner brackets snap in from outside as their arms draw out, the Accent
+springs out from its middle, a light with a spinning glint runs along `Header.Divider` (its
+authored `Sweep.Light` and `Glint`), and Body's content fades and rises in a springy cascade, top
+to bottom, finished within 0.4 s however long the list (rows outside their scroller are left
+alone). It plays only on an open, never on a re-render, never waits on input, and is settled at
+once by every close. A window's `Cascade` attribute (false on the Welcome card, which pops its own
+parts) turns the cascade off; a Vector2 `CascadeOffset` moves where its pieces come from (the
+Menu's rows slide in from the left).
+Moments a screen calls go through `libraries/Flair`: `pulse` (a pop with a sweeping flash: a
+purchase, a craft, a claimed quest), `refuse` (a damped side-to-side shake, the cost or status
+flashing `TextColors.BAD`: a refused or impossible purchase or craft), `burst` (spark images flying
+from a piece, drawn on the authored `HUD.Fx` layer at ZIndex 60 from a fixed pool) and
+`attention` (an idle beat on something waiting: the Quests badge, a ready Claim, an affordable
+crafting upgrade). Bars and counters ease to new values through `libraries/BarMotion`, and a
+window with tabs (Quests, the Shop's stalls, Crafting's categories) slides a highlight between
+them through `libraries/TabSlide`.
 The Settings controller binds these nodes; `libraries/AudioSettings` owns the session-only
 music and sound volumes through SoundGroups, preserving MusicController's track fades.
-Side buttons use centered white icons and authored `Tooltip` frames to their right;
+Side buttons use centred image icons (an ImageLabel `Icon`, `Shared/Icons`' white glyphs tinted
+by `ImageColor3`; assets/icons/README.md) and authored `Tooltip` frames to their right;
 `libraries/UI.bindButton` shows those labels on mouse hover or gamepad focus, hiding them
 on exit or touch input. Labels expand right and fade in, then retract left and fade out;
 interrupted tweens reverse from their current state, and reduced motion skips the transition.
-Settings uses an authored geometric gear rather than an emoji.
+The same layer springs a hovered button up and brightens its own stroke, squashes it on press
+and springs it back on release, makes an image `Icon` hop and wobble once as the pointer
+arrives, and hands a click on a button that is not Active to the screen's `onRefused`. The Menu
+rows, every window's close button (a Cross) and the search boxes use the same glyph family; the
+images and the nodes they replaced are authored by `tools/hud/polish_hud.luau`.
 `PromptController` maps world proximity prompts to `Controls.INTERACT`, reserving the
 inventory binding for inventory even beside shops and section purchases, and draws every
 prompt in the Custom style: a clone of `Assets.UI.Prompt.Card` (authored by
@@ -205,11 +227,13 @@ StarterGui.HUD [ScreenGui]
   Toasts [Frame]                        bottom-stacked UIListLayout; at most four slots; Toasts.luau
                                         keeps it just above ItemName, so notices sit over the hotbar
   Banner [Frame]                        top centre, under Weather; holds one Banner card at a time (UIScale)
+  Fx [Frame]                            full screen, clear, ZIndex 60, not interactable: Flair's sparks
   Shop [Frame]                         initially hidden
     UIScale [UIScale]
     Header [Frame]
       Title [TextLabel]
-      Close [TextButton]
+      Close [TextButton]                Icon [ImageLabel] (Cross), UIScale
+      Divider [Frame]                   Sweep (clipping) > Light [Frame], Glint [ImageLabel]; hidden at rest
     Body [Frame]
       Tabs [Frame]                      SeedShop and GearShop tiles, a vertical rail
       Restock [TextLabel]               Restocks in 3:12
@@ -246,9 +270,14 @@ ReplicatedStorage.Assets.UI
                                         Icon, Item [ViewportFrame], Text, Count, Go
     Banner [TextButton]                 the banner card: Border, UIScale, Brackets, Row (Icon, Item,
                                         Column (Title, Text), Go)
-    Icons [Folder]                      one white Frame per notice kind (parts named Cut keep their colour)
-                                        All built by tools/hud/notice_hud.luau; Toasts.luau's header
-                                        owns how they behave
+    Icons [Folder]                      one white ImageLabel per notice kind (Shared/Icons; Toasts tints it)
+                                        All built by tools/hud/notice_hud.luau, the icons then swapped
+                                        by polish_hud.luau; Toasts.luau's header owns how they behave
+  Tab [Folder]
+    Highlight [Frame]                   the box TabSlide slides between tabs (UICorner, UIStroke, UIGradient)
+  Flair [Folder]
+    Flash [Frame]                       a bright band (UIGradient) Flair.pulse sweeps across a piece
+    Spark [ImageLabel]                  one spark of a Flair.burst, cloned into HUD.Fx's pool
 ```
 
 Wallet, Weather, Toasts, Shop and Sell each have their own client module. Existing
